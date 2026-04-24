@@ -237,13 +237,16 @@ function ReturForm({ initial, rokokList, salesList, onSubmit, onCancel }) {
 
         <div className="space-y-3">
           <span className="text-xs font-semibold uppercase tracking-wider text-neutral-500">Daftar Barang Retur</span>
-          {items.map((item, idx) => (
+          {items.map((item, idx) => {
+            const selectedIds = items.map((it) => it.rokok_id).filter(Boolean)
+            const available   = rokokList.filter((r) => r.aktif !== false && (!selectedIds.includes(r.id) || r.id === item.rokok_id))
+            return (
             <div key={idx} className="flex items-end gap-3">
               <div className="flex-1">
                 <Field label={idx === 0 ? "Rokok" : ""}>
                   <SelectInput value={item.rokok_id} onChange={(e) => updateItem(idx, "rokok_id", e.target.value)}>
                     <option value="">Pilih rokok</option>
-                    {rokokList.filter((r) => r.aktif !== false).map((r) => (
+                    {available.map((r) => (
                       <option key={r.id} value={r.id}>{r.nama} (stok: {r.stok ?? 0})</option>
                     ))}
                   </SelectInput>
@@ -258,7 +261,8 @@ function ReturForm({ initial, rokokList, salesList, onSubmit, onCancel }) {
                 <div className="pb-1"><IconButton icon={Trash2} onClick={() => removeItem(idx)} variant="danger" label="Hapus baris" /></div>
               )}
             </div>
-          ))}
+            )
+          })}
           <button type="button" onClick={addItem} className="w-full rounded-lg border border-dashed border-neutral-300 px-4 py-2.5 text-sm font-medium text-neutral-500 transition hover:border-neutral-400 hover:bg-neutral-50 hover:text-neutral-700">
             + Tambah Baris
           </button>

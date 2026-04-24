@@ -145,11 +145,11 @@ function PengeluaranForm({ initial, onSubmit, onCancel }) {
       <Field label="Tanggal">
         <input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} className={inputCls} required autoFocus />
       </Field>
-      <Field label="Keterangan">
-        <input type="text" value={keterangan} onChange={(e) => setKeterangan(e.target.value)} placeholder="Misal: Bensin, Makan siang, Servis motor..." className={inputCls} required />
-      </Field>
       <Field label="Jumlah (Rp)">
         <input type="number" min="1" value={jumlah} onChange={(e) => setJumlah(e.target.value)} placeholder="0" className={inputCls} required />
+      </Field>
+      <Field label="Keterangan">
+        <input type="text" value={keterangan} onChange={(e) => setKeterangan(e.target.value)} placeholder="Misal: Bensin, Makan siang, Servis motor..." className={inputCls} required />
       </Field>
       <FormActions onCancel={onCancel} disabled={!valid} submitLabel={initial ? "Simpan Perubahan" : "Tambah Pengeluaran"} />
     </form>

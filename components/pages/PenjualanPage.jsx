@@ -315,13 +315,15 @@ function PenjualanForm({ initial, rokokList, salesList, onSubmit, onCancel }) {
             const rokokData  = rokokList.find((r) => r.id === item.rokok_id)
             const itemHarga  = rokokData ? rokokData[priceProp] || 0 : 0
             const totalHarga = rokokData && item.qty ? itemHarga * Number(item.qty) : null
+            const selectedIds = items.map((it) => it.rokok_id).filter(Boolean)
+            const available   = rokokList.filter((r) => r.aktif !== false && (!selectedIds.includes(r.id) || r.id === item.rokok_id))
             return (
               <div key={idx} className="flex items-end gap-3">
                 <div className="flex-1">
                   <Field label={idx === 0 ? "Rokok" : ""}>
                     <SelectInput value={item.rokok_id} onChange={(e) => updateItem(idx, "rokok_id", e.target.value)}>
                       <option value="">Pilih rokok</option>
-                      {rokokList.filter((r) => r.aktif !== false).map((r) => (
+                      {available.map((r) => (
                         <option key={r.id} value={r.id}>{r.nama} (stok: {r.stok ?? 0})</option>
                       ))}
                     </SelectInput>
