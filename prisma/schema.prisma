@@ -1,0 +1,131 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── AUTH ────────────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── MASTER DATA ─────────────────────────────────────────────────────────────
+
+model Rokok {
+  id               String   @id @default(cuid())
+  nama             String   @unique
+  stok             Int      @default(0)
+  harga_beli       Int
+  harga_grosir     Int
+  harga_toko       Int
+  harga_perorangan Int
+  aktif            Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  distribusiItems DistribusiItem[]
+  returItems      ReturItem[]
+}
+
+model Toko {
+  id         String   @id @default(cuid())
+  nama       String   @unique
+  no_hp      String?
+  alamat     String?
+  tipe_harga String   @default("toko") // "toko" | "grosir"
+  aktif      Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  distribusi Distribusi[]
+  retur      Retur[]
+}
+
+model Sales {
+  id        String   @id @default(cuid())
+  nama      String   @unique
+  no_hp     String?
+  aktif     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  distribusi Distribusi[]
+  retur      Retur[]
+  absensi    Absensi[]
+}
+
+// ─── TRANSAKSI ───────────────────────────────────────────────────────────────
+
+model Distribusi {
+  id             String    @id @default(cuid())
+  tanggal        DateTime  @db.Date
+  tipe_penjualan String    // "Toko" | "Grosir" | "Perorangan"
+  toko_id        String?
+  sales_id       String
+  tanggal_bayar  DateTime? @db.Date
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  toko  Toko?            @relation(fields: [toko_id], references: [id])
+  sales Sales            @relation(fields: [sales_id], references: [id])
+  items DistribusiItem[]
+}
+
+model DistribusiItem {
+  id            String @id @default(cuid())
+  distribusi_id String
+  rokok_id      String
+  qty           Int
+  harga         Int
+  pembayaran    String @default("Cash") // "Cash" | "Hutang"
+
+  distribusi Distribusi @relation(fields: [distribusi_id], references: [id], onDelete: Cascade)
+  rokok      Rokok      @relation(fields: [rokok_id], references: [id])
+}
+
+model Retur {
+  id             String    @id @default(cuid())
+  tanggal        DateTime  @db.Date
+  tipe_penjualan String    // "Toko" | "Grosir" | "Perorangan"
+  toko_id        String?
+  sales_id       String
+  alasan         String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  toko  Toko?       @relation(fields: [toko_id], references: [id])
+  sales Sales       @relation(fields: [sales_id], references: [id])
+  items ReturItem[]
+}
+
+model ReturItem {
+  id       String @id @default(cuid())
+  retur_id String
+  rokok_id String
+  qty      Int
+
+  retur Retur @relation(fields: [retur_id], references: [id], onDelete: Cascade)
+  rokok Rokok @relation(fields: [rokok_id], references: [id])
+}
+
+model Absensi {
+  id        String   @id @default(cuid())
+  tanggal   DateTime @db.Date
+  sales_id  String
+  status    String   // "hadir" | "izin" | "alpha"
+  reason    String?
+  createdAt DateTime @default(now())
+
+  sales Sales @relation(fields: [sales_id], references: [id])
+
+  @@unique([tanggal, sales_id])
+}
