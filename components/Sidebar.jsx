@@ -5,9 +5,9 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { signOut } from "next-auth/react"
 import {
-  LayoutDashboard, Package, Undo2, Store, Cigarette,
+  LayoutDashboard, ShoppingCart, Undo2, Cigarette,
   Users, CalendarCheck, Menu, X, ChevronDown, ChevronRight,
-  Folder, Database, LogOut,
+  Folder, Database, LogOut, ArrowDownCircle,
 } from "lucide-react"
 
 const MENUS = [
@@ -17,8 +17,9 @@ const MENUS = [
     label: "Operasional",
     icon: Folder,
     items: [
-      { id: "distribusi", href: "/distribusi", label: "Distribusi", icon: Package },
-      { id: "retur",      href: "/retur",      label: "Retur",      icon: Undo2  },
+      { id: "penjualan",   href: "/penjualan",   label: "Penjualan",   icon: ShoppingCart   },
+      { id: "retur",       href: "/retur",        label: "Retur",       icon: Undo2          },
+      { id: "pengeluaran", href: "/pengeluaran",  label: "Pengeluaran", icon: ArrowDownCircle },
     ],
   },
   {
@@ -26,7 +27,6 @@ const MENUS = [
     label: "Master",
     icon: Database,
     items: [
-      { id: "toko",  href: "/toko",  label: "Toko",  icon: Store    },
       { id: "rokok", href: "/rokok", label: "Rokok", icon: Cigarette },
       { id: "sales", href: "/sales", label: "Sales", icon: Users     },
     ],

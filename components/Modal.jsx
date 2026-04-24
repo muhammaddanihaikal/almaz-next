@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect } from "react"
+import { createPortal } from "react-dom"
 
 export default function Modal({ title, children, onClose, width = "max-w-md" }) {
   useEffect(() => {
@@ -9,7 +10,7 @@ export default function Modal({ title, children, onClose, width = "max-w-md" }) 
     return () => window.removeEventListener("keydown", handler)
   }, [onClose])
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/40 p-4" onClick={onClose}>
       <div
         className={`w-full ${width} max-h-[90vh] overflow-y-auto rounded-xl border border-neutral-200 bg-white p-6 shadow-xl`}
@@ -28,6 +29,7 @@ export default function Modal({ title, children, onClose, width = "max-w-md" }) 
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

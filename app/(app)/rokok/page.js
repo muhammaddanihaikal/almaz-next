@@ -1,7 +1,9 @@
+import { getRokokList } from "@/actions/rokok"
 import { getDistribusi } from "@/actions/distribusi"
 import { getRetur } from "@/actions/retur"
-import { getRokokList } from "@/actions/rokok"
 import RokokPage from "@/components/pages/RokokPage"
+
+export const revalidate = 60
 
 export default async function Page() {
   const [rokokList, distribusi, retur] = await Promise.all([

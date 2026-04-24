@@ -8,8 +8,6 @@ function serialize(d) {
     id: d.id,
     tanggal: d.tanggal.toISOString().split("T")[0],
     tipe_penjualan: d.tipe_penjualan,
-    toko: d.toko?.nama || "",
-    toko_id: d.toko_id,
     sales: d.sales.nama,
     sales_id: d.sales_id,
     tanggal_bayar: d.tanggal_bayar ? d.tanggal_bayar.toISOString().split("T")[0] : null,
@@ -25,7 +23,6 @@ function serialize(d) {
 }
 
 const include = {
-  toko: true,
   sales: true,
   items: { include: { rokok: true } },
 }
@@ -41,8 +38,7 @@ export async function addDistribusi(data) {
       data: {
         tanggal: new Date(data.tanggal),
         tipe_penjualan: data.tipe_penjualan,
-        toko_id: data.toko_id || null,
-        sales_id: data.sales_id,
+                sales_id: data.sales_id,
         tanggal_bayar: data.tanggal_bayar ? new Date(data.tanggal_bayar) : null,
         items: {
           create: data.items.map((it) => ({
@@ -61,7 +57,7 @@ export async function addDistribusi(data) {
       })
     }
   })
-  revalidatePath("/distribusi")
+  revalidatePath("/penjualan")
   revalidatePath("/")
 }
 
@@ -85,8 +81,7 @@ export async function updateDistribusi(id, data) {
       data: {
         tanggal: new Date(data.tanggal),
         tipe_penjualan: data.tipe_penjualan,
-        toko_id: data.toko_id || null,
-        sales_id: data.sales_id,
+                sales_id: data.sales_id,
         tanggal_bayar: data.tanggal_bayar ? new Date(data.tanggal_bayar) : null,
         items: {
           create: data.items.map((it) => ({
@@ -105,7 +100,7 @@ export async function updateDistribusi(id, data) {
       })
     }
   })
-  revalidatePath("/distribusi")
+  revalidatePath("/penjualan")
   revalidatePath("/")
 }
 
@@ -120,6 +115,6 @@ export async function deleteDistribusi(id) {
     }
     await tx.distribusi.delete({ where: { id } })
   })
-  revalidatePath("/distribusi")
+  revalidatePath("/penjualan")
   revalidatePath("/")
 }

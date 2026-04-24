@@ -8,8 +8,6 @@ function serialize(r) {
     id: r.id,
     tanggal: r.tanggal.toISOString().split("T")[0],
     tipe_penjualan: r.tipe_penjualan,
-    toko: r.toko?.nama || "",
-    toko_id: r.toko_id,
     sales: r.sales.nama,
     sales_id: r.sales_id,
     alasan: r.alasan || "",
@@ -23,7 +21,6 @@ function serialize(r) {
 }
 
 const include = {
-  toko: true,
   sales: true,
   items: { include: { rokok: true } },
 }
@@ -39,8 +36,7 @@ export async function addRetur(data) {
       data: {
         tanggal: new Date(data.tanggal),
         tipe_penjualan: data.tipe_penjualan,
-        toko_id: data.toko_id || null,
-        sales_id: data.sales_id,
+                sales_id: data.sales_id,
         alasan: data.alasan || null,
         items: {
           create: data.items.map((it) => ({ rokok_id: it.rokok_id, qty: it.qty })),
@@ -74,8 +70,7 @@ export async function updateRetur(id, data) {
       data: {
         tanggal: new Date(data.tanggal),
         tipe_penjualan: data.tipe_penjualan,
-        toko_id: data.toko_id || null,
-        sales_id: data.sales_id,
+                sales_id: data.sales_id,
         alasan: data.alasan || null,
         items: {
           create: data.items.map((it) => ({ rokok_id: it.rokok_id, qty: it.qty })),
