@@ -3,8 +3,8 @@
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Plus, Trash2 } from "lucide-react"
-import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc, hitungProfit, downloadExcel, getRokok } from "@/lib/utils"
-import { addDistribusi, updateDistribusi, deleteDistribusi } from "@/actions/distribusi"
+import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc, downloadExcel } from "@/lib/utils"
+import { addPenjualan, updatePenjualan, deletePenjualan } from "@/actions/penjualan"
 import { Card, PageHeader, DateFilter, DownloadButton, PrimaryButton, Field, FormActions, SelectInput, SearchableSelect, inputCls, RowActions, IconButton } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
@@ -26,63 +26,95 @@ function TipeBadge({ tipe }) {
   )
 }
 
-export default function PenjualanPage({ distribusi, rokokList, salesList }) {
-  const router = useRouter()
-  const [mode, setMode] = useState(null)
-  const [editing, setEditing] = useState(null)
-  const [detail, setDetail] = useState(null)
+function StatusBadge({ status }) {
+  return status === "belum_masuk"
+    ? <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">Belum Masuk</span>
+    : <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">Lengkap</span>
+}
+
+function SampleBadge() {
+  return <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">Sample</span>
+}
+
+function SetoranCell({ record }) {
+  if (record.status === "belum_masuk") return <span className="text-neutral-300 select-none">—</span>
+  if (record.setoran_total == null) {
+    return <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">Belum diisi</span>
+  }
+  const expected = record.masukItems.filter((it) => !it.is_sample).reduce((s, it) => s + it.qty * it.harga, 0)
+  const match = record.setoran_total === expected
+  return (
+    <span className={`font-medium tabular-nums text-sm ${match ? "text-green-600" : "text-red-600"}`}>
+      {fmtIDR(record.setoran_total)}
+    </span>
+  )
+}
+
+function SampleToggle({ checked, onChange }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      className={`h-9 rounded-lg border px-2.5 text-xs font-medium transition whitespace-nowrap ${
+        checked
+          ? "border-amber-300 bg-amber-100 text-amber-700"
+          : "border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50"
+      }`}
+    >
+      Sample
+    </button>
+  )
+}
+
+export default function PenjualanPage({ penjualan, rokokList, salesList }) {
+  const router  = useRouter()
+  const [mode,      setMode]      = useState(null)
+  const [editing,   setEditing]   = useState(null)
+  const [detail,    setDetail]    = useState(null)
   const [dateRange, setDateRange] = useState(defaultDateRange("bulan_ini"))
   const [salesFilter, setSalesFilter] = useState("")
 
   const rows = useMemo(() => {
-    let filtered = filterByDateRange(distribusi, dateRange)
+    let filtered = filterByDateRange(penjualan, dateRange)
     if (salesFilter) filtered = filtered.filter((r) => r.sales_id === salesFilter)
     return sortByDateDesc(filtered)
-  }, [distribusi, dateRange, salesFilter])
+  }, [penjualan, dateRange, salesFilter])
 
   const handleDownload = () => {
     const label = dateRange?.start ? `${dateRange.start}_${dateRange.end}` : "semua-waktu"
     let no = 0
-    const flat = rows.flatMap((d) =>
-      d.items.map((it) => {
-        no++
-        return {
-          no, tanggal: d.tanggal, tipe_penjualan: d.tipe_penjualan || "",
-          sales: d.sales || "", pembayaran: it.pembayaran || "Cash",
-          tanggal_bayar: d.tanggal_bayar || "", rokok: it.rokok,
-          qty: it.qty, harga: it.harga, total: it.qty * it.harga,
-          profit: it.qty * ((it.harga || 0) - (getRokok(rokokList, it.rokok)?.harga_beli || 0)),
-        }
-      })
-    )
-    const totalQty     = flat.reduce((s, r) => s + r.qty, 0)
-    const totalRevenue = flat.reduce((s, r) => s + r.total, 0)
-    const periodeLabel = dateRange?.start ? `${fmtTanggal(dateRange.start)} s/d ${fmtTanggal(dateRange.end)}` : "Semua Waktu"
+    const flat = rows
+      .filter((r) => r.masukItems.some((it) => !it.is_sample))
+      .flatMap((r) =>
+        r.masukItems
+          .filter((it) => !it.is_sample)
+          .map((it) => {
+            no++
+            return {
+              no, tanggal: r.tanggal, sales: r.sales, tipe: r.tipe_penjualan,
+              rokok: it.rokok, qty: it.qty, harga: it.harga,
+              total: it.qty * it.harga, pembayaran: it.pembayaran,
+            }
+          })
+      )
     downloadExcel(flat, `penjualan-${label}`, [
-      { label: "No",             value: (r) => r.no },
-      { label: "Tanggal",        value: (r) => r.tanggal },
-      { label: "Tipe Penjualan", value: (r) => r.tipe_penjualan },
-      { label: "Sales",          value: (r) => r.sales },
-      { label: "Pembayaran",     value: (r) => r.pembayaran },
-      { label: "Tgl Tempo",      value: (r) => r.tanggal_bayar },
-      { label: "Rokok",          value: (r) => r.rokok },
-      { label: "Qty",            value: (r) => r.qty },
-      { label: "Harga Satuan",   value: (r) => r.harga },
-      { label: "Total",          value: (r) => r.total },
-      { label: "Profit",         value: (r) => r.profit },
-    ], [
-      ["Laporan Penjualan"], ["Periode", periodeLabel],
-      ["Total Qty Terjual", String(totalQty)],
-      ["Total Transaksi", `${rows.length} transaksi`],
-      ["Total Pendapatan", fmtIDR(totalRevenue)],
-    ], { centerData: true })
+      { label: "No",         value: (r) => r.no },
+      { label: "Tanggal",    value: (r) => r.tanggal },
+      { label: "Sales",      value: (r) => r.sales },
+      { label: "Tipe",       value: (r) => r.tipe },
+      { label: "Rokok",      value: (r) => r.rokok },
+      { label: "Qty",        value: (r) => r.qty },
+      { label: "Harga",      value: (r) => r.harga },
+      { label: "Total",      value: (r) => r.total },
+      { label: "Pembayaran", value: (r) => r.pembayaran },
+    ])
   }
 
   const close = () => { setMode(null); setEditing(null) }
 
   const handleDelete = async (r) => {
     if (!window.confirm("Hapus data penjualan ini?")) return
-    await deleteDistribusi(r.id)
+    await deletePenjualan(r.id)
     router.refresh()
   }
 
@@ -90,10 +122,10 @@ export default function PenjualanPage({ distribusi, rokokList, salesList }) {
     <div className="space-y-6">
       <PageHeader
         title="Penjualan"
-        subtitle={`Daftar semua data penjualan${dateRange?.start ? ` — ${fmtTanggal(dateRange.start)} s/d ${fmtTanggal(dateRange.end)}` : " — semua waktu"}.`}
+        subtitle={`Catatan keluar dan masuk rokok per sales${dateRange?.start ? ` — ${fmtTanggal(dateRange.start)} s/d ${fmtTanggal(dateRange.end)}` : " — semua waktu"}.`}
         action={
           <div className="flex flex-wrap items-center gap-2">
-            <DownloadButton onClick={handleDownload} disabled={!rows.length} />
+            <DownloadButton onClick={handleDownload} disabled={!rows.some((r) => r.masukItems.some((it) => !it.is_sample))} />
             <PrimaryButton onClick={() => { setEditing(null); setMode("add") }} icon={Plus}>
               Input Penjualan
             </PrimaryButton>
@@ -124,24 +156,27 @@ export default function PenjualanPage({ distribusi, rokokList, salesList }) {
           key={`${dateRange?.start}-${dateRange?.end}-${salesFilter}`}
           pageSize={PAGE_SIZE}
           rows={rows}
-          empty={dateRange?.start ? `Tidak ada penjualan dari ${fmtTanggal(dateRange.start)} s/d ${fmtTanggal(dateRange.end)}.` : "Belum ada data penjualan."}
+          empty={dateRange?.start ? `Tidak ada data dari ${fmtTanggal(dateRange.start)} s/d ${fmtTanggal(dateRange.end)}.` : "Belum ada data penjualan."}
           columns={[
-            { key: "no",      label: "No",      render: (_, idx) => idx + 1 },
+            { key: "no",      label: "No",     render: (_, idx) => idx + 1 },
             { key: "tanggal", label: "Tanggal", render: (r) => fmtTanggal(r.tanggal) },
-            { key: "tipe",    label: "Tipe",    render: (r) => <TipeBadge tipe={r.tipe_penjualan} /> },
             { key: "sales",   label: "Sales",   render: (r) => r.sales || <span className="text-neutral-400">—</span> },
+            { key: "tipe",    label: "Tipe",    render: (r) => <TipeBadge tipe={r.tipe_penjualan} /> },
+            { key: "status",  label: "Status",  render: (r) => <StatusBadge status={r.status} /> },
             {
-              key: "items", label: "Rokok",
-              render: (r) => (
-                <div className="space-y-0.5">
-                  {r.items.map((item, i) => (
-                    <div key={i} className="text-xs text-neutral-700">{i + 1}. {item.rokok} ×{item.qty}</div>
-                  ))}
-                </div>
-              ),
+              key: "keluar", label: "Keluar",
+              render: (r) => {
+                const reg = r.keluarItems.filter((it) => !it.is_sample).reduce((s, it) => s + it.qty, 0)
+                const smp = r.keluarItems.filter((it) =>  it.is_sample).reduce((s, it) => s + it.qty, 0)
+                return (
+                  <div className="text-sm tabular-nums">
+                    <span className="font-medium">{reg}</span><span className="text-neutral-400"> pcs</span>
+                    {smp > 0 && <span className="ml-1.5 text-xs text-amber-600">+{smp} sample</span>}
+                  </div>
+                )
+              },
             },
-            { key: "total",  label: "Total",  align: "right", render: (r) => fmtIDR(r.items.reduce((s, it) => s + it.qty * it.harga, 0)) },
-            { key: "profit", label: "Profit", align: "right", render: (r) => <span className="font-medium text-neutral-900">{fmtIDR(hitungProfit(rokokList, r))}</span> },
+            { key: "setoran", label: "Setoran", align: "right", render: (r) => <SetoranCell record={r} /> },
             {
               key: "actions", label: "", align: "right",
               render: (r) => (
@@ -153,24 +188,54 @@ export default function PenjualanPage({ distribusi, rokokList, salesList }) {
               ),
             },
           ]}
+          mobileRender={(r) => {
+            const reg = r.keluarItems.filter((it) => !it.is_sample).reduce((s, it) => s + it.qty, 0)
+            const smp = r.keluarItems.filter((it) =>  it.is_sample).reduce((s, it) => s + it.qty, 0)
+            return (
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="font-medium text-neutral-900">{r.sales || "—"}</span>
+                    <TipeBadge tipe={r.tipe_penjualan} />
+                    <StatusBadge status={r.status} />
+                  </div>
+                  <p className="mt-0.5 text-xs text-neutral-500">{fmtTanggal(r.tanggal)}</p>
+                  <p className="mt-1 text-xs text-neutral-600">
+                    Keluar: <span className="font-medium tabular-nums">{reg} pcs</span>
+                    {smp > 0 && <span className="ml-1 text-amber-600">+{smp} sample</span>}
+                  </p>
+                  {r.status !== "belum_masuk" && (
+                    <p className="mt-0.5 text-xs text-neutral-600">
+                      Setoran: <SetoranCell record={r} />
+                    </p>
+                  )}
+                </div>
+                <RowActions
+                  onDetail={() => setDetail(r)}
+                  onEdit={() => { setEditing(r); setMode("edit") }}
+                  onDelete={() => handleDelete(r)}
+                />
+              </div>
+            )
+          }}
         />
       </Card>
 
       {detail && (
-        <Modal title="Detail Penjualan" onClose={() => setDetail(null)} width="max-w-4xl">
-          <PenjualanDetail record={detail} rokokList={rokokList} />
+        <Modal title="Detail Penjualan" onClose={() => setDetail(null)} width="max-w-2xl">
+          <PenjualanDetail record={detail} />
         </Modal>
       )}
 
       {mode && (
-        <Modal title={mode === "add" ? "Input Penjualan" : "Edit Penjualan"} onClose={close} width="max-w-4xl">
+        <Modal title={mode === "add" ? "Input Penjualan" : "Edit Penjualan"} onClose={close} width="max-w-3xl">
           <PenjualanForm
             initial={editing}
             rokokList={rokokList}
             salesList={salesList}
             onSubmit={async (data) => {
-              if (mode === "add") await addDistribusi(data)
-              else await updateDistribusi(editing.id, data)
+              if (mode === "add") await addPenjualan(data)
+              else await updatePenjualan(editing.id, data)
               close()
               router.refresh()
             }}
@@ -182,118 +247,192 @@ export default function PenjualanPage({ distribusi, rokokList, salesList }) {
   )
 }
 
-function PenjualanDetail({ record, rokokList }) {
-  const total    = record.items.reduce((s, it) => s + it.qty * it.harga, 0)
-  const totalQty = record.items.reduce((s, it) => s + it.qty, 0)
-  const profit   = hitungProfit(rokokList, record)
+function PenjualanDetail({ record }) {
+  const masukJual    = record.masukItems.filter((it) => !it.is_sample)
+  const totalJual    = masukJual.reduce((s, it) => s + it.qty * it.harga, 0)
+  const setoranMatch = record.setoran_total != null && record.setoran_total === totalJual
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 text-sm">
+    <div className="space-y-5 text-sm">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div><p className="text-xs text-neutral-500">Tanggal</p><p className="font-medium">{fmtTanggal(record.tanggal)}</p></div>
-        {record.tipe_penjualan && <div><p className="text-xs text-neutral-500">Tipe</p><TipeBadge tipe={record.tipe_penjualan} /></div>}
-        {record.sales && <div><p className="text-xs text-neutral-500">Sales</p><p className="font-medium">{record.sales}</p></div>}
-        {record.tanggal_bayar && <div><p className="text-xs text-neutral-500">Tanggal Tempo</p><p className="font-medium text-red-600">{fmtTanggal(record.tanggal_bayar)}</p></div>}
+        <div><p className="text-xs text-neutral-500">Sales</p><p className="font-medium">{record.sales || "—"}</p></div>
+        <div><p className="text-xs text-neutral-500">Tipe</p><TipeBadge tipe={record.tipe_penjualan} /></div>
+        <div><p className="text-xs text-neutral-500">Status</p><StatusBadge status={record.status} /></div>
       </div>
+
+      {/* Keluar */}
       <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">Daftar Rokok</p>
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">Keluar (Barang Dibawa)</p>
         <div className="overflow-hidden rounded-lg border border-neutral-200">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-neutral-200 bg-neutral-50 text-xs font-medium uppercase tracking-wide text-neutral-500">
                 <th className="px-3 py-2 text-left">Rokok</th>
                 <th className="px-3 py-2 text-right">Qty</th>
-                <th className="px-3 py-2 text-right">Harga</th>
-                <th className="px-3 py-2 text-left">Pembayaran</th>
-                <th className="px-3 py-2 text-right">Subtotal</th>
-                <th className="px-3 py-2 text-right">Profit</th>
+                <th className="px-3 py-2 text-center">Jenis</th>
               </tr>
             </thead>
             <tbody>
-              {record.items.map((item, i) => {
-                const r = getRokok(rokokList, item.rokok)
-                const itemProfit = r ? item.qty * (item.harga - r.harga_beli) : 0
-                return (
-                  <tr key={i} className="border-b border-neutral-100">
-                    <td className="px-3 py-2.5">{item.rokok}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">{item.qty}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">{fmtIDR(item.harga)}</td>
-                    <td className="px-3 py-2.5"><span className="text-xs font-medium px-2 py-1 rounded-md bg-neutral-100 text-neutral-600">{item.pembayaran || "Cash"}</span></td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">{fmtIDR(item.qty * item.harga)}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-neutral-600">{fmtIDR(itemProfit)}</td>
-                  </tr>
-                )
-              })}
-              <tr className="border-t-2 border-neutral-200 bg-neutral-50">
-                <td className="px-3 py-2.5 text-xs font-semibold text-neutral-500">Total</td>
-                <td className="px-3 py-2.5 text-right text-xs font-semibold tabular-nums">{totalQty}</td>
-                <td colSpan="2" className="px-3 py-2.5"></td>
-                <td className="px-3 py-2.5 text-right text-xs font-semibold tabular-nums">{fmtIDR(total)}</td>
-                <td className="px-3 py-2.5 text-right text-xs font-semibold tabular-nums">{fmtIDR(profit)}</td>
-              </tr>
+              {record.keluarItems.map((it, i) => (
+                <tr key={i} className={`border-b border-neutral-100 ${it.is_sample ? "bg-amber-50/60" : ""}`}>
+                  <td className="px-3 py-2.5">{it.rokok}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{it.qty}</td>
+                  <td className="px-3 py-2.5 text-center">
+                    {it.is_sample ? <SampleBadge /> : <span className="text-xs text-neutral-400">Normal</span>}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* Masuk */}
+      {record.masukItems.length > 0 && (
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">Masuk (Hasil Penjualan)</p>
+          <div className="overflow-hidden rounded-lg border border-neutral-200">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-neutral-200 bg-neutral-50 text-xs font-medium uppercase tracking-wide text-neutral-500">
+                  <th className="px-3 py-2 text-left">Rokok</th>
+                  <th className="px-3 py-2 text-right">Qty</th>
+                  <th className="px-3 py-2 text-left">Pembayaran</th>
+                  <th className="px-3 py-2 text-right">Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                {record.masukItems.map((it, i) => (
+                  <tr key={i} className={`border-b border-neutral-100 ${it.is_sample ? "bg-amber-50/60" : ""}`}>
+                    <td className="px-3 py-2.5">{it.rokok}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">{it.qty}</td>
+                    <td className="px-3 py-2.5">
+                      {it.is_sample
+                        ? <SampleBadge />
+                        : <span className="rounded-md bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600">{it.pembayaran}</span>
+                      }
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">
+                      {it.is_sample ? <span className="text-neutral-400">—</span> : fmtIDR(it.qty * it.harga)}
+                    </td>
+                  </tr>
+                ))}
+                <tr className="border-t-2 border-neutral-200 bg-neutral-50">
+                  <td colSpan="3" className="px-3 py-2.5 text-xs font-semibold text-neutral-500">Total Penjualan</td>
+                  <td className="px-3 py-2.5 text-right text-xs font-semibold tabular-nums">{fmtIDR(totalJual)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Setoran */}
+      {record.masukItems.length > 0 && (
+        <div className={`flex items-center justify-between rounded-lg border px-4 py-3 ${
+          record.setoran_total == null
+            ? "border-amber-200 bg-amber-50"
+            : setoranMatch
+            ? "border-green-200 bg-green-50"
+            : "border-red-200 bg-red-50"
+        }`}>
+          <div>
+            <p className="text-xs font-medium text-neutral-500">Setoran {record.setoran_tipe || ""}</p>
+            {record.setoran_total != null
+              ? <p className={`mt-0.5 text-base font-semibold tabular-nums ${setoranMatch ? "text-green-700" : "text-red-700"}`}>{fmtIDR(record.setoran_total)}</p>
+              : <p className="mt-0.5 text-sm font-medium text-amber-700">Belum diisi</p>
+            }
+          </div>
+          {record.setoran_total != null && (
+            <span className={`text-xs font-medium ${setoranMatch ? "text-green-600" : "text-red-600"}`}>
+              {setoranMatch
+                ? "✓ Cocok"
+                : `${record.setoran_total > totalJual ? "Lebih" : "Kurang"} ${fmtIDR(Math.abs(record.setoran_total - totalJual))}`
+              }
+            </span>
+          )}
+        </div>
+      )}
     </div>
   )
 }
 
 function PenjualanForm({ initial, rokokList, salesList, onSubmit, onCancel }) {
   const today = new Date().toISOString().slice(0, 10)
-  const [tanggal, setTanggal]             = useState(initial?.tanggal || today)
+
+  const [tanggal,       setTanggal]       = useState(initial?.tanggal || today)
+  const [salesId,       setSalesId]       = useState(initial?.sales_id || "")
   const [tipePenjualan, setTipePenjualan] = useState(initial?.tipe_penjualan || "")
-  const [salesId, setSalesId]             = useState(initial?.sales_id || "")
-  const [tanggalBayar, setTanggalBayar]   = useState(initial?.tanggal_bayar || "")
-  const [items, setItems] = useState(
-    initial
-      ? initial.items.map((it) => ({ rokok_id: it.rokok_id, qty: it.qty, pembayaran: it.pembayaran || "Cash" }))
-      : [{ rokok_id: "", qty: "", pembayaran: "Cash" }, { rokok_id: "", qty: "", pembayaran: "Cash" }]
+  const [setoranTipe,   setSetoranTipe]   = useState(initial?.setoran_tipe || "")
+  const [setoranTotal,  setSetoranTotal]  = useState(initial?.setoran_total ?? "")
+
+  const [keluarItems, setKeluarItems] = useState(
+    initial?.keluarItems?.length
+      ? initial.keluarItems.map((it) => ({ rokok_id: it.rokok_id, qty: String(it.qty), is_sample: it.is_sample }))
+      : [{ rokok_id: "", qty: "", is_sample: false }, { rokok_id: "", qty: "", is_sample: false }]
+  )
+  const [masukItems, setMasukItems] = useState(
+    initial?.masukItems?.length
+      ? initial.masukItems.map((it) => ({ rokok_id: it.rokok_id, qty: String(it.qty), pembayaran: it.pembayaran, is_sample: it.is_sample }))
+      : [{ rokok_id: "", qty: "", pembayaran: "Cash", is_sample: false }, { rokok_id: "", qty: "", pembayaran: "Cash", is_sample: false }]
   )
 
-  const addItem    = () => setItems([...items, { rokok_id: "", qty: "", pembayaran: "Cash" }])
-  const removeItem = (idx) => setItems(items.filter((_, i) => i !== idx))
-  const updateItem = (idx, field, val) => setItems(items.map((item, i) => (i === idx ? { ...item, [field]: val } : item)))
+  const addKeluar    = () => setKeluarItems([...keluarItems, { rokok_id: "", qty: "", is_sample: false }])
+  const removeKeluar = (idx) => setKeluarItems(keluarItems.filter((_, i) => i !== idx))
+  const updateKeluar = (idx, field, val) => setKeluarItems(keluarItems.map((it, i) => i === idx ? { ...it, [field]: val } : it))
 
-  const priceProp  = tipePenjualan ? "harga_" + tipePenjualan.toLowerCase() : "harga_toko"
-  const validItems = items.filter((it) => it.rokok_id && Number(it.qty) > 0)
-  const adaHutang  = items.some((it) => it.pembayaran === "Hutang")
-  const valid      = tanggal && !!tipePenjualan && !!salesId && (!adaHutang || !!tanggalBayar) && validItems.length > 0
+  const addMasuk    = () => setMasukItems([...masukItems, { rokok_id: "", qty: "", pembayaran: "Cash", is_sample: false }])
+  const removeMasuk = (idx) => setMasukItems(masukItems.filter((_, i) => i !== idx))
+  const updateMasuk = (idx, field, val) => setMasukItems(masukItems.map((it, i) => i === idx ? { ...it, [field]: val } : it))
+
+  const priceProp     = tipePenjualan ? `harga_${tipePenjualan.toLowerCase()}` : null
+  const validKeluar   = keluarItems.filter((it) => it.rokok_id && Number(it.qty) > 0)
+  const validMasuk    = masukItems.filter((it) => it.rokok_id && Number(it.qty) > 0)
+  const validMasukJual = validMasuk.filter((it) => !it.is_sample)
+  const showSetoran   = validMasukJual.length > 0
+
+  const expectedSetoran = validMasukJual.reduce((s, it) => {
+    const r = rokokList.find((r) => r.id === it.rokok_id)
+    return s + (r && priceProp ? (r[priceProp] || 0) * Number(it.qty) : 0)
+  }, 0)
+  const setoranNum      = Number(setoranTotal) || 0
+  const setoranMatch    = setoranNum > 0 && setoranNum === expectedSetoran
+  const setoranMismatch = setoranNum > 0 && setoranNum !== expectedSetoran
+
+  const valid = tanggal && salesId && tipePenjualan && validKeluar.length > 0
 
   const submit = (e) => {
     e.preventDefault()
     if (!valid) return
     onSubmit({
       tanggal,
+      sales_id:       salesId,
       tipe_penjualan: tipePenjualan,
-      sales_id: salesId,
-      tanggal_bayar: adaHutang ? tanggalBayar : null,
-      items: validItems.map((it) => ({
-        rokok_id: it.rokok_id,
-        qty: Number(it.qty),
-        harga: rokokList.find((r) => r.id === it.rokok_id)?.[priceProp] || 0,
-        pembayaran: it.pembayaran,
+      keluarItems: validKeluar.map((it) => ({
+        rokok_id:  it.rokok_id,
+        qty:       Number(it.qty),
+        is_sample: it.is_sample,
       })),
+      masukItems: validMasuk.map((it) => ({
+        rokok_id:   it.rokok_id,
+        qty:        Number(it.qty),
+        harga:      it.is_sample || !priceProp ? 0 : (rokokList.find((r) => r.id === it.rokok_id)?.[priceProp] || 0),
+        pembayaran: it.is_sample ? "Cash" : it.pembayaran,
+        is_sample:  it.is_sample,
+      })),
+      setoran_tipe:  showSetoran ? (setoranTipe || null) : null,
+      setoran_total: showSetoran && setoranTotal !== "" ? Number(setoranTotal) : null,
     })
   }
 
   return (
-    <form onSubmit={submit} className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <form onSubmit={submit} className="space-y-5">
+      {/* Header */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Field label="Tanggal">
-          <input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} className={inputCls} required />
+          <input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} className={inputCls} required autoFocus />
         </Field>
-        <Field label="Tipe Penjualan">
-          <SelectInput value={tipePenjualan} onChange={(e) => setTipePenjualan(e.target.value)}>
-            <option value="">Pilih Tipe Penjualan</option>
-            <option value="Toko">Toko</option>
-            <option value="Grosir">Grosir</option>
-            <option value="Perorangan">Perorangan</option>
-          </SelectInput>
-        </Field>
-      </div>
-
-      <div className={`space-y-4${!tipePenjualan ? " pointer-events-none opacity-50 select-none" : ""}`}>
         <Field label="Sales">
           <SearchableSelect
             value={salesId}
@@ -302,75 +441,164 @@ function PenjualanForm({ initial, rokokList, salesList, onSubmit, onCancel }) {
             options={[{ value: "", label: "Pilih sales" }, ...salesList.filter((s) => s.aktif !== false).map((s) => ({ value: s.id, label: s.nama }))]}
           />
         </Field>
+        <Field label="Tipe Penjualan">
+          <SelectInput value={tipePenjualan} onChange={(e) => setTipePenjualan(e.target.value)}>
+            <option value="">Pilih tipe</option>
+            <option value="Toko">Toko</option>
+            <option value="Grosir">Grosir</option>
+            <option value="Perorangan">Perorangan</option>
+          </SelectInput>
+        </Field>
+      </div>
 
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-neutral-500">Daftar Rokok</span>
-            <div className="flex gap-1.5">
-              <button type="button" onClick={() => setItems(items.map((it) => ({ ...it, pembayaran: "Cash" })))} className="rounded-md border border-neutral-200 bg-white px-2.5 py-1 text-xs font-medium text-neutral-600 hover:bg-neutral-50">Semua Cash</button>
-              <button type="button" onClick={() => setItems(items.map((it) => ({ ...it, pembayaran: "Hutang" })))} className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100">Semua Hutang</button>
+      {/* Keluar */}
+      <SectionDivider label="Keluar (Barang Dibawa)" />
+      <div className="space-y-2">
+        {keluarItems.map((item, idx) => {
+          const selectedIds = keluarItems.map((it) => it.rokok_id).filter(Boolean)
+          const available   = rokokList.filter((r) => r.aktif !== false && (!selectedIds.includes(r.id) || r.id === item.rokok_id))
+          return (
+            <div key={idx} className={`flex items-end gap-2 rounded-lg px-2 py-1.5 transition ${item.is_sample ? "bg-amber-50" : ""}`}>
+              <div className="flex-1 min-w-0">
+                <Field label={idx === 0 ? "Rokok" : ""}>
+                  <SelectInput value={item.rokok_id} onChange={(e) => updateKeluar(idx, "rokok_id", e.target.value)}>
+                    <option value="">Pilih rokok</option>
+                    {available.map((r) => <option key={r.id} value={r.id}>{r.nama} (stok: {r.stok ?? 0})</option>)}
+                  </SelectInput>
+                </Field>
+              </div>
+              <div className="w-24 shrink-0">
+                <Field label={idx === 0 ? "Qty" : ""}>
+                  <input type="number" min="1" value={item.qty} onChange={(e) => updateKeluar(idx, "qty", e.target.value)} placeholder="0" className={inputCls} />
+                </Field>
+              </div>
+              <div className="shrink-0 pb-0.5">
+                {idx === 0 && <span className="mb-1.5 block text-xs font-medium text-neutral-600 invisible">s</span>}
+                <SampleToggle checked={item.is_sample} onChange={(v) => updateKeluar(idx, "is_sample", v)} />
+              </div>
+              {keluarItems.length > 1 && (
+                <div className="shrink-0 pb-0.5">
+                  {idx === 0 && <span className="mb-1.5 block text-xs invisible">d</span>}
+                  <IconButton icon={Trash2} onClick={() => removeKeluar(idx)} variant="danger" label="Hapus baris" />
+                </div>
+              )}
             </div>
-          </div>
-          {items.map((item, idx) => {
-            const rokokData  = rokokList.find((r) => r.id === item.rokok_id)
-            const itemHarga  = rokokData ? rokokData[priceProp] || 0 : 0
-            const totalHarga = rokokData && item.qty ? itemHarga * Number(item.qty) : null
-            const selectedIds = items.map((it) => it.rokok_id).filter(Boolean)
-            const available   = rokokList.filter((r) => r.aktif !== false && (!selectedIds.includes(r.id) || r.id === item.rokok_id))
-            return (
-              <div key={idx} className="flex items-end gap-3">
-                <div className="flex-1">
-                  <Field label={idx === 0 ? "Rokok" : ""}>
-                    <SelectInput value={item.rokok_id} onChange={(e) => updateItem(idx, "rokok_id", e.target.value)}>
-                      <option value="">Pilih rokok</option>
-                      {available.map((r) => (
-                        <option key={r.id} value={r.id}>{r.nama} (stok: {r.stok ?? 0})</option>
-                      ))}
-                    </SelectInput>
-                  </Field>
-                </div>
-                <div className="w-24">
-                  <Field label={idx === 0 ? "Qty" : ""}>
-                    <input type="number" min="1" value={item.qty} onChange={(e) => updateItem(idx, "qty", e.target.value)} placeholder="0" className={inputCls} />
-                  </Field>
-                </div>
-                <div className="w-28">
-                  <Field label={idx === 0 ? "Bayar" : ""}>
-                    <SelectInput value={item.pembayaran} onChange={(e) => updateItem(idx, "pembayaran", e.target.value)}>
+          )
+        })}
+        <AddRowButton onClick={addKeluar} />
+      </div>
+
+      {/* Masuk */}
+      <SectionDivider label="Masuk (Hasil Penjualan)" optional />
+      <div className="space-y-2">
+        {masukItems.map((item, idx) => {
+          const selectedIds = masukItems.map((it) => it.rokok_id).filter(Boolean)
+          const available   = rokokList.filter((r) => r.aktif !== false && (!selectedIds.includes(r.id) || r.id === item.rokok_id))
+          return (
+            <div key={idx} className={`flex items-end gap-2 rounded-lg px-2 py-1.5 transition ${item.is_sample ? "bg-amber-50" : ""}`}>
+              <div className="flex-1 min-w-0">
+                <Field label={idx === 0 ? "Rokok" : ""}>
+                  <SelectInput value={item.rokok_id} onChange={(e) => updateMasuk(idx, "rokok_id", e.target.value)}>
+                    <option value="">Pilih rokok</option>
+                    {available.map((r) => <option key={r.id} value={r.id}>{r.nama}</option>)}
+                  </SelectInput>
+                </Field>
+              </div>
+              <div className="w-20 shrink-0">
+                <Field label={idx === 0 ? "Qty" : ""}>
+                  <input type="number" min="1" value={item.qty} onChange={(e) => updateMasuk(idx, "qty", e.target.value)} placeholder="0" className={inputCls} />
+                </Field>
+              </div>
+              <div className="w-28 shrink-0">
+                {idx === 0 && <span className="mb-1.5 block text-xs font-medium text-neutral-600">Pembayaran</span>}
+                {item.is_sample
+                  ? <div className="flex h-9 items-center justify-center rounded-lg border border-amber-200 bg-amber-100"><span className="text-xs font-medium text-amber-600">—</span></div>
+                  : <SelectInput value={item.pembayaran} onChange={(e) => updateMasuk(idx, "pembayaran", e.target.value)}>
                       <option value="Cash">Cash</option>
+                      <option value="Transfer">Transfer</option>
                       <option value="Hutang">Hutang</option>
                     </SelectInput>
-                  </Field>
-                </div>
-                <div className="w-32">
-                  <Field label={idx === 0 ? "Total" : ""}>
-                    <input type="text" value={totalHarga !== null ? fmtIDR(totalHarga) : ""} className={inputCls + " bg-neutral-50 text-neutral-500"} readOnly placeholder="Otomatis" />
-                  </Field>
-                </div>
-                {items.length > 1 && (
-                  <div className="pb-1">
-                    <IconButton icon={Trash2} onClick={() => removeItem(idx)} variant="danger" label="Hapus baris" />
-                  </div>
-                )}
+                }
               </div>
-            )
-          })}
-          <button type="button" onClick={addItem} className="w-full rounded-lg border border-dashed border-neutral-300 px-4 py-2.5 text-sm font-medium text-neutral-500 transition hover:border-neutral-400 hover:bg-neutral-50 hover:text-neutral-700">
-            + Tambah Baris
-          </button>
-        </div>
-
-        {adaHutang && (
-          <div className="rounded-lg border border-red-100 bg-red-50 p-4 shadow-sm">
-            <p className="mb-3 text-sm font-medium text-red-800">Terdapat item Hutang. Kapan akan dibayar?</p>
-            <Field label="Tanggal Tempo">
-              <input type="date" value={tanggalBayar} onChange={(e) => setTanggalBayar(e.target.value)} className={inputCls + " border-red-200 focus:border-red-500 focus:ring-red-500"} required />
-            </Field>
-          </div>
-        )}
+              <div className="shrink-0 pb-0.5">
+                {idx === 0 && <span className="mb-1.5 block text-xs font-medium text-neutral-600 invisible">s</span>}
+                <SampleToggle checked={item.is_sample} onChange={(v) => updateMasuk(idx, "is_sample", v)} />
+              </div>
+              {masukItems.length > 1 && (
+                <div className="shrink-0 pb-0.5">
+                  {idx === 0 && <span className="mb-1.5 block text-xs invisible">d</span>}
+                  <IconButton icon={Trash2} onClick={() => removeMasuk(idx)} variant="danger" label="Hapus baris" />
+                </div>
+              )}
+            </div>
+          )
+        })}
+        <AddRowButton onClick={addMasuk} />
       </div>
+
+      {/* Setoran */}
+      {showSetoran && (
+        <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 space-y-3">
+          <SectionDivider label="Setoran" optional />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Tipe Setoran">
+              <SelectInput value={setoranTipe} onChange={(e) => setSetoranTipe(e.target.value)}>
+                <option value="">Pilih tipe</option>
+                <option value="Cash">Cash</option>
+                <option value="Transfer">Transfer</option>
+              </SelectInput>
+            </Field>
+            <div>
+              <Field label="Total Setoran">
+                <input
+                  type="number"
+                  value={setoranTotal}
+                  onChange={(e) => setSetoranTotal(e.target.value)}
+                  placeholder={String(expectedSetoran)}
+                  className={
+                    inputCls +
+                    (setoranMatch    ? " border-green-500 focus:border-green-600 focus:ring-green-500/10"
+                    : setoranMismatch ? " border-red-400   focus:border-red-500   focus:ring-red-500/10"
+                    : "")
+                  }
+                />
+              </Field>
+              <p className={`mt-1 text-xs ${setoranMatch ? "text-green-600" : setoranMismatch ? "text-red-600" : "text-neutral-400"}`}>
+                {setoranMatch
+                  ? "✓ Cocok dengan total penjualan"
+                  : setoranMismatch
+                  ? `${setoranNum > expectedSetoran ? "Lebih" : "Kurang"} ${fmtIDR(Math.abs(setoranNum - expectedSetoran))} dari ${fmtIDR(expectedSetoran)}`
+                  : `Ekspektasi: ${fmtIDR(expectedSetoran)}`
+                }
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <FormActions onCancel={onCancel} disabled={!valid} submitLabel={initial ? "Simpan Perubahan" : "Simpan Penjualan"} />
     </form>
+  )
+}
+
+function SectionDivider({ label, optional }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-xs font-semibold uppercase tracking-wider text-neutral-500 whitespace-nowrap">{label}</span>
+      {optional && <span className="text-xs text-neutral-400">(opsional)</span>}
+      <div className="flex-1 border-t border-neutral-200" />
+    </div>
+  )
+}
+
+function AddRowButton({ onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full rounded-lg border border-dashed border-neutral-300 px-4 py-2.5 text-sm font-medium text-neutral-500 transition hover:border-neutral-400 hover:bg-neutral-50 hover:text-neutral-700"
+    >
+      + Tambah Baris
+    </button>
   )
 }
