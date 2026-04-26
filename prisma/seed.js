@@ -47,156 +47,167 @@ async function main() {
     sales.push(item)
   }
 
-  // Helper harga per tipe
-  const harga = (r, tipe) => tipe === "Toko" ? r.harga_toko : tipe === "Grosir" ? r.harga_grosir : r.harga_perorangan
+  // 5 Toko
+  const tokoData = [
+    { nama: "Toko Maju Jaya",      tipe: "Toko",   alamat: "Jl. Pasar Baru No. 12" },
+    { nama: "Toko Berkah Mandiri", tipe: "Toko",   alamat: "Jl. Veteran No. 45"    },
+    { nama: "Grosir Makmur",       tipe: "Grosir", alamat: "Jl. Industri No. 8"    },
+    { nama: "Toko Sumber Rezeki",  tipe: "Toko",   alamat: "Jl. Raya Timur No. 22" },
+    { nama: "Grosir Agung",        tipe: "Grosir", alamat: "Jl. Perdagangan No. 3" },
+  ]
+
+  const toko = []
+  for (const t of tokoData) {
+    const item = await prisma.toko.upsert({ where: { nama: t.nama }, update: {}, create: t })
+    toko.push(item)
+  }
+
+  const h = (r, tipe) => tipe === "Toko" ? r.harga_toko : r.harga_grosir
 
   // 9 Penjualan (6 Lengkap + 3 Belum Masuk hari ini)
-  // Setoran: 4 cocok (hijau), 2 tidak cocok (merah), 3 belum masuk (kuning)
   const penjualanData = [
     // ── LENGKAP ──────────────────────────────────────────────────────────────
     {
-      tanggal: new Date("2026-03-01"), tipe: "Toko", sales: sales[0],
+      tanggal: new Date("2026-03-01"), toko: toko[0], sales: sales[0],
       keluar: [
-        { r: rokok[0], qty: 15, is_sample: false },
-        { r: rokok[1], qty: 10, is_sample: false },
-        { r: rokok[7], qty:  3, is_sample: true  }, // GG Merah sample
+        { r: rokok[0], qty: 15, qty_sample: 0 },
+        { r: rokok[1], qty: 10, qty_sample: 0 },
+        { r: rokok[7], qty:  5, qty_sample: 2 },
       ],
       masuk: [
-        { r: rokok[0], qty: 12, pembayaran: "Cash",   is_sample: false },
-        { r: rokok[1], qty:  8, pembayaran: "Hutang", is_sample: false },
-        { r: rokok[7], qty:  3, pembayaran: "Cash",   is_sample: true  },
+        { r: rokok[0], qty: 12, qty_sample: 0, pembayaran: "Cash"   },
+        { r: rokok[1], qty:  8, qty_sample: 0, pembayaran: "Hutang" },
+        { r: rokok[7], qty:  4, qty_sample: 2, pembayaran: "Cash"   },
       ],
       setoran_tipe:  "Cash",
-      setoran_total: 12 * 23000 + 8 * 25000, // 476.000 — cocok
+      // 12*23000 + 8*25000 + 4*21000 = 276000 + 200000 + 84000 = 560000 — cocok
+      get setoran_total() { return 12 * h(rokok[0], "Toko") + 8 * h(rokok[1], "Toko") + 4 * h(rokok[7], "Toko") },
     },
     {
-      tanggal: new Date("2026-03-05"), tipe: "Grosir", sales: sales[1],
+      tanggal: new Date("2026-03-05"), toko: toko[2], sales: sales[1],
       keluar: [
-        { r: rokok[2], qty: 20, is_sample: false },
-        { r: rokok[3], qty: 15, is_sample: false },
-        { r: rokok[4], qty:  2, is_sample: true  }, // Camel sample
+        { r: rokok[2], qty: 20, qty_sample: 0 },
+        { r: rokok[3], qty: 15, qty_sample: 0 },
+        { r: rokok[4], qty:  8, qty_sample: 2 },
       ],
       masuk: [
-        { r: rokok[2], qty: 18, pembayaran: "Cash", is_sample: false },
-        { r: rokok[3], qty: 12, pembayaran: "Cash", is_sample: false },
-        { r: rokok[4], qty:  2, pembayaran: "Cash", is_sample: true  },
+        { r: rokok[2], qty: 18, qty_sample: 0, pembayaran: "Cash"     },
+        { r: rokok[3], qty: 12, qty_sample: 0, pembayaran: "Cash"     },
+        { r: rokok[4], qty:  6, qty_sample: 2, pembayaran: "Transfer" },
       ],
       setoran_tipe:  "Transfer",
-      setoran_total: 18 * 27000 + 12 * 30000, // 846.000 — cocok
+      // 18*27000 + 12*30000 + 6*26000 = 486000 + 360000 + 156000 = 1002000 — cocok
+      get setoran_total() { return 18 * h(rokok[2], "Grosir") + 12 * h(rokok[3], "Grosir") + 6 * h(rokok[4], "Grosir") },
     },
     {
-      tanggal: new Date("2026-03-10"), tipe: "Perorangan", sales: sales[2],
+      tanggal: new Date("2026-03-10"), toko: null, sales: sales[2],
       keluar: [
-        { r: rokok[5], qty:  8, is_sample: false },
-        { r: rokok[4], qty:  5, is_sample: false },
-        { r: rokok[6], qty:  1, is_sample: true  }, // Dunhill sample
+        { r: rokok[5], qty:  8, qty_sample: 0 },
+        { r: rokok[4], qty:  5, qty_sample: 1 },
       ],
       masuk: [
-        { r: rokok[5], qty: 7, pembayaran: "Cash", is_sample: false },
-        { r: rokok[4], qty: 4, pembayaran: "Cash", is_sample: false },
-        { r: rokok[6], qty: 1, pembayaran: "Cash", is_sample: true  },
+        { r: rokok[5], qty: 7, qty_sample: 0, pembayaran: "Cash" },
+        { r: rokok[4], qty: 4, qty_sample: 1, pembayaran: "Cash" },
       ],
       setoran_tipe:  "Cash",
-      setoran_total: 280000, // ekspektasi 284.000 — kurang 4.000 (merah)
+      setoran_total: 280000, // ekspektasi lebih tinggi — tidak cocok (merah)
     },
     {
-      tanggal: new Date("2026-03-18"), tipe: "Toko", sales: sales[3],
+      tanggal: new Date("2026-03-18"), toko: toko[1], sales: sales[3],
       keluar: [
-        { r: rokok[7], qty: 30, is_sample: false },
-        { r: rokok[8], qty: 20, is_sample: false },
-        { r: rokok[9], qty:  3, is_sample: true  }, // Wismilak sample
+        { r: rokok[7], qty: 30, qty_sample: 0 },
+        { r: rokok[8], qty: 20, qty_sample: 0 },
+        { r: rokok[9], qty:  5, qty_sample: 3 },
       ],
       masuk: [
-        { r: rokok[7], qty: 28, pembayaran: "Cash",   is_sample: false },
-        { r: rokok[8], qty: 18, pembayaran: "Hutang", is_sample: false },
-        { r: rokok[9], qty:  3, pembayaran: "Cash",   is_sample: true  },
+        { r: rokok[7], qty: 28, qty_sample: 0, pembayaran: "Cash"   },
+        { r: rokok[8], qty: 18, qty_sample: 0, pembayaran: "Hutang" },
+        { r: rokok[9], qty:  4, qty_sample: 3, pembayaran: "Cash"   },
       ],
       setoran_tipe:  "Cash",
-      setoran_total: 28 * 21000 + 18 * 18000, // 912.000 — cocok
+      // 28*21000 + 18*18000 + 4*24000 = 588000 + 324000 + 96000 = 1008000 — cocok
+      get setoran_total() { return 28 * h(rokok[7], "Toko") + 18 * h(rokok[8], "Toko") + 4 * h(rokok[9], "Toko") },
     },
     {
-      tanggal: new Date("2026-04-03"), tipe: "Grosir", sales: sales[4],
+      tanggal: new Date("2026-04-03"), toko: toko[4], sales: sales[4],
       keluar: [
-        { r: rokok[0], qty: 25, is_sample: false },
-        { r: rokok[6], qty: 20, is_sample: false },
-        { r: rokok[2], qty:  2, is_sample: true  }, // DSS sample
+        { r: rokok[0], qty: 25, qty_sample: 0 },
+        { r: rokok[6], qty: 20, qty_sample: 0 },
+        { r: rokok[2], qty:  5, qty_sample: 2 },
       ],
       masuk: [
-        { r: rokok[0], qty: 22, pembayaran: "Cash", is_sample: false },
-        { r: rokok[6], qty: 15, pembayaran: "Cash", is_sample: false },
-        { r: rokok[2], qty:  2, pembayaran: "Cash", is_sample: true  },
+        { r: rokok[0], qty: 22, qty_sample: 0, pembayaran: "Cash"     },
+        { r: rokok[6], qty: 15, qty_sample: 0, pembayaran: "Cash"     },
+        { r: rokok[2], qty:  4, qty_sample: 2, pembayaran: "Transfer" },
       ],
       setoran_tipe:  "Transfer",
-      setoran_total: 22 * 22000 + 15 * 28000, // 904.000 — cocok
+      // 22*22000 + 15*28000 + 4*27000 = 484000 + 420000 + 108000 = 1012000 — cocok
+      get setoran_total() { return 22 * h(rokok[0], "Grosir") + 15 * h(rokok[6], "Grosir") + 4 * h(rokok[2], "Grosir") },
     },
     {
-      tanggal: new Date("2026-04-10"), tipe: "Toko", sales: sales[0],
+      tanggal: new Date("2026-04-10"), toko: toko[0], sales: sales[0],
       keluar: [
-        { r: rokok[1], qty: 20, is_sample: false },
-        { r: rokok[3], qty: 15, is_sample: false },
-        { r: rokok[5], qty:  2, is_sample: true  }, // LA Bold sample
+        { r: rokok[1], qty: 20, qty_sample: 0 },
+        { r: rokok[3], qty: 15, qty_sample: 2 },
       ],
       masuk: [
-        { r: rokok[1], qty: 18, pembayaran: "Hutang", is_sample: false },
-        { r: rokok[3], qty: 12, pembayaran: "Cash",   is_sample: false },
-        { r: rokok[5], qty:  2, pembayaran: "Cash",   is_sample: true  },
+        { r: rokok[1], qty: 18, qty_sample: 0, pembayaran: "Hutang" },
+        { r: rokok[3], qty: 12, qty_sample: 2, pembayaran: "Cash"   },
       ],
       setoran_tipe:  "Cash",
-      setoran_total: 830000, // ekspektasi 834.000 — kurang 4.000 (merah)
+      setoran_total: 830000, // ekspektasi lebih — tidak cocok (merah)
     },
 
     // ── BELUM MASUK (hari ini) ────────────────────────────────────────────────
     {
-      tanggal: new Date("2026-04-26"), tipe: "Toko", sales: sales[1],
+      tanggal: new Date("2026-04-26"), toko: toko[1], sales: sales[1],
       keluar: [
-        { r: rokok[0], qty: 20, is_sample: false },
-        { r: rokok[7], qty: 15, is_sample: false },
-        { r: rokok[8], qty:  3, is_sample: true  }, // Sampoerna Kretek sample
+        { r: rokok[0], qty: 20, qty_sample: 0 },
+        { r: rokok[7], qty: 15, qty_sample: 3 },
       ],
       masuk: [], setoran_tipe: null, setoran_total: null,
     },
     {
-      tanggal: new Date("2026-04-26"), tipe: "Grosir", sales: sales[2],
+      tanggal: new Date("2026-04-26"), toko: toko[2], sales: sales[2],
       keluar: [
-        { r: rokok[2], qty: 30, is_sample: false },
-        { r: rokok[3], qty: 20, is_sample: false },
-        { r: rokok[4], qty:  2, is_sample: true  }, // Camel sample
+        { r: rokok[2], qty: 30, qty_sample: 0 },
+        { r: rokok[3], qty: 20, qty_sample: 2 },
       ],
       masuk: [], setoran_tipe: null, setoran_total: null,
     },
     {
-      tanggal: new Date("2026-04-26"), tipe: "Perorangan", sales: sales[3],
+      tanggal: new Date("2026-04-26"), toko: null, sales: sales[3],
       keluar: [
-        { r: rokok[9], qty: 10, is_sample: false },
-        { r: rokok[5], qty:  8, is_sample: false },
-        { r: rokok[6], qty:  1, is_sample: true  }, // Dunhill sample
+        { r: rokok[9], qty: 10, qty_sample: 0 },
+        { r: rokok[5], qty:  8, qty_sample: 1 },
       ],
       masuk: [], setoran_tipe: null, setoran_total: null,
     },
   ]
 
   for (const d of penjualanData) {
+    const tipe = d.toko?.tipe || null
     await prisma.penjualan.create({
       data: {
-        tanggal:        d.tanggal,
-        tipe_penjualan: d.tipe,
-        sales_id:       d.sales.id,
-        setoran_tipe:   d.setoran_tipe,
-        setoran_total:  d.setoran_total,
+        tanggal:       d.tanggal,
+        sales_id:      d.sales.id,
+        toko_id:       d.toko?.id || null,
+        setoran_tipe:  d.setoran_tipe,
+        setoran_total: d.setoran_total,
         keluarItems: {
           create: d.keluar.map((it) => ({
-            rokok_id:  it.r.id,
-            qty:       it.qty,
-            is_sample: it.is_sample,
+            rokok_id:   it.r.id,
+            qty:        it.qty,
+            qty_sample: it.qty_sample || 0,
           })),
         },
         masukItems: {
           create: d.masuk.map((it) => ({
             rokok_id:   it.r.id,
             qty:        it.qty,
-            harga:      it.is_sample ? 0 : harga(it.r, d.tipe),
+            qty_sample: it.qty_sample || 0,
+            harga:      tipe ? h(it.r, tipe) : 0,
             pembayaran: it.pembayaran,
-            is_sample:  it.is_sample,
           })),
         },
       },
@@ -234,12 +245,32 @@ async function main() {
     })
   }
 
+  // 10 Pengeluaran
+  const pengeluaranData = [
+    { tanggal: new Date("2026-03-02"), jumlah: 150000, keterangan: "Bensin motor sales" },
+    { tanggal: new Date("2026-03-07"), jumlah: 300000, keterangan: "Biaya pengiriman" },
+    { tanggal: new Date("2026-03-12"), jumlah: 50000,  keterangan: "Alat tulis kantor" },
+    { tanggal: new Date("2026-03-20"), jumlah: 200000, keterangan: "Makan siang tim" },
+    { tanggal: new Date("2026-03-25"), jumlah: 500000, keterangan: "Servis kendaraan" },
+    { tanggal: new Date("2026-04-01"), jumlah: 150000, keterangan: "Bensin motor sales" },
+    { tanggal: new Date("2026-04-05"), jumlah: 250000, keterangan: "Biaya pengiriman" },
+    { tanggal: new Date("2026-04-08"), jumlah: 75000,  keterangan: "Fotokopi dokumen" },
+    { tanggal: new Date("2026-04-12"), jumlah: 400000, keterangan: "Perbaikan gudang" },
+    { tanggal: new Date("2026-04-15"), jumlah: 180000, keterangan: "Bensin motor sales" },
+  ]
+
+  for (const p of pengeluaranData) {
+    await prisma.pengeluaran.create({ data: p })
+  }
+
   console.log("Seed done!")
   console.log(`- 1 user admin`)
   console.log(`- ${rokok.length} rokok`)
   console.log(`- ${sales.length} sales`)
-  console.log(`- ${penjualanData.length} penjualan (${penjualanData.filter(d => d.masuk.length > 0).length} lengkap, ${penjualanData.filter(d => d.masuk.length === 0).length} belum masuk)`)
+  console.log(`- ${toko.length} toko`)
+  console.log(`- ${penjualanData.length} penjualan`)
   console.log(`- ${returData.length} retur`)
+  console.log(`- ${pengeluaranData.length} pengeluaran`)
 }
 
 main()

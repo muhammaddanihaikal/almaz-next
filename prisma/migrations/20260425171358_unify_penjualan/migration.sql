@@ -39,11 +39,24 @@ CREATE TABLE "Sales" (
 );
 
 -- CreateTable
+CREATE TABLE "Toko" (
+    "id" TEXT NOT NULL,
+    "nama" TEXT NOT NULL,
+    "tipe" TEXT NOT NULL,
+    "alamat" TEXT,
+    "aktif" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Toko_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "Penjualan" (
     "id" TEXT NOT NULL,
     "tanggal" DATE NOT NULL,
     "sales_id" TEXT NOT NULL,
-    "tipe_penjualan" TEXT NOT NULL,
+    "toko_id" TEXT,
     "setoran_tipe" TEXT,
     "setoran_total" INTEGER,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -58,7 +71,7 @@ CREATE TABLE "PenjualanKeluar" (
     "penjualan_id" TEXT NOT NULL,
     "rokok_id" TEXT NOT NULL,
     "qty" INTEGER NOT NULL,
-    "is_sample" BOOLEAN NOT NULL DEFAULT false,
+    "qty_sample" INTEGER NOT NULL DEFAULT 0,
 
     CONSTRAINT "PenjualanKeluar_pkey" PRIMARY KEY ("id")
 );
@@ -69,9 +82,9 @@ CREATE TABLE "PenjualanMasuk" (
     "penjualan_id" TEXT NOT NULL,
     "rokok_id" TEXT NOT NULL,
     "qty" INTEGER NOT NULL,
+    "qty_sample" INTEGER NOT NULL DEFAULT 0,
     "harga" INTEGER NOT NULL DEFAULT 0,
     "pembayaran" TEXT NOT NULL DEFAULT 'Cash',
-    "is_sample" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "PenjualanMasuk_pkey" PRIMARY KEY ("id")
 );
@@ -133,10 +146,16 @@ CREATE UNIQUE INDEX "Rokok_nama_key" ON "Rokok"("nama");
 CREATE UNIQUE INDEX "Sales_nama_key" ON "Sales"("nama");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "Toko_nama_key" ON "Toko"("nama");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Absensi_tanggal_sales_id_key" ON "Absensi"("tanggal", "sales_id");
 
 -- AddForeignKey
 ALTER TABLE "Penjualan" ADD CONSTRAINT "Penjualan_sales_id_fkey" FOREIGN KEY ("sales_id") REFERENCES "Sales"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Penjualan" ADD CONSTRAINT "Penjualan_toko_id_fkey" FOREIGN KEY ("toko_id") REFERENCES "Toko"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "PenjualanKeluar" ADD CONSTRAINT "PenjualanKeluar_penjualan_id_fkey" FOREIGN KEY ("penjualan_id") REFERENCES "Penjualan"("id") ON DELETE CASCADE ON UPDATE CASCADE;
