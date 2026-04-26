@@ -56,3 +56,11 @@ export async function toggleAktifRokok(id) {
   await prisma.rokok.update({ where: { id }, data: { aktif: !r.aktif } })
   revalidatePath("/rokok")
 }
+
+export async function tambahStok(id, qty) {
+  await prisma.rokok.update({
+    where: { id },
+    data: { stok: { increment: qty } },
+  })
+  revalidatePath("/rokok")
+}

@@ -254,6 +254,58 @@ export async function submitLaporanSore(id, data) {
   revalidatePath("/")
 }
 
+export async function editLaporanSore(id, data) {
+  const rokokList = await prisma.rokok.findMany()
+  const hargaMap  = {}
+  for (const r of rokokList) {
+    hargaMap[r.id] = { grosir: r.harga_grosir, toko: r.harga_toko, perorangan: r.harga_perorangan }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    // Reverse stok dari barang kembali lama
+    const oldKembali = await tx.sesiBarangKembali.findMany({ where: { sesi_id: id } })
+    for (const it of oldKembali) {
+      await tx.rokok.update({ where: { id: it.rokok_id }, data: { stok: { decrement: it.qty } } })
+    }
+
+    // Hapus data laporan lama (penjualan, setoran, barang kembali)
+    await tx.sesiPenjualan.deleteMany({ where: { sesi_id: id } })
+    await tx.sesiSetoran.deleteMany({   where: { sesi_id: id } })
+    await tx.sesiBarangKembali.deleteMany({ where: { sesi_id: id } })
+
+    // Insert penjualan baru
+    const penjualan = data.penjualan || []
+    await tx.sesiPenjualan.createMany({
+      data: penjualan.map((it) => ({
+        sesi_id:  id,
+        rokok_id: it.rokok_id,
+        kategori: it.kategori,
+        qty:      it.qty,
+        harga:    hargaMap[it.rokok_id]?.[it.kategori] || 0,
+      })),
+    })
+
+    // Insert setoran baru
+    const setoran = data.setoran || []
+    await tx.sesiSetoran.createMany({
+      data: setoran.map((it) => ({ sesi_id: id, metode: it.metode, jumlah: it.jumlah })),
+    })
+
+    // Insert barang kembali baru & update stok
+    const kembali = data.barangKembali || []
+    await tx.sesiBarangKembali.createMany({
+      data: kembali.map((it) => ({ sesi_id: id, rokok_id: it.rokok_id, qty: it.qty })),
+    })
+    for (const it of kembali) {
+      await tx.rokok.update({ where: { id: it.rokok_id }, data: { stok: { increment: it.qty } } })
+    }
+    // Tidak mengubah status sesi (tetap "selesai")
+  })
+  revalidatePath("/distribusi")
+  revalidatePath("/konsinyasi")
+  revalidatePath("/")
+}
+
 export async function deleteSesi(id) {
   await prisma.$transaction(async (tx) => {
     const sesi = await tx.sesiHarian.findUnique({

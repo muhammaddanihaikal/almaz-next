@@ -1,10 +1,10 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, Fragment } from "react"
 import { useRouter } from "next/navigation"
 import { Plus, Trash2, AlertCircle, CheckCircle, ChevronDown, ChevronUp } from "lucide-react"
 import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc } from "@/lib/utils"
-import { createSesi, updateSesiPagi, submitLaporanSore, deleteSesi } from "@/actions/distribusi"
+import { createSesi, updateSesiPagi, submitLaporanSore, editLaporanSore, deleteSesi } from "@/actions/distribusi"
 import {
   Card, PageHeader, DateFilter, PrimaryButton, Field, FormActions,
   SearchableSelect, SelectInput, inputCls, RowActions, IconButton,
@@ -38,7 +38,8 @@ export default function DistribusiPage({ sesiList, rokokList, salesList }) {
   const [mode,    setMode]    = useState(null)
   const [editing, setEditing] = useState(null)
   const [detail,  setDetail]  = useState(null)
-  const [laporanSesi, setLaporanSesi] = useState(null)
+  const [laporanSesi,  setLaporanSesi]  = useState(null) // input laporan baru (status aktif)
+  const [editLaporan,  setEditLaporan]  = useState(null) // edit laporan (status selesai)
   const [dateRange,   setDateRange]   = useState(defaultDateRange("bulan_ini"))
   const [salesFilter, setSalesFilter] = useState("")
 
@@ -129,6 +130,14 @@ export default function DistribusiPage({ sesiList, rokokList, salesList }) {
                       Input Laporan
                     </button>
                   )}
+                  {r.status === "selesai" && (
+                    <button
+                      onClick={() => setEditLaporan(r)}
+                      className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"
+                    >
+                      Edit Laporan
+                    </button>
+                  )}
                   <RowActions
                     onDetail={() => setDetail(r)}
                     onEdit={() => { setEditing(r); setMode("edit") }}
@@ -175,6 +184,22 @@ export default function DistribusiPage({ sesiList, rokokList, salesList }) {
               router.refresh()
             }}
             onCancel={() => setLaporanSesi(null)}
+          />
+        </Modal>
+      )}
+
+      {editLaporan && (
+        <Modal title={`Edit Laporan — ${editLaporan.sales} (${fmtTanggal(editLaporan.tanggal)})`} onClose={() => setEditLaporan(null)} width="max-w-4xl">
+          <LaporanSoreForm
+            sesi={editLaporan}
+            rokokList={rokokList}
+            isEdit
+            onSubmit={async (data) => {
+              await editLaporanSore(editLaporan.id, { ...data, sales_id: editLaporan.sales_id, tanggal: editLaporan.tanggal })
+              setEditLaporan(null)
+              router.refresh()
+            }}
+            onCancel={() => setEditLaporan(null)}
           />
         </Modal>
       )}
@@ -415,9 +440,18 @@ function SesiPagiForm({ initial, rokokList, salesList, onSubmit, onCancel }) {
 
 // ─── Form Laporan Sore ────────────────────────────────────────────────────────
 
-function LaporanSoreForm({ sesi, rokokList, onSubmit, onCancel }) {
-  const [penjualan,    setPenjualan]    = useState(buildDefaultPenjualan(sesi.barangKeluar))
-  const [setoran,      setSetoran]      = useState([{ metode: "cash", jumlah: "" }])
+function LaporanSoreForm({ sesi, rokokList, isEdit = false, onSubmit, onCancel }) {
+  // Pre-fill dari data sesi yang sudah ada (saat edit laporan)
+  const [penjualan,    setPenjualan]    = useState(
+    isEdit && sesi.penjualan?.length
+      ? buildPenjualanFromExisting(sesi.barangKeluar, sesi.penjualan)
+      : buildDefaultPenjualan(sesi.barangKeluar)
+  )
+  const [setoran,      setSetoran]      = useState(
+    isEdit && sesi.setoran?.length
+      ? sesi.setoran.map((s) => ({ metode: s.metode, jumlah: String(s.jumlah) }))
+      : [{ metode: "cash", jumlah: "" }]
+  )
   const [konsinyasiBaru,       setKonsinyasiBaru]       = useState([])
   const [penyelesaianKonsinyasi, setPenyelesaianKonsinyasi] = useState([])
   const [showPerorangan, setShowPerorangan] = useState(false)
@@ -465,12 +499,25 @@ function LaporanSoreForm({ sesi, rokokList, onSubmit, onCancel }) {
   return (
     <form onSubmit={submit} className="space-y-6">
 
+      {/* Info barang dibawa */}
+      <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3">
+        <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-2">Barang Dibawa Sales</p>
+        <div className="flex flex-wrap gap-2">
+          {sesi.barangKeluar.map((it) => (
+            <span key={it.rokok_id} className="inline-flex items-center gap-1 rounded-full bg-white border border-neutral-200 px-2.5 py-1 text-xs font-medium text-neutral-700">
+              {it.rokok} <span className="text-neutral-400">×</span> <span className="font-semibold">{it.qty}</span>
+            </span>
+          ))}
+        </div>
+      </div>
+
       {/* Penjualan Langsung */}
       <SectionCard title="Penjualan Langsung">
         <PenjualanLangsungInput
           penjualan={penjualan}
           setPenjualan={setPenjualan}
           rokokList={rokokList}
+          barangKeluar={sesi.barangKeluar}
           showPerorangan={showPerorangan}
           setShowPerorangan={setShowPerorangan}
         />
@@ -508,7 +555,7 @@ function LaporanSoreForm({ sesi, rokokList, onSubmit, onCancel }) {
             + Tambah metode setoran
           </button>
         )}
-        {flagSetoran && (
+        {flagSetoran && totalSetoran > 0 && (
           <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 mt-2">
             <AlertCircle className="h-3.5 w-3.5 shrink-0" />
             Selisih setoran: nilai penjualan {fmtIDR(nilaiPenjualan)} vs setoran {fmtIDR(totalSetoran)}
@@ -558,7 +605,7 @@ function LaporanSoreForm({ sesi, rokokList, onSubmit, onCancel }) {
         </SectionCard>
       )}
 
-      <FormActions onCancel={onCancel} submitLabel="Submit Laporan" />
+      <FormActions onCancel={onCancel} submitLabel={isEdit ? "Simpan Perubahan" : "Submit Laporan"} />
     </form>
   )
 }
@@ -572,6 +619,18 @@ function buildDefaultPenjualan(barangKeluar) {
   return result
 }
 
+function buildPenjualanFromExisting(barangKeluar, penjualanLama) {
+  // Start dari default (semua rokok keluar, kategori grosir+toko)
+  const result = buildDefaultPenjualan(barangKeluar)
+  // Pre-fill qty dari data yang sudah tersimpan
+  return result.map((item) => {
+    const existing = penjualanLama.find(
+      (p) => p.rokok_id === item.rokok_id && p.kategori === item.kategori
+    )
+    return existing ? { ...item, qty: String(existing.qty) } : item
+  })
+}
+
 function SectionCard({ title, children }) {
   return (
     <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 space-y-3">
@@ -581,9 +640,12 @@ function SectionCard({ title, children }) {
   )
 }
 
-function PenjualanLangsungInput({ penjualan, setPenjualan, rokokList, showPerorangan, setShowPerorangan }) {
+function PenjualanLangsungInput({ penjualan, setPenjualan, rokokList, barangKeluar = [], showPerorangan, setShowPerorangan }) {
   const categories = showPerorangan ? ["grosir", "toko", "perorangan"] : ["grosir", "toko"]
   const rokok_ids  = [...new Set(penjualan.map((it) => it.rokok_id))]
+
+  // Map rokok_id -> qty dibawa
+  const qtyDibawa = Object.fromEntries(barangKeluar.map((it) => [it.rokok_id, it.qty]))
 
   const updateQty = (rokok_id, kategori, val) => {
     setPenjualan(penjualan.map((it) =>
@@ -591,12 +653,19 @@ function PenjualanLangsungInput({ penjualan, setPenjualan, rokokList, showPerora
     ))
   }
 
+  // Hitung total qty terjual per rokok (semua kategori)
+  const totalTerjualPerRokok = (rokok_id) =>
+    penjualan
+      .filter((it) => it.rokok_id === rokok_id)
+      .reduce((sum, it) => sum + (Number(it.qty) || 0), 0)
+
   return (
     <div className="space-y-3">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-neutral-200 text-xs text-neutral-500">
             <th className="pb-2 text-left">Rokok</th>
+            <th className="pb-2 text-right pr-3">Dibawa</th>
             {categories.map((cat) => (
               <th key={cat} className="pb-2 text-left capitalize pl-2">{cat}</th>
             ))}
@@ -604,26 +673,42 @@ function PenjualanLangsungInput({ penjualan, setPenjualan, rokokList, showPerora
         </thead>
         <tbody>
           {rokok_ids.map((rokok_id) => {
-            const sample = penjualan.find((it) => it.rokok_id === rokok_id)
+            const sample  = penjualan.find((it) => it.rokok_id === rokok_id)
+            const dibawa  = qtyDibawa[rokok_id] ?? 0
+            const terjual = totalTerjualPerRokok(rokok_id)
+            const melebihi = terjual > dibawa
             return (
-              <tr key={rokok_id} className="border-b border-neutral-100">
-                <td className="py-2 pr-3 font-medium">{sample?.rokok}</td>
-                {categories.map((cat) => {
-                  const entry = penjualan.find((it) => it.rokok_id === rokok_id && it.kategori === cat)
-                  return (
-                    <td key={cat} className="py-2 px-1">
-                      <input
-                        type="number"
-                        min="0"
-                        value={entry?.qty || ""}
-                        onChange={(e) => updateQty(rokok_id, cat, e.target.value)}
-                        placeholder="0"
-                        className={inputCls + " w-24"}
-                      />
+              <Fragment key={rokok_id}>
+                <tr className="border-b border-neutral-100">
+                  <td className="py-2 pr-3 font-medium">{sample?.rokok}</td>
+                  <td className="py-2 pr-3 text-right tabular-nums text-neutral-500 text-xs">{dibawa}</td>
+                  {categories.map((cat) => {
+                    const entry = penjualan.find((it) => it.rokok_id === rokok_id && it.kategori === cat)
+                    return (
+                      <td key={cat} className="py-2 px-1">
+                        <input
+                          type="number"
+                          min="0"
+                          value={entry?.qty || ""}
+                          onChange={(e) => updateQty(rokok_id, cat, e.target.value)}
+                          placeholder="0"
+                          className={inputCls + " w-24" + (melebihi ? " border-orange-400 focus:border-orange-500" : "")}
+                        />
+                      </td>
+                    )
+                  })}
+                </tr>
+                {melebihi && (
+                  <tr>
+                    <td colSpan={2 + categories.length} className="pb-1.5 pt-0">
+                      <div className="flex items-center gap-1.5 rounded-md border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs text-orange-700">
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                        Total terjual ({terjual}) melebihi yang dibawa ({dibawa}) — selisih {terjual - dibawa} bungkus
+                      </div>
                     </td>
-                  )
-                })}
-              </tr>
+                  </tr>
+                )}
+              </Fragment>
             )
           })}
         </tbody>
