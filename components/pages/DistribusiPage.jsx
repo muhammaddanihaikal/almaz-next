@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { Plus, Trash2, AlertCircle, CheckCircle, ChevronDown, ChevronUp } from "lucide-react"
 import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc } from "@/lib/utils"
 import { createSesi, updateSesiPagi, submitLaporanSore, editLaporanSore, deleteSesi } from "@/actions/distribusi"
+import { addToko } from "@/actions/toko"
 import {
   Card, PageHeader, DateFilter, PrimaryButton, Field, FormActions,
   SearchableSelect, SelectInput, inputCls, RowActions, IconButton,
@@ -33,13 +34,29 @@ function Badge({ label, colorClass }) {
   )
 }
 
-export default function DistribusiPage({ sesiList, rokokList, salesList }) {
+function TabButton({ active, onClick, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+        active
+          ? "border-blue-600 text-blue-600"
+          : "border-transparent text-neutral-500 hover:text-neutral-700"
+      }`}
+    >
+      {children}
+    </button>
+  )
+}
+
+export default function DistribusiPage({ sesiList, rokokList, salesList, tokoList }) {
   const router  = useRouter()
   const [mode,    setMode]    = useState(null)
   const [editing, setEditing] = useState(null)
   const [detail,  setDetail]  = useState(null)
-  const [laporanSesi,  setLaporanSesi]  = useState(null) // input laporan baru (status aktif)
-  const [editLaporan,  setEditLaporan]  = useState(null) // edit laporan (status selesai)
+  const [laporanSesi,  setLaporanSesi]  = useState(null)
+  const [editLaporan,  setEditLaporan]  = useState(null)
   const [dateRange,   setDateRange]   = useState(defaultDateRange("bulan_ini"))
   const [salesFilter, setSalesFilter] = useState("")
 
@@ -162,6 +179,7 @@ export default function DistribusiPage({ sesiList, rokokList, salesList }) {
             initial={editing}
             rokokList={rokokList}
             salesList={salesList}
+            sesiList={sesiList}
             onSubmit={async (data) => {
               if (mode === "add") await createSesi(data)
               else await updateSesiPagi(editing.id, data)
@@ -178,6 +196,7 @@ export default function DistribusiPage({ sesiList, rokokList, salesList }) {
           <LaporanSoreForm
             sesi={laporanSesi}
             rokokList={rokokList}
+            tokoList={tokoList}
             onSubmit={async (data) => {
               await submitLaporanSore(laporanSesi.id, { ...data, sales_id: laporanSesi.sales_id, tanggal: laporanSesi.tanggal })
               setLaporanSesi(null)
@@ -193,6 +212,7 @@ export default function DistribusiPage({ sesiList, rokokList, salesList }) {
           <LaporanSoreForm
             sesi={editLaporan}
             rokokList={rokokList}
+            tokoList={tokoList}
             isEdit
             onSubmit={async (data) => {
               await editLaporanSore(editLaporan.id, { ...data, sales_id: editLaporan.sales_id, tanggal: editLaporan.tanggal })
@@ -210,16 +230,24 @@ export default function DistribusiPage({ sesiList, rokokList, salesList }) {
 // ─── Detail Sesi ─────────────────────────────────────────────────────────────
 
 function SesiDetail({ record }) {
+  const [activeTab, setActiveTab] = useState("penjualan")
+
+  const totalQtyTerjual = record.penjualan.reduce((sum, it) => sum + it.qty, 0)
+  const kembaliMap = Object.fromEntries(record.barangKembali.map((it) => [it.rokok_id, it.qty]))
+
   return (
     <div className="space-y-5 text-sm">
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <div><p className="text-xs text-neutral-500">Tanggal</p><p className="font-medium">{fmtTanggal(record.tanggal)}</p></div>
         <div><p className="text-xs text-neutral-500">Sales</p><p className="font-medium">{record.sales}</p></div>
         <div>
           <p className="text-xs text-neutral-500">Status</p>
           <Badge label={record.status === "selesai" ? "Selesai" : "Aktif"} colorClass={STATUS_COLOR[record.status]} />
         </div>
-        {record.flagSetoran && <div className="flex items-center gap-1 text-red-600 text-xs"><AlertCircle className="h-3 w-3" /> Selisih setoran: {fmtIDR(record.nilaiPenjualan)} vs {fmtIDR(record.totalSetoran)}</div>}
+        {record.status === "selesai" && (
+          <div><p className="text-xs text-neutral-500">Total Terjual</p><p className="font-medium">{totalQtyTerjual} bungkus</p></div>
+        )}
+        {record.flagSetoran && <div className="flex items-center gap-1 text-red-600 text-xs col-span-2"><AlertCircle className="h-3 w-3" /> Selisih setoran: {fmtIDR(record.nilaiPenjualan)} vs {fmtIDR(record.totalSetoran)}</div>}
         {record.flagQty     && <div className="flex items-center gap-1 text-orange-600 text-xs"><AlertCircle className="h-3 w-3" /> Qty barang tidak cocok</div>}
       </div>
 
@@ -227,68 +255,100 @@ function SesiDetail({ record }) {
         <SimpleTable rows={record.barangKeluar} cols={["rokok", "qty"]} labels={["Rokok", "Qty"]} />
       </Section>
 
-      {record.penjualan.length > 0 && (
-        <Section title="Penjualan Langsung">
-          <table className="w-full text-xs">
-            <thead><tr className="border-b border-neutral-200 text-neutral-500"><th className="pb-1.5 text-left">Rokok</th><th className="pb-1.5 text-left">Kategori</th><th className="pb-1.5 text-right">Qty</th><th className="pb-1.5 text-right">Harga</th><th className="pb-1.5 text-right">Total</th></tr></thead>
-            <tbody>
-              {record.penjualan.map((it, i) => (
-                <tr key={i} className="border-b border-neutral-100">
-                  <td className="py-1.5">{it.rokok}</td>
-                  <td className="py-1.5"><Badge label={it.kategori} colorClass={KATEGORI_COLOR[it.kategori] || "bg-neutral-100 text-neutral-600"} /></td>
-                  <td className="py-1.5 text-right tabular-nums">{it.qty}</td>
-                  <td className="py-1.5 text-right tabular-nums">{fmtIDR(it.harga)}</td>
-                  <td className="py-1.5 text-right tabular-nums">{fmtIDR(it.qty * it.harga)}</td>
-                </tr>
-              ))}
-              <tr className="border-t-2 border-neutral-200 font-semibold">
-                <td colSpan={4} className="py-1.5">Total</td>
-                <td className="py-1.5 text-right tabular-nums">{fmtIDR(record.nilaiPenjualan)}</td>
-              </tr>
-            </tbody>
-          </table>
-        </Section>
-      )}
+      {/* Tabs */}
+      <div className="flex border-b border-neutral-200">
+        <TabButton active={activeTab === "penjualan"} onClick={() => setActiveTab("penjualan")}>
+          Penjualan Langsung
+        </TabButton>
+        <TabButton active={activeTab === "konsinyasi"} onClick={() => setActiveTab("konsinyasi")}>
+          Konsinyasi {record.konsinyasi.length > 0 && `(${record.konsinyasi.length})`}
+        </TabButton>
+      </div>
 
-      {record.setoran.length > 0 && (
-        <Section title="Setoran">
-          <div className="space-y-1">
-            {record.setoran.map((it, i) => (
-              <div key={i} className="flex justify-between text-xs">
-                <span className="font-medium capitalize">{it.metode}</span>
-                <span className="tabular-nums">{fmtIDR(it.jumlah)}</span>
-              </div>
-            ))}
-            <div className="flex justify-between text-xs font-semibold border-t border-neutral-200 pt-1">
-              <span>Total Setoran</span>
-              <span className={`tabular-nums ${record.flagSetoran ? "text-red-600" : "text-green-700"}`}>{fmtIDR(record.totalSetoran)}</span>
+      {activeTab === "penjualan" && (
+        <div className="space-y-5">
+          {record.penjualan.length > 0 ? (
+            <div>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-neutral-200 text-neutral-500">
+                    <th className="pb-1.5 text-left">Rokok</th>
+                    <th className="pb-1.5 text-left">Kategori</th>
+                    <th className="pb-1.5 text-right">Terjual</th>
+                    <th className="pb-1.5 text-right">Kembali</th>
+                    <th className="pb-1.5 text-right">Harga</th>
+                    <th className="pb-1.5 text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {record.penjualan.map((it, i) => {
+                    const isFirstOfRokok = i === 0 || record.penjualan[i - 1].rokok_id !== it.rokok_id
+                    const kembali = isFirstOfRokok ? kembaliMap[it.rokok_id] : null
+                    return (
+                      <tr key={i} className="border-b border-neutral-100">
+                        <td className="py-1.5">{isFirstOfRokok ? it.rokok : ""}</td>
+                        <td className="py-1.5">
+                          <Badge label={it.kategori} colorClass={KATEGORI_COLOR[it.kategori] || "bg-neutral-100 text-neutral-600"} />
+                        </td>
+                        <td className="py-1.5 text-right tabular-nums">{it.qty}</td>
+                        <td className="py-1.5 text-right tabular-nums text-neutral-400">
+                          {isFirstOfRokok ? (kembali ?? "—") : ""}
+                        </td>
+                        <td className="py-1.5 text-right tabular-nums">{fmtIDR(it.harga)}</td>
+                        <td className="py-1.5 text-right tabular-nums">{fmtIDR(it.qty * it.harga)}</td>
+                      </tr>
+                    )
+                  })}
+                  <tr className="border-t-2 border-neutral-200 font-semibold">
+                    <td colSpan={5} className="py-1.5">Total</td>
+                    <td className="py-1.5 text-right tabular-nums">{fmtIDR(record.nilaiPenjualan)}</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-          </div>
-        </Section>
-      )}
+          ) : (
+            <p className="text-xs text-neutral-400 italic">Tidak ada penjualan langsung.</p>
+          )}
 
-      {record.barangKembali.length > 0 && (
-        <Section title="Barang Kembali">
-          <SimpleTable rows={record.barangKembali} cols={["rokok", "qty"]} labels={["Rokok", "Qty"]} />
-        </Section>
-      )}
-
-      {record.konsinyasi.length > 0 && (
-        <Section title="Konsinyasi">
-          {record.konsinyasi.map((k, i) => (
-            <div key={i} className="rounded-lg border border-neutral-200 p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="font-medium">{k.nama_toko}</span>
-                <div className="flex items-center gap-2">
-                  <Badge label={k.kategori} colorClass={KATEGORI_COLOR[k.kategori] || "bg-neutral-100 text-neutral-600"} />
-                  <Badge label={k.status === "selesai" ? "Selesai" : "Aktif"} colorClass={STATUS_COLOR[k.status]} />
+          {record.setoran.length > 0 && (
+            <Section title="Setoran">
+              <div className="space-y-1">
+                {record.setoran.map((it, i) => (
+                  <div key={i} className="flex justify-between text-xs">
+                    <span className="font-medium capitalize">{it.metode}</span>
+                    <span className="tabular-nums">{fmtIDR(it.jumlah)}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between text-xs font-semibold border-t border-neutral-200 pt-1">
+                  <span>Total Setoran</span>
+                  <span className={`tabular-nums ${record.flagSetoran ? "text-red-600" : "text-green-700"}`}>{fmtIDR(record.totalSetoran)}</span>
                 </div>
               </div>
-              <p className="text-xs text-neutral-500">Jatuh Tempo: {fmtTanggal(k.tanggal_jatuh_tempo)}</p>
-              <SimpleTable rows={k.items} cols={["rokok", "qty_keluar", "qty_terjual", "qty_kembali"]} labels={["Rokok", "Keluar", "Terjual", "Kembali"]} />
-            </div>
-          ))}
-        </Section>
+            </Section>
+          )}
+        </div>
+      )}
+
+      {activeTab === "konsinyasi" && (
+        <div className="space-y-3">
+          {record.konsinyasi.length > 0 ? (
+            record.konsinyasi.map((k, i) => (
+              <div key={i} className="rounded-lg border border-neutral-200 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">{k.nama_toko}</span>
+                  <div className="flex items-center gap-2">
+                    <Badge label={k.kategori} colorClass={KATEGORI_COLOR[k.kategori] || "bg-neutral-100 text-neutral-600"} />
+                    <Badge label={k.status === "selesai" ? "Selesai" : "Aktif"} colorClass={STATUS_COLOR[k.status]} />
+                  </div>
+                </div>
+                <p className="text-xs text-neutral-500">Jatuh Tempo: {fmtTanggal(k.tanggal_jatuh_tempo)}</p>
+                <SimpleTable rows={k.items} cols={["rokok", "qty_keluar", "qty_terjual", "qty_kembali"]} labels={["Rokok", "Keluar", "Terjual", "Kembali"]} />
+              </div>
+            ))
+          ) : (
+            <p className="text-xs text-neutral-400 italic">Tidak ada konsinyasi pada sesi ini.</p>
+          )}
+        </div>
       )}
     </div>
   )
@@ -326,7 +386,7 @@ function SimpleTable({ rows, cols, labels }) {
 
 // ─── Form Sesi Pagi ───────────────────────────────────────────────────────────
 
-function SesiPagiForm({ initial, rokokList, salesList, onSubmit, onCancel }) {
+function SesiPagiForm({ initial, rokokList, salesList, sesiList, onSubmit, onCancel }) {
   const today = new Date().toISOString().slice(0, 10)
   const [tanggal,  setTanggal]  = useState(initial?.tanggal || today)
   const [salesId,  setSalesId]  = useState(initial?.sales_id || "")
@@ -373,7 +433,11 @@ function SesiPagiForm({ initial, rokokList, salesList, onSubmit, onCancel }) {
             value={salesId}
             onChange={(e) => setSalesId(e.target.value)}
             placeholder="Pilih sales"
-            options={[{ value: "", label: "Pilih sales" }, ...salesList.filter((s) => s.aktif !== false).map((s) => ({ value: s.id, label: s.nama }))]}
+            options={[{ value: "", label: "Pilih sales" }, ...salesList.filter((s) => {
+                if (s.aktif === false) return false
+                if (initial?.sales_id === s.id) return true
+                return !sesiList.some((sesi) => sesi.sales_id === s.id && sesi.tanggal === tanggal)
+              }).map((s) => ({ value: s.id, label: s.nama }))]}
           />
         </Field>
       </div>
@@ -383,10 +447,7 @@ function SesiPagiForm({ initial, rokokList, salesList, onSubmit, onCancel }) {
           <span className="text-xs font-semibold uppercase tracking-wider text-neutral-500">Barang Dibawa</span>
         </div>
         {items.map((item, idx) => {
-          const rokokData = rokokList.find((r) => r.id === item.rokok_id)
           const selectedIds = items.map((it) => it.rokok_id).filter(Boolean)
-          const countThisId = selectedIds.filter((id) => id === item.rokok_id).length
-          const isDupThisRow = countThisId > 1 || selectedIds.filter((id, i) => id === item.rokok_id && i < selectedIds.indexOf(item.rokok_id)).length > 0
           return (
             <div key={idx} className="flex items-end gap-3">
               <div className="flex-1">
@@ -440,8 +501,10 @@ function SesiPagiForm({ initial, rokokList, salesList, onSubmit, onCancel }) {
 
 // ─── Form Laporan Sore ────────────────────────────────────────────────────────
 
-function LaporanSoreForm({ sesi, rokokList, isEdit = false, onSubmit, onCancel }) {
-  // Pre-fill dari data sesi yang sudah ada (saat edit laporan)
+function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = false, onSubmit, onCancel }) {
+  const [activeTab, setActiveTab] = useState("penjualan")
+  const [tokoList, setTokoList]   = useState(tokoListProp ?? [])
+
   const [penjualan,    setPenjualan]    = useState(
     isEdit && sesi.penjualan?.length
       ? buildPenjualanFromExisting(sesi.barangKeluar, sesi.penjualan)
@@ -468,9 +531,8 @@ function LaporanSoreForm({ sesi, rokokList, isEdit = false, onSubmit, onCancel }
     e.preventDefault()
     const validPenjualan = penjualan.filter((it) => it.rokok_id && Number(it.qty) > 0)
     const validSetoran   = setoran.filter((it) => Number(it.jumlah) > 0)
-    const validKonsinyasi = konsinyasiBaru.filter((k) => k.nama_toko && k.kategori && k.tanggal_jatuh_tempo && k.items.some((it) => it.rokok_id && Number(it.qty) > 0))
+    const validKonsinyasi = konsinyasiBaru.filter((k) => k.toko_id && k.kategori && k.tanggal_jatuh_tempo && k.items.some((it) => it.rokok_id && Number(it.qty) > 0))
 
-    // Hitung barang kembali otomatis
     const barangKembaliAuto = {}
     for (const keluar of sesi.barangKeluar) {
       barangKembaliAuto[keluar.rokok_id] = keluar.qty
@@ -496,113 +558,146 @@ function LaporanSoreForm({ sesi, rokokList, isEdit = false, onSubmit, onCancel }
     })
   }
 
-  return (
-    <form onSubmit={submit} className="space-y-6">
+  const hasKonsinyasiAktif = sesi.konsinyasi?.filter((k) => k.status === "aktif").length > 0
 
-      {/* Info barang dibawa */}
-      <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3">
-        <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500 mb-2">Barang Dibawa Sales</p>
-        <div className="flex flex-wrap gap-2">
-          {sesi.barangKeluar.map((it) => (
-            <span key={it.rokok_id} className="inline-flex items-center gap-1 rounded-full bg-white border border-neutral-200 px-2.5 py-1 text-xs font-medium text-neutral-700">
-              {it.rokok} <span className="text-neutral-400">×</span> <span className="font-semibold">{it.qty}</span>
-            </span>
-          ))}
-        </div>
+  // Qty tersedia per rokok untuk konsinyasi: dibawa - penjualan langsung
+  const qtyDibawa = useMemo(
+    () => Object.fromEntries(sesi.barangKeluar.map((it) => [it.rokok_id, it.qty])),
+    [sesi.barangKeluar]
+  )
+  const qtyTerjualLangsung = useMemo(() => {
+    const map = {}
+    for (const it of penjualan) {
+      if (it.rokok_id && Number(it.qty) > 0) {
+        map[it.rokok_id] = (map[it.rokok_id] || 0) + Number(it.qty)
+      }
+    }
+    return map
+  }, [penjualan])
+
+  // Rokok yang dibawa sales hari ini (sudah terfilter)
+  const rokokDibawa = useMemo(
+    () => rokokList.filter((r) => sesi.barangKeluar.some((bk) => bk.rokok_id === r.id)),
+    [rokokList, sesi.barangKeluar]
+  )
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+
+      {/* Tabs */}
+      <div className="flex border-b border-neutral-200">
+        <TabButton active={activeTab === "penjualan"} onClick={() => setActiveTab("penjualan")}>
+          Penjualan Langsung
+        </TabButton>
+        <TabButton active={activeTab === "konsinyasi"} onClick={() => setActiveTab("konsinyasi")}>
+          Konsinyasi {hasKonsinyasiAktif && <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-yellow-500 text-xs text-white">{sesi.konsinyasi.filter((k) => k.status === "aktif").length}</span>}
+        </TabButton>
       </div>
 
-      {/* Penjualan Langsung */}
-      <SectionCard title="Penjualan Langsung">
-        <PenjualanLangsungInput
-          penjualan={penjualan}
-          setPenjualan={setPenjualan}
-          rokokList={rokokList}
-          barangKeluar={sesi.barangKeluar}
-          showPerorangan={showPerorangan}
-          setShowPerorangan={setShowPerorangan}
-        />
-        {nilaiPenjualan > 0 && (
-          <p className="text-xs text-neutral-500 mt-2">Total nilai penjualan: <span className="font-semibold text-neutral-900">{fmtIDR(nilaiPenjualan)}</span></p>
-        )}
-      </SectionCard>
+      {activeTab === "penjualan" && (
+        <div className="space-y-6">
+          {/* Penjualan Langsung */}
+          <SectionCard title="Penjualan Langsung">
+            <PenjualanLangsungInput
+              penjualan={penjualan}
+              setPenjualan={setPenjualan}
+              barangKeluar={sesi.barangKeluar}
+              showPerorangan={showPerorangan}
+              setShowPerorangan={setShowPerorangan}
+            />
+            {nilaiPenjualan > 0 && (
+              <p className="text-xs text-neutral-500 mt-2">Total nilai penjualan: <span className="font-semibold text-neutral-900">{fmtIDR(nilaiPenjualan)}</span></p>
+            )}
+          </SectionCard>
 
-      {/* Setoran */}
-      <SectionCard title="Setoran">
-        {setoran.map((it, idx) => (
-          <div key={idx} className="flex items-end gap-3">
-            <div className="w-36">
-              <Field label={idx === 0 ? "Metode" : ""}>
-                <SelectInput value={it.metode} onChange={(e) => setSetoran(setoran.map((s, i) => i === idx ? { ...s, metode: e.target.value } : s))}>
-                  <option value="cash">Cash</option>
-                  <option value="transfer">Transfer</option>
-                </SelectInput>
-              </Field>
-            </div>
-            <div className="flex-1">
-              <Field label={idx === 0 ? "Jumlah" : ""}>
-                <input type="number" min="0" value={it.jumlah} onChange={(e) => setSetoran(setoran.map((s, i) => i === idx ? { ...s, jumlah: e.target.value } : s))} placeholder="0" className={inputCls} />
-              </Field>
-            </div>
-            {setoran.length > 1 && (
-              <div className="pb-1">
-                <IconButton icon={Trash2} onClick={() => setSetoran(setoran.filter((_, i) => i !== idx))} variant="danger" label="Hapus" />
+          {/* Setoran */}
+          <SectionCard title="Setoran">
+            {setoran.map((it, idx) => (
+              <div key={idx} className="flex items-end gap-3">
+                <div className="w-36">
+                  <Field label={idx === 0 ? "Metode" : ""}>
+                    <SelectInput value={it.metode} onChange={(e) => setSetoran(setoran.map((s, i) => i === idx ? { ...s, metode: e.target.value } : s))}>
+                      <option value="cash">Cash</option>
+                      <option value="transfer">Transfer</option>
+                    </SelectInput>
+                  </Field>
+                </div>
+                <div className="flex-1">
+                  <Field label={idx === 0 ? "Jumlah" : ""}>
+                    <input type="number" min="0" value={it.jumlah} onChange={(e) => setSetoran(setoran.map((s, i) => i === idx ? { ...s, jumlah: e.target.value } : s))} placeholder="0" className={inputCls} />
+                  </Field>
+                </div>
+                {setoran.length > 1 && (
+                  <div className="pb-1">
+                    <IconButton icon={Trash2} onClick={() => setSetoran(setoran.filter((_, i) => i !== idx))} variant="danger" label="Hapus" />
+                  </div>
+                )}
+              </div>
+            ))}
+            {setoran.length < 2 && (
+              <button type="button" onClick={() => setSetoran([...setoran, { metode: "transfer", jumlah: "" }])} className="text-xs text-blue-600 hover:underline mt-1">
+                + Tambah metode setoran
+              </button>
+            )}
+            {flagSetoran && totalSetoran > 0 && (
+              <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 mt-2">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                Selisih setoran: nilai penjualan {fmtIDR(nilaiPenjualan)} vs setoran {fmtIDR(totalSetoran)}
               </div>
             )}
-          </div>
-        ))}
-        {setoran.length < 2 && (
-          <button type="button" onClick={() => setSetoran([...setoran, { metode: "transfer", jumlah: "" }])} className="text-xs text-blue-600 hover:underline mt-1">
-            + Tambah metode setoran
-          </button>
-        )}
-        {flagSetoran && totalSetoran > 0 && (
-          <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 mt-2">
-            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-            Selisih setoran: nilai penjualan {fmtIDR(nilaiPenjualan)} vs setoran {fmtIDR(totalSetoran)}
-          </div>
-        )}
-      </SectionCard>
+          </SectionCard>
+        </div>
+      )}
 
+      {activeTab === "konsinyasi" && (
+        <div className="space-y-6">
+          {/* Konsinyasi Baru */}
+          <SectionCard title="Konsinyasi Baru (Opsional)">
+            {konsinyasiBaru.map((k, idx) => (
+              <KonsinyasiBaruInput
+                key={idx}
+                data={k}
+                currentIdx={idx}
+                rokokDibawa={rokokDibawa}
+                qtyDibawa={qtyDibawa}
+                qtyTerjualLangsung={qtyTerjualLangsung}
+                konsinyasiBaru={konsinyasiBaru}
+                tokoList={tokoList}
+                onChange={(updated) => setKonsinyasiBaru(konsinyasiBaru.map((x, i) => i === idx ? updated : x))}
+                onRemove={() => setKonsinyasiBaru(konsinyasiBaru.filter((_, i) => i !== idx))}
+                onTokoCreated={(newToko) => setTokoList((prev) => [...prev, newToko].sort((a, b) => a.nama.localeCompare(b.nama, "id")))}
+              />
+            ))}
+            <button
+              type="button"
+              onClick={() => setKonsinyasiBaru([...konsinyasiBaru, { toko_id: "", kategori: "toko", tanggal_jatuh_tempo: "", catatan: "", items: [{ rokok_id: "", qty: "" }] }])}
+              className="w-full rounded-lg border border-dashed border-neutral-300 px-4 py-2.5 text-sm font-medium text-neutral-500 hover:border-neutral-400 hover:bg-neutral-50"
+            >
+              + Tambah Konsinyasi
+            </button>
+          </SectionCard>
 
-      {/* Konsinyasi Baru */}
-      <SectionCard title="Konsinyasi Baru (Opsional)">
-        {konsinyasiBaru.map((k, idx) => (
-          <KonsinyasiBaruInput
-            key={idx}
-            data={k}
-            rokokList={rokokList}
-            onChange={(updated) => setKonsinyasiBaru(konsinyasiBaru.map((x, i) => i === idx ? updated : x))}
-            onRemove={() => setKonsinyasiBaru(konsinyasiBaru.filter((_, i) => i !== idx))}
-          />
-        ))}
-        <button
-          type="button"
-          onClick={() => setKonsinyasiBaru([...konsinyasiBaru, { nama_toko: "", kategori: "toko", tanggal_jatuh_tempo: "", catatan: "", items: [{ rokok_id: "", qty: "" }] }])}
-          className="w-full rounded-lg border border-dashed border-neutral-300 px-4 py-2.5 text-sm font-medium text-neutral-500 hover:border-neutral-400 hover:bg-neutral-50"
-        >
-          + Tambah Konsinyasi
-        </button>
-      </SectionCard>
-
-      {/* Penyelesaian Konsinyasi */}
-      {sesi.konsinyasi?.filter((k) => k.status === "aktif").length > 0 && (
-        <SectionCard title="Penyelesaian Konsinyasi">
-          {sesi.konsinyasi.filter((k) => k.status === "aktif").map((k) => (
-            <PenyelesaianKonsinyasiInput
-              key={k.id}
-              konsinyasi={k}
-              onChange={(data) => {
-                const exists = penyelesaianKonsinyasi.find((p) => p.konsinyasi_id === k.id)
-                if (data) {
-                  if (exists) setPenyelesaianKonsinyasi(penyelesaianKonsinyasi.map((p) => p.konsinyasi_id === k.id ? data : p))
-                  else setPenyelesaianKonsinyasi([...penyelesaianKonsinyasi, data])
-                } else {
-                  setPenyelesaianKonsinyasi(penyelesaianKonsinyasi.filter((p) => p.konsinyasi_id !== k.id))
-                }
-              }}
-            />
-          ))}
-        </SectionCard>
+          {/* Penyelesaian Konsinyasi */}
+          {hasKonsinyasiAktif && (
+            <SectionCard title="Penyelesaian Konsinyasi">
+              {sesi.konsinyasi.filter((k) => k.status === "aktif").map((k) => (
+                <PenyelesaianKonsinyasiInput
+                  key={k.id}
+                  konsinyasi={k}
+                  onChange={(data) => {
+                    const exists = penyelesaianKonsinyasi.find((p) => p.konsinyasi_id === k.id)
+                    if (data) {
+                      if (exists) setPenyelesaianKonsinyasi(penyelesaianKonsinyasi.map((p) => p.konsinyasi_id === k.id ? data : p))
+                      else setPenyelesaianKonsinyasi([...penyelesaianKonsinyasi, data])
+                    } else {
+                      setPenyelesaianKonsinyasi(penyelesaianKonsinyasi.filter((p) => p.konsinyasi_id !== k.id))
+                    }
+                  }}
+                />
+              ))}
+            </SectionCard>
+          )}
+        </div>
       )}
 
       <FormActions onCancel={onCancel} submitLabel={isEdit ? "Simpan Perubahan" : "Submit Laporan"} />
@@ -620,9 +715,7 @@ function buildDefaultPenjualan(barangKeluar) {
 }
 
 function buildPenjualanFromExisting(barangKeluar, penjualanLama) {
-  // Start dari default (semua rokok keluar, kategori grosir+toko)
   const result = buildDefaultPenjualan(barangKeluar)
-  // Pre-fill qty dari data yang sudah tersimpan
   return result.map((item) => {
     const existing = penjualanLama.find(
       (p) => p.rokok_id === item.rokok_id && p.kategori === item.kategori
@@ -640,11 +733,10 @@ function SectionCard({ title, children }) {
   )
 }
 
-function PenjualanLangsungInput({ penjualan, setPenjualan, rokokList, barangKeluar = [], showPerorangan, setShowPerorangan }) {
+function PenjualanLangsungInput({ penjualan, setPenjualan, barangKeluar = [], showPerorangan, setShowPerorangan }) {
   const categories = showPerorangan ? ["grosir", "toko", "perorangan"] : ["grosir", "toko"]
   const rokok_ids  = [...new Set(penjualan.map((it) => it.rokok_id))]
 
-  // Map rokok_id -> qty dibawa
   const qtyDibawa = Object.fromEntries(barangKeluar.map((it) => [it.rokok_id, it.qty]))
 
   const updateQty = (rokok_id, kategori, val) => {
@@ -653,7 +745,6 @@ function PenjualanLangsungInput({ penjualan, setPenjualan, rokokList, barangKelu
     ))
   }
 
-  // Hitung total qty terjual per rokok (semua kategori)
   const totalTerjualPerRokok = (rokok_id) =>
     penjualan
       .filter((it) => it.rokok_id === rokok_id)
@@ -665,7 +756,6 @@ function PenjualanLangsungInput({ penjualan, setPenjualan, rokokList, barangKelu
         <thead>
           <tr className="border-b border-neutral-200 text-xs text-neutral-500">
             <th className="pb-2 text-left">Rokok</th>
-            <th className="pb-2 text-right pr-3">Dibawa</th>
             {categories.map((cat) => (
               <th key={cat} className="pb-2 text-left capitalize pl-2">{cat}</th>
             ))}
@@ -680,8 +770,10 @@ function PenjualanLangsungInput({ penjualan, setPenjualan, rokokList, barangKelu
             return (
               <Fragment key={rokok_id}>
                 <tr className="border-b border-neutral-100">
-                  <td className="py-2 pr-3 font-medium">{sample?.rokok}</td>
-                  <td className="py-2 pr-3 text-right tabular-nums text-neutral-500 text-xs">{dibawa}</td>
+                  <td className="py-2 pr-3 font-medium">
+                    {sample?.rokok}
+                    <span className="ml-1 font-normal text-neutral-400 text-xs">({dibawa})</span>
+                  </td>
                   {categories.map((cat) => {
                     const entry = penjualan.find((it) => it.rokok_id === rokok_id && it.kategori === cat)
                     return (
@@ -700,7 +792,7 @@ function PenjualanLangsungInput({ penjualan, setPenjualan, rokokList, barangKelu
                 </tr>
                 {melebihi && (
                   <tr>
-                    <td colSpan={2 + categories.length} className="pb-1.5 pt-0">
+                    <td colSpan={1 + categories.length} className="pb-1.5 pt-0">
                       <div className="flex items-center gap-1.5 rounded-md border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs text-orange-700">
                         <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                         Total terjual ({terjual}) melebihi yang dibawa ({dibawa}) — selisih {terjual - dibawa} bungkus
@@ -721,33 +813,78 @@ function PenjualanLangsungInput({ penjualan, setPenjualan, rokokList, barangKelu
   )
 }
 
-function KonsinyasiBaruInput({ data, rokokList, onChange, onRemove }) {
-  const [open, setOpen] = useState(true)
+function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerjualLangsung, konsinyasiBaru, tokoList, onChange, onRemove, onTokoCreated }) {
+  const [open,        setOpen]        = useState(true)
+  const [showAddToko, setShowAddToko] = useState(false)
+  const [newTokoNama, setNewTokoNama] = useState("")
+  const [newTokoAlamat, setNewTokoAlamat] = useState("")
+  const [newTokoKategori, setNewTokoKategori] = useState("toko")
+  const [savingToko, setSavingToko]   = useState(false)
+
+  const selectedToko = tokoList.find((t) => t.id === data.toko_id)
+
+  // Qty tersedia per rokok: dibawa - terjual langsung - item di konsinyasi lain (bukan ini)
+  const getAvailableQty = (rokok_id) => {
+    const dibawa  = qtyDibawa[rokok_id] || 0
+    const terjual = qtyTerjualLangsung[rokok_id] || 0
+    const otherKonsinyasi = konsinyasiBaru
+      .filter((_, i) => i !== currentIdx)
+      .flatMap((k) => k.items)
+      .filter((it) => it.rokok_id === rokok_id)
+      .reduce((s, it) => s + (Number(it.qty) || 0), 0)
+    return Math.max(0, dibawa - terjual - otherKonsinyasi)
+  }
 
   const updateItem = (idx, field, val) =>
     onChange({ ...data, items: data.items.map((it, i) => i === idx ? { ...it, [field]: val } : it) })
+
+  const handleSaveToko = async () => {
+    if (!newTokoNama.trim()) return
+    setSavingToko(true)
+    try {
+      await addToko({ nama: newTokoNama.trim(), alamat: newTokoAlamat.trim(), kategori: newTokoKategori })
+      // Fetch toko baru — karena server action, kita buat objek sementara untuk optimistic update
+      const tempToko = { id: `__temp__${Date.now()}`, nama: newTokoNama.trim(), alamat: newTokoAlamat.trim(), kategori: newTokoKategori, aktif: true }
+      onTokoCreated(tempToko)
+      onChange({ ...data, toko_id: tempToko.id, kategori: newTokoKategori })
+      setShowAddToko(false)
+      setNewTokoNama("")
+      setNewTokoAlamat("")
+      setNewTokoKategori("toko")
+    } finally {
+      setSavingToko(false)
+    }
+  }
 
   return (
     <div className="rounded-lg border border-neutral-200 bg-white p-3 space-y-3">
       <div className="flex items-center justify-between">
         <button type="button" onClick={() => setOpen(!open)} className="flex items-center gap-2 text-sm font-medium text-neutral-700">
           {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          {data.nama_toko || "Konsinyasi Baru"}
+          {selectedToko?.nama || "Konsinyasi Baru"}
         </button>
         <IconButton icon={Trash2} onClick={onRemove} variant="danger" label="Hapus" />
       </div>
       {open && (
         <div className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="Nama Toko">
-              <input type="text" value={data.nama_toko} onChange={(e) => onChange({ ...data, nama_toko: e.target.value })} className={inputCls} placeholder="Nama toko" />
-            </Field>
-            <Field label="Kategori">
-              <SelectInput value={data.kategori} onChange={(e) => onChange({ ...data, kategori: e.target.value })}>
-                <option value="toko">Toko</option>
-                <option value="grosir">Grosir</option>
+            <div>
+              <div className="mb-1.5 flex items-center justify-between">
+                <span className="text-xs font-medium text-neutral-600">Toko</span>
+                <button type="button" onClick={() => setShowAddToko(true)} className="text-xs text-blue-500 hover:text-blue-700 hover:underline">
+                  + toko baru
+                </button>
+              </div>
+              <SelectInput value={data.toko_id} onChange={(e) => {
+                const t = tokoList.find((x) => x.id === e.target.value)
+                onChange({ ...data, toko_id: e.target.value, kategori: t?.kategori || data.kategori })
+              }}>
+                <option value="">Pilih toko</option>
+                {tokoList.filter((t) => t.aktif !== false).map((t) => (
+                  <option key={t.id} value={t.id}>{t.nama} ({t.kategori})</option>
+                ))}
               </SelectInput>
-            </Field>
+            </div>
             <Field label="Jatuh Tempo">
               <input type="date" value={data.tanggal_jatuh_tempo} onChange={(e) => onChange({ ...data, tanggal_jatuh_tempo: e.target.value })} className={inputCls} />
             </Field>
@@ -755,30 +892,81 @@ function KonsinyasiBaruInput({ data, rokokList, onChange, onRemove }) {
               <input type="text" value={data.catatan} onChange={(e) => onChange({ ...data, catatan: e.target.value })} className={inputCls} placeholder="Opsional" />
             </Field>
           </div>
-          {data.items.map((item, idx) => (
-            <div key={idx} className="flex items-end gap-3">
-              <div className="flex-1">
-                <Field label={idx === 0 ? "Rokok" : ""}>
-                  <SelectInput value={item.rokok_id} onChange={(e) => updateItem(idx, "rokok_id", e.target.value)}>
-                    <option value="">Pilih rokok</option>
-                    {rokokList.filter((r) => r.aktif !== false).map((r) => (
-                      <option key={r.id} value={r.id}>{r.nama}</option>
-                    ))}
+
+          {/* Modal tambah toko baru */}
+          {showAddToko && (
+            <Modal title="Tambah Toko Baru" onClose={() => setShowAddToko(false)} width="max-w-md">
+              <div className="space-y-4">
+                <Field label="Nama Toko">
+                  <input type="text" value={newTokoNama} onChange={(e) => setNewTokoNama(e.target.value)} placeholder="Nama toko" className={inputCls} autoFocus />
+                </Field>
+                <Field label="Kategori Default">
+                  <SelectInput value={newTokoKategori} onChange={(e) => setNewTokoKategori(e.target.value)}>
+                    <option value="toko">Toko</option>
+                    <option value="grosir">Grosir</option>
                   </SelectInput>
                 </Field>
-              </div>
-              <div className="w-24">
-                <Field label={idx === 0 ? "Qty" : ""}>
-                  <input type="number" min="1" value={item.qty} onChange={(e) => updateItem(idx, "qty", e.target.value)} placeholder="0" className={inputCls} />
+                <Field label="Alamat (opsional)">
+                  <input type="text" value={newTokoAlamat} onChange={(e) => setNewTokoAlamat(e.target.value)} placeholder="Alamat toko" className={inputCls} />
                 </Field>
-              </div>
-              {data.items.length > 1 && (
-                <div className="pb-1">
-                  <IconButton icon={Trash2} onClick={() => onChange({ ...data, items: data.items.filter((_, i) => i !== idx) })} variant="danger" label="Hapus" />
+                <div className="flex justify-end gap-3">
+                  <button type="button" onClick={() => setShowAddToko(false)} className="rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50">
+                    Batal
+                  </button>
+                  <button type="button" onClick={handleSaveToko} disabled={!newTokoNama.trim() || savingToko} className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-50">
+                    {savingToko ? "Menyimpan..." : "Simpan Toko"}
+                  </button>
                 </div>
-              )}
-            </div>
-          ))}
+              </div>
+            </Modal>
+          )}
+
+          {data.items.map((item, idx) => {
+            const available = getAvailableQty(item.rokok_id)
+            const melebihi  = item.rokok_id && Number(item.qty) > available
+            return (
+              <div key={idx}>
+                <div className="flex items-end gap-3">
+                  <div className="flex-1">
+                    <Field label={idx === 0 ? "Rokok" : ""}>
+                      <SelectInput value={item.rokok_id} onChange={(e) => updateItem(idx, "rokok_id", e.target.value)}>
+                        <option value="">Pilih rokok</option>
+                        {rokokDibawa.filter((r) => r.aktif !== false).map((r) => {
+                          const avail = getAvailableQty(r.id)
+                          return (
+                            <option key={r.id} value={r.id}>{r.nama} (tersedia: {avail})</option>
+                          )
+                        })}
+                      </SelectInput>
+                    </Field>
+                  </div>
+                  <div className="w-24">
+                    <Field label={idx === 0 ? "Qty" : ""}>
+                      <input
+                        type="number" min="1"
+                        max={item.rokok_id ? available + (Number(item.qty) || 0) : undefined}
+                        value={item.qty}
+                        onChange={(e) => updateItem(idx, "qty", e.target.value)}
+                        placeholder="0"
+                        className={inputCls + (melebihi ? " border-orange-400" : "")}
+                      />
+                    </Field>
+                  </div>
+                  {data.items.length > 1 && (
+                    <div className="pb-1">
+                      <IconButton icon={Trash2} onClick={() => onChange({ ...data, items: data.items.filter((_, i) => i !== idx) })} variant="danger" label="Hapus" />
+                    </div>
+                  )}
+                </div>
+                {melebihi && (
+                  <div className="flex items-center gap-1.5 mt-1 rounded-md border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs text-orange-700">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                    Qty melebihi yang tersedia ({available})
+                  </div>
+                )}
+              </div>
+            )
+          })}
           <button type="button" onClick={() => onChange({ ...data, items: [...data.items, { rokok_id: "", qty: "" }] })} className="text-xs text-blue-600 hover:underline">
             + Tambah rokok
           </button>

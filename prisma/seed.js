@@ -44,6 +44,21 @@ async function main() {
     sales.push(item)
   }
 
+  // ─── Toko ─────────────────────────────────────────────────────────────────
+  const tokoData = [
+    { nama: "Toko Maju Jaya",      alamat: "Jl. Maju No. 1",      kategori: "toko"   },
+    { nama: "Grosir Makmur",       alamat: "Pasar Besar No. 5",    kategori: "grosir" },
+    { nama: "Toko Berkah Mandiri", alamat: "Jl. Berkah No. 3",     kategori: "toko"   },
+    { nama: "Toko Sumber Rezeki",  alamat: "Jl. Sumber No. 7",     kategori: "toko"   },
+    { nama: "Toko Agung Sejahtera",alamat: "Jl. Agung No. 9",      kategori: "grosir" },
+  ]
+
+  const toko = []
+  for (const t of tokoData) {
+    const item = await prisma.toko.upsert({ where: { nama: t.nama }, update: {}, create: t })
+    toko.push(item)
+  }
+
   // ─── Pengeluaran ──────────────────────────────────────────────────────────
   const pengeluaranData = [
     { tanggal: new Date("2026-03-02"), jumlah: 150000, keterangan: "Bensin motor sales" },
@@ -115,7 +130,6 @@ async function main() {
         { r: rokok[1], kategori: "toko",   qty: 15 },
         { r: rokok[5], kategori: "grosir", qty: 18 },
       ],
-      // sengaja beda setoran (flag)
       setoran:  [{ metode: "cash", jumlah: 300000 }],
       kembali:  [{ r: rokok[1], qty: 5 }, { r: rokok[5], qty: 2 }],
     },
@@ -181,12 +195,15 @@ async function main() {
   }
 
   // ─── Konsinyasi ───────────────────────────────────────────────────────────
+  const sesiLama0 = await prisma.sesiHarian.findFirst({ where: { sales_id: sales[0].id, tanggal: new Date("2026-03-10") } })
+  const sesiLama1 = await prisma.sesiHarian.findFirst({ where: { sales_id: sales[1].id, tanggal: new Date("2026-03-18") } })
+
   // Selesai
   await prisma.konsinyasi.create({
     data: {
-      sesi_id:             sesiLama[0] ? (await prisma.sesiHarian.findFirst({ where: { sales_id: sales[0].id, tanggal: new Date("2026-03-10") } }))?.id ?? sesiAktifCreated[0].id : sesiAktifCreated[0].id,
+      sesi_id:             sesiLama0?.id ?? sesiAktifCreated[0].id,
       sales_id:            sales[0].id,
-      nama_toko:           "Toko Maju Jaya",
+      toko_id:             toko[0].id,
       kategori:            "toko",
       tanggal_jatuh_tempo: new Date("2026-03-20"),
       status:              "selesai",
@@ -204,9 +221,9 @@ async function main() {
 
   await prisma.konsinyasi.create({
     data: {
-      sesi_id:             sesiAktifCreated[1].id,
+      sesi_id:             sesiLama1?.id ?? sesiAktifCreated[1].id,
       sales_id:            sales[1].id,
-      nama_toko:           "Grosir Makmur",
+      toko_id:             toko[1].id,
       kategori:            "grosir",
       tanggal_jatuh_tempo: new Date("2026-04-10"),
       status:              "selesai",
@@ -226,7 +243,7 @@ async function main() {
     data: {
       sesi_id:             sesiAktifCreated[0].id,
       sales_id:            sales[0].id,
-      nama_toko:           "Toko Berkah Mandiri",
+      toko_id:             toko[2].id,
       kategori:            "toko",
       tanggal_jatuh_tempo: new Date("2026-04-24"),
       status:              "aktif",
@@ -244,7 +261,7 @@ async function main() {
     data: {
       sesi_id:             sesiAktifCreated[1].id,
       sales_id:            sales[1].id,
-      nama_toko:           "Toko Sumber Rezeki",
+      toko_id:             toko[3].id,
       kategori:            "toko",
       tanggal_jatuh_tempo: new Date("2026-04-28"),
       status:              "aktif",
@@ -261,7 +278,7 @@ async function main() {
     data: {
       sesi_id:             sesiAktifCreated[2].id,
       sales_id:            sales[2].id,
-      nama_toko:           "Toko Agung Sejahtera",
+      toko_id:             toko[4].id,
       kategori:            "grosir",
       tanggal_jatuh_tempo: new Date("2026-05-03"),
       status:              "aktif",
@@ -278,6 +295,7 @@ async function main() {
   console.log(`- 1 user admin (password: admin123)`)
   console.log(`- ${rokok.length} rokok`)
   console.log(`- ${sales.length} sales`)
+  console.log(`- ${toko.length} toko`)
   console.log(`- ${sesiLama.length} sesi selesai + ${sesiAktif.length} sesi aktif hari ini`)
   console.log(`- 5 konsinyasi (2 selesai, 3 aktif)`)
   console.log(`- ${pengeluaranData.length} pengeluaran`)

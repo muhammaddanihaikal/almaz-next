@@ -9,7 +9,7 @@ const include = {
   penjualan:     { include: { rokok: true } },
   setoran:       true,
   barangKembali: { include: { rokok: true } },
-  konsinyasi:    { include: { items: { include: { rokok: true } }, setoran: true } },
+  konsinyasi:    { include: { items: { include: { rokok: true } }, setoran: true, toko: true } },
 }
 
 function serialize(s) {
@@ -51,7 +51,8 @@ function serialize(s) {
     })),
     konsinyasi: s.konsinyasi.map((k) => ({
       id:                  k.id,
-      nama_toko:           k.nama_toko,
+      toko_id:             k.toko_id,
+      nama_toko:           k.toko.nama,
       kategori:            k.kategori,
       tanggal_jatuh_tempo: k.tanggal_jatuh_tempo.toISOString().split("T")[0],
       status:              k.status,
@@ -200,7 +201,7 @@ export async function submitLaporanSore(id, data) {
         data: {
           sesi_id:             id,
           sales_id:            data.sales_id,
-          nama_toko:           k.nama_toko,
+          toko_id:             k.toko_id,
           kategori:            k.kategori,
           tanggal_jatuh_tempo: new Date(k.tanggal_jatuh_tempo),
           catatan:             k.catatan || null,

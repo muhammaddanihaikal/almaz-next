@@ -1,5 +1,13 @@
-import { redirect } from "next/navigation"
+import { getTokoList } from "@/actions/toko"
+import { getKonsinyasiList } from "@/actions/konsinyasi"
+import TokoPage from "@/components/pages/TokoPage"
 
-export default function Page() {
-  redirect("/")
+export const revalidate = 0
+
+export default async function Page() {
+  const [tokoList, konsinyasiList] = await Promise.all([
+    getTokoList(),
+    getKonsinyasiList(),
+  ])
+  return <TokoPage tokoList={tokoList} konsinyasiList={konsinyasiList} />
 }

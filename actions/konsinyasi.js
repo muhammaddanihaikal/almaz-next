@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 
 const include = {
   sales: true,
+  toko:  true,
   items: { include: { rokok: true } },
   setoran: true,
 }
@@ -24,7 +25,8 @@ function serialize(k) {
     sesi_id:             k.sesi_id,
     sales_id:            k.sales_id,
     sales:               k.sales.nama,
-    nama_toko:           k.nama_toko,
+    toko_id:             k.toko_id,
+    nama_toko:           k.toko.nama,
     kategori:            k.kategori,
     tanggal_jatuh_tempo: jatuhTempo,
     status:              k.status,

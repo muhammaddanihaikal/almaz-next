@@ -20,6 +20,18 @@ model User {
 
 // ─── MASTER DATA ─────────────────────────────────────────────────────────────
 
+model Toko {
+  id        String   @id @default(cuid())
+  nama      String   @unique
+  alamat    String?
+  kategori  String   @default("toko") // "grosir" | "toko"
+  aktif     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  konsinyasi Konsinyasi[]
+}
+
 model Rokok {
   id               String   @id @default(cuid())
   nama             String   @unique
@@ -121,7 +133,7 @@ model Konsinyasi {
   id                  String   @id @default(cuid())
   sesi_id             String
   sales_id            String
-  nama_toko           String
+  toko_id             String
   kategori            String   // "grosir" | "toko"
   tanggal_jatuh_tempo DateTime @db.Date
   status              String   @default("aktif") // "aktif" | "selesai"
@@ -131,6 +143,7 @@ model Konsinyasi {
 
   sesi    SesiHarian          @relation(fields: [sesi_id], references: [id])
   sales   Sales               @relation(fields: [sales_id], references: [id])
+  toko    Toko                @relation(fields: [toko_id], references: [id])
   items   KonsinyasiItem[]
   setoran KonsinyasiSetoran[]
 }

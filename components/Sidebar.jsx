@@ -7,7 +7,7 @@ import { signOut } from "next-auth/react"
 import {
   LayoutDashboard, Truck, PackageCheck, Cigarette,
   Users, CalendarCheck, Menu, X, ChevronDown, ChevronRight,
-  Folder, Database, LogOut, ArrowDownCircle,
+  Folder, Database, LogOut, ArrowDownCircle, Store,
 } from "lucide-react"
 
 const MENUS = [
@@ -29,6 +29,7 @@ const MENUS = [
     items: [
       { id: "rokok", href: "/rokok", label: "Rokok", icon: Cigarette },
       { id: "sales", href: "/sales", label: "Sales", icon: Users     },
+      { id: "toko",  href: "/toko",  label: "Toko",  icon: Store     },
     ],
   },
   { id: "absensi", href: "/absensi", label: "Absensi", icon: CalendarCheck },
