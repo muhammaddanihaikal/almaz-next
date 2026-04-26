@@ -2,7 +2,7 @@
 
 import { useMemo, useState, Fragment } from "react"
 import { useRouter } from "next/navigation"
-import { Plus, Trash2, AlertCircle, CheckCircle, ChevronDown, ChevronUp } from "lucide-react"
+import { Plus, Trash2, AlertCircle, CheckCircle, ChevronDown, ChevronUp, Search } from "lucide-react"
 import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc } from "@/lib/utils"
 import { createSesi, updateSesiPagi, submitLaporanSore, editLaporanSore, deleteSesi } from "@/actions/distribusi"
 import { addToko } from "@/actions/toko"
@@ -59,12 +59,17 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
   const [editLaporan,  setEditLaporan]  = useState(null)
   const [dateRange,   setDateRange]   = useState(defaultDateRange("bulan_ini"))
   const [salesFilter, setSalesFilter] = useState("")
+  const [search,      setSearch]      = useState("")
 
   const rows = useMemo(() => {
     let filtered = filterByDateRange(sesiList, dateRange)
     if (salesFilter) filtered = filtered.filter((r) => r.sales_id === salesFilter)
+    if (search.trim()) {
+      const q = search.trim().toLowerCase()
+      filtered = filtered.filter((r) => r.sales.toLowerCase().includes(q))
+    }
     return sortByDateDesc(filtered)
-  }, [sesiList, dateRange, salesFilter])
+  }, [sesiList, dateRange, salesFilter, search])
 
   const close = () => { setMode(null); setEditing(null) }
 
@@ -102,11 +107,21 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
             />
           </div>
         </div>
+        <div className="relative flex-1 lg:max-w-xs">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-400 pointer-events-none" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Cari nama sales..."
+            className={inputCls + " pl-8 text-sm"}
+          />
+        </div>
       </div>
 
       <Card>
         <DataTable
-          key={`${dateRange?.start}-${dateRange?.end}-${salesFilter}`}
+          key={`${dateRange?.start}-${dateRange?.end}-${salesFilter}-${search}`}
           pageSize={PAGE_SIZE}
           rows={rows}
           empty="Belum ada sesi distribusi."
@@ -122,16 +137,6 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
                   {r.barangKeluar.map((it, i) => (
                     <div key={i} className="text-xs text-neutral-700">{it.rokok} ×{it.qty}</div>
                   ))}
-                </div>
-              ),
-            },
-            {
-              key: "flag", label: "Flag",
-              render: (r) => (
-                <div className="flex flex-col gap-1">
-                  {r.flagSetoran && <span className="flex items-center gap-1 text-xs text-red-600"><AlertCircle className="h-3 w-3" /> Selisih setoran</span>}
-                  {r.flagQty     && <span className="flex items-center gap-1 text-xs text-orange-600"><AlertCircle className="h-3 w-3" /> Qty tidak cocok</span>}
-                  {!r.flagSetoran && !r.flagQty && r.status === "selesai" && <span className="flex items-center gap-1 text-xs text-green-600"><CheckCircle className="h-3 w-3" /> OK</span>}
                 </div>
               ),
             },

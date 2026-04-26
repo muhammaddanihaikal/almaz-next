@@ -63,7 +63,7 @@ export default function RokokPage({ rokokList, distribusi, retur }) {
               key: "stok",  label: "Stok",  align: "right",
               render: (r) => (
                 <div className="flex items-center justify-end gap-2">
-                  <span className="font-medium tabular-nums">{r.stok ?? 0}</span>
+                  <span className={`font-semibold tabular-nums ${(r.stok ?? 0) < 50 ? "text-red-600" : (r.stok ?? 0) < 150 ? "text-amber-500" : "text-green-600"}`}>{r.stok ?? 0}</span>
                   <button
                     onClick={() => setStokTarget(r)}
                     title="Tambah stok barang masuk"
