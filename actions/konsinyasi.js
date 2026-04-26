@@ -77,3 +77,47 @@ export async function getKonsinyasiJatuhTempo() {
   })
   return rows.map(serialize)
 }
+
+export async function settleKonsinyasi(id, data) {
+  // data: { items: [{id, rokok_id, qty_terjual, qty_kembali}], setoran: [{metode, jumlah}], tanggal }
+  const today = new Date(data.tanggal || new Date().toISOString().split("T")[0])
+
+  await prisma.$transaction(async (tx) => {
+    // Update qty_terjual & qty_kembali tiap item, kembalikan stok untuk yg kembali
+    for (const it of data.items) {
+      await tx.konsinyasiItem.update({
+        where: { id: it.id },
+        data:  { qty_terjual: it.qty_terjual, qty_kembali: it.qty_kembali },
+      })
+      if (it.qty_kembali > 0) {
+        await tx.rokok.update({
+          where: { id: it.rokok_id },
+          data:  { stok: { increment: it.qty_kembali } },
+        })
+      }
+    }
+
+    // Catat setoran
+    const validSetoran = (data.setoran || []).filter((s) => s.jumlah > 0)
+    if (validSetoran.length > 0) {
+      await tx.konsinyasiSetoran.createMany({
+        data: validSetoran.map((s) => ({
+          konsinyasi_id: id,
+          metode:        s.metode,
+          jumlah:        s.jumlah,
+          tanggal:       today,
+        })),
+      })
+    }
+
+    // Update status jadi selesai
+    await tx.konsinyasi.update({
+      where: { id },
+      data:  { status: "selesai" },
+    })
+  })
+
+  revalidatePath("/konsinyasi")
+  revalidatePath("/distribusi")
+  revalidatePath("/")
+}

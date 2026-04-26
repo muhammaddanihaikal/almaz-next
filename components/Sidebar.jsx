@@ -18,7 +18,7 @@ const MENUS = [
     icon: Folder,
     items: [
       { id: "distribusi",  href: "/distribusi",  label: "Distribusi",  icon: Truck        },
-      { id: "konsinyasi",  href: "/konsinyasi",  label: "Konsinyasi",  icon: PackageCheck },
+      { id: "konsinyasi",  href: "/konsinyasi",  label: "Titip Jual",  icon: PackageCheck },
       { id: "pengeluaran", href: "/pengeluaran", label: "Pengeluaran", icon: ArrowDownCircle },
     ],
   },

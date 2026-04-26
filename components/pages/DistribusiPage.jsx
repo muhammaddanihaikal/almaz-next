@@ -261,7 +261,7 @@ function SesiDetail({ record }) {
           Penjualan Langsung
         </TabButton>
         <TabButton active={activeTab === "konsinyasi"} onClick={() => setActiveTab("konsinyasi")}>
-          Konsinyasi {record.konsinyasi.length > 0 && `(${record.konsinyasi.length})`}
+          Titip Jual {record.konsinyasi.length > 0 && `(${record.konsinyasi.length})`}
         </TabButton>
       </div>
 
@@ -346,7 +346,7 @@ function SesiDetail({ record }) {
               </div>
             ))
           ) : (
-            <p className="text-xs text-neutral-400 italic">Tidak ada konsinyasi pada sesi ini.</p>
+            <p className="text-xs text-neutral-400 italic">Tidak ada titip jual pada sesi ini.</p>
           )}
         </div>
       )}
@@ -590,7 +590,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
           Penjualan Langsung
         </TabButton>
         <TabButton active={activeTab === "konsinyasi"} onClick={() => setActiveTab("konsinyasi")}>
-          Konsinyasi {hasKonsinyasiAktif && <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-yellow-500 text-xs text-white">{sesi.konsinyasi.filter((k) => k.status === "aktif").length}</span>}
+          Titip Jual {hasKonsinyasiAktif && <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-yellow-500 text-xs text-white">{sesi.konsinyasi.filter((k) => k.status === "aktif").length}</span>}
         </TabButton>
       </div>
 
@@ -652,7 +652,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
       {activeTab === "konsinyasi" && (
         <div className="space-y-6">
           {/* Konsinyasi Baru */}
-          <SectionCard title="Konsinyasi Baru (Opsional)">
+          <SectionCard title="Titip Jual Baru (Opsional)">
             {konsinyasiBaru.map((k, idx) => (
               <KonsinyasiBaruInput
                 key={idx}
@@ -673,13 +673,13 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
               onClick={() => setKonsinyasiBaru([...konsinyasiBaru, { toko_id: "", kategori: "toko", tanggal_jatuh_tempo: "", catatan: "", items: [{ rokok_id: "", qty: "" }] }])}
               className="w-full rounded-lg border border-dashed border-neutral-300 px-4 py-2.5 text-sm font-medium text-neutral-500 hover:border-neutral-400 hover:bg-neutral-50"
             >
-              + Tambah Konsinyasi
+              + Tambah Titip Jual
             </button>
           </SectionCard>
 
           {/* Penyelesaian Konsinyasi */}
           {hasKonsinyasiAktif && (
-            <SectionCard title="Penyelesaian Konsinyasi">
+            <SectionCard title="Penyelesaian Titip Jual">
               {sesi.konsinyasi.filter((k) => k.status === "aktif").map((k) => (
                 <PenyelesaianKonsinyasiInput
                   key={k.id}
@@ -861,7 +861,7 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
       <div className="flex items-center justify-between">
         <button type="button" onClick={() => setOpen(!open)} className="flex items-center gap-2 text-sm font-medium text-neutral-700">
           {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          {selectedToko?.nama || "Konsinyasi Baru"}
+          {selectedToko?.nama || "Titip Jual Baru"}
         </button>
         <IconButton icon={Trash2} onClick={onRemove} variant="danger" label="Hapus" />
       </div>
