@@ -309,20 +309,32 @@ function SesiPagiForm({ initial, rokokList, salesList, onSubmit, onCancel }) {
   const [items, setItems] = useState(
     initial?.barangKeluar?.length
       ? initial.barangKeluar.map((it) => ({ rokok_id: it.rokok_id, qty: it.qty }))
-      : [{ rokok_id: "", qty: "" }]
+      : [{ rokok_id: "", qty: "" }, { rokok_id: "", qty: "" }]
   )
+  const [error, setError] = useState("")
 
   const addItem    = () => setItems([...items, { rokok_id: "", qty: "" }])
   const removeItem = (idx) => setItems(items.filter((_, i) => i !== idx))
   const updateItem = (idx, field, val) => setItems(items.map((it, i) => i === idx ? { ...it, [field]: val } : it))
 
   const validItems = items.filter((it) => it.rokok_id && Number(it.qty) > 0)
-  const valid = tanggal && salesId && validItems.length > 0
+  const usedRokokIds = new Set(validItems.map((it) => it.rokok_id))
+  const hasDuplikat = usedRokokIds.size !== validItems.length
+  const valid = tanggal && salesId && validItems.length >= 1 && !hasDuplikat
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault()
     if (!valid) return
-    onSubmit({ tanggal, sales_id: salesId, catatan, barangKeluar: validItems.map((it) => ({ rokok_id: it.rokok_id, qty: Number(it.qty) })) })
+    try {
+      setError("")
+      await onSubmit({ tanggal, sales_id: salesId, catatan, barangKeluar: validItems.map((it) => ({ rokok_id: it.rokok_id, qty: Number(it.qty) })) })
+    } catch (err) {
+      if (err.message?.includes("Unique constraint failed")) {
+        setError(`Sales ini sudah punya sesi pada tanggal ${tanggal}. Edit sesi yang ada atau pilih tanggal/sales lain.`)
+      } else {
+        setError(err.message || "Terjadi kesalahan")
+      }
+    }
   }
 
   return (
@@ -347,13 +359,16 @@ function SesiPagiForm({ initial, rokokList, salesList, onSubmit, onCancel }) {
         </div>
         {items.map((item, idx) => {
           const rokokData = rokokList.find((r) => r.id === item.rokok_id)
+          const selectedIds = items.map((it) => it.rokok_id).filter(Boolean)
+          const countThisId = selectedIds.filter((id) => id === item.rokok_id).length
+          const isDupThisRow = countThisId > 1 || selectedIds.filter((id, i) => id === item.rokok_id && i < selectedIds.indexOf(item.rokok_id)).length > 0
           return (
             <div key={idx} className="flex items-end gap-3">
               <div className="flex-1">
                 <Field label={idx === 0 ? "Rokok" : ""}>
                   <SelectInput value={item.rokok_id} onChange={(e) => updateItem(idx, "rokok_id", e.target.value)}>
                     <option value="">Pilih rokok</option>
-                    {rokokList.filter((r) => r.aktif !== false).map((r) => (
+                    {rokokList.filter((r) => r.aktif !== false && (r.id === item.rokok_id || !selectedIds.slice(0, idx).concat(selectedIds.slice(idx + 1)).includes(r.id))).map((r) => (
                       <option key={r.id} value={r.id}>{r.nama} (stok: {r.stok ?? 0})</option>
                     ))}
                   </SelectInput>
@@ -364,11 +379,6 @@ function SesiPagiForm({ initial, rokokList, salesList, onSubmit, onCancel }) {
                   <input type="number" min="1" value={item.qty} onChange={(e) => updateItem(idx, "qty", e.target.value)} placeholder="0" className={inputCls} />
                 </Field>
               </div>
-              {rokokData && item.qty && (
-                <div className="w-28 pb-1">
-                  <p className="text-xs text-neutral-400">Stok sisa: {rokokData.stok - Number(item.qty)}</p>
-                </div>
-              )}
               {items.length > 1 && (
                 <div className="pb-1">
                   <IconButton icon={Trash2} onClick={() => removeItem(idx)} variant="danger" label="Hapus baris" />
@@ -386,6 +396,18 @@ function SesiPagiForm({ initial, rokokList, salesList, onSubmit, onCancel }) {
         <input type="text" value={catatan} onChange={(e) => setCatatan(e.target.value)} className={inputCls} placeholder="Opsional" />
       </Field>
 
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          {error}
+        </div>
+      )}
+
+      {hasDuplikat && (
+        <div className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-700">
+          Rokok tidak boleh dipilih lebih dari sekali dalam satu sesi.
+        </div>
+      )}
+
       <FormActions onCancel={onCancel} disabled={!valid} submitLabel={initial ? "Simpan Perubahan" : "Buat Sesi"} />
     </form>
   )
@@ -396,7 +418,6 @@ function SesiPagiForm({ initial, rokokList, salesList, onSubmit, onCancel }) {
 function LaporanSoreForm({ sesi, rokokList, onSubmit, onCancel }) {
   const [penjualan,    setPenjualan]    = useState(buildDefaultPenjualan(sesi.barangKeluar))
   const [setoran,      setSetoran]      = useState([{ metode: "cash", jumlah: "" }])
-  const [barangKembali, setBarangKembali] = useState(sesi.barangKeluar.map((it) => ({ rokok_id: it.rokok_id, rokok: it.rokok, qty: "" })))
   const [konsinyasiBaru,       setKonsinyasiBaru]       = useState([])
   const [penyelesaianKonsinyasi, setPenyelesaianKonsinyasi] = useState([])
   const [showPerorangan, setShowPerorangan] = useState(false)
@@ -413,8 +434,24 @@ function LaporanSoreForm({ sesi, rokokList, onSubmit, onCancel }) {
     e.preventDefault()
     const validPenjualan = penjualan.filter((it) => it.rokok_id && Number(it.qty) > 0)
     const validSetoran   = setoran.filter((it) => Number(it.jumlah) > 0)
-    const validKembali   = barangKembali.filter((it) => Number(it.qty) > 0).map((it) => ({ rokok_id: it.rokok_id, qty: Number(it.qty) }))
     const validKonsinyasi = konsinyasiBaru.filter((k) => k.nama_toko && k.kategori && k.tanggal_jatuh_tempo && k.items.some((it) => it.rokok_id && Number(it.qty) > 0))
+
+    // Hitung barang kembali otomatis
+    const barangKembaliAuto = {}
+    for (const keluar of sesi.barangKeluar) {
+      barangKembaliAuto[keluar.rokok_id] = keluar.qty
+    }
+    for (const pj of validPenjualan) {
+      barangKembaliAuto[pj.rokok_id] = (barangKembaliAuto[pj.rokok_id] || 0) - pj.qty
+    }
+    for (const k of konsinyasiBaru) {
+      for (const it of k.items.filter((i) => i.rokok_id && Number(i.qty) > 0)) {
+        barangKembaliAuto[it.rokok_id] = (barangKembaliAuto[it.rokok_id] || 0) - Number(it.qty)
+      }
+    }
+    const validKembali = Object.entries(barangKembaliAuto)
+      .filter(([_, qty]) => qty > 0)
+      .map(([rokok_id, qty]) => ({ rokok_id, qty }))
 
     onSubmit({
       penjualan:             validPenjualan.map((it) => ({ rokok_id: it.rokok_id, kategori: it.kategori, qty: Number(it.qty) })),
@@ -479,18 +516,6 @@ function LaporanSoreForm({ sesi, rokokList, onSubmit, onCancel }) {
         )}
       </SectionCard>
 
-      {/* Barang Kembali */}
-      <SectionCard title="Barang Kembali ke Gudang">
-        <p className="text-xs text-neutral-500 mb-3">Input qty sisa barang yang dibawa pulang sales. Kosongkan jika tidak ada yang kembali.</p>
-        {barangKembali.map((it, idx) => (
-          <div key={idx} className="flex items-center gap-3">
-            <span className="flex-1 text-sm">{it.rokok}</span>
-            <div className="w-24">
-              <input type="number" min="0" value={it.qty} onChange={(e) => setBarangKembali(barangKembali.map((b, i) => i === idx ? { ...b, qty: e.target.value } : b))} placeholder="0" className={inputCls} />
-            </div>
-          </div>
-        ))}
-      </SectionCard>
 
       {/* Konsinyasi Baru */}
       <SectionCard title="Konsinyasi Baru (Opsional)">
@@ -566,69 +591,47 @@ function PenjualanLangsungInput({ penjualan, setPenjualan, rokokList, showPerora
     ))
   }
 
-  const ensurePerorangan = () => {
-    if (!showPerorangan) {
-      const existing = penjualan.filter((it) => it.kategori === "perorangan")
-      if (existing.length === 0) {
-        const extras = rokok_ids.map((id) => {
-          const found = penjualan.find((it) => it.rokok_id === id)
-          return { rokok_id: id, rokok: found?.rokok || "", kategori: "perorangan", qty: "" }
-        })
-        setPenjualan([...penjualan, ...extras])
-      }
-      setShowPerorangan(true)
-    } else {
-      setShowPerorangan(false)
-    }
-  }
-
   return (
     <div className="space-y-3">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-neutral-200 text-xs text-neutral-500">
-              <th className="pb-2 text-left">Rokok</th>
-              {categories.map((cat) => (
-                <th key={cat} className="pb-2 text-right capitalize">{cat}</th>
-              ))}
-              <th className="pb-2 text-right text-neutral-400">Harga</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rokok_ids.map((rokok_id) => {
-              const sample = penjualan.find((it) => it.rokok_id === rokok_id)
-              const r = rokokList.find((r) => r.id === rokok_id)
-              return (
-                <tr key={rokok_id} className="border-b border-neutral-100">
-                  <td className="py-2 pr-3 font-medium">{sample?.rokok}</td>
-                  {categories.map((cat) => {
-                    const entry = penjualan.find((it) => it.rokok_id === rokok_id && it.kategori === cat)
-                    return (
-                      <td key={cat} className="py-2 px-1 text-right">
-                        <input
-                          type="number"
-                          min="0"
-                          value={entry?.qty || ""}
-                          onChange={(e) => updateQty(rokok_id, cat, e.target.value)}
-                          placeholder="0"
-                          className={inputCls + " w-20 text-right"}
-                        />
-                      </td>
-                    )
-                  })}
-                  <td className="py-2 pl-3 text-right text-xs text-neutral-400">
-                    {r ? categories.map((cat) => `${cat[0].toUpperCase()}: ${fmtIDR(r[`harga_${cat}`])}`).join(" | ") : ""}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-neutral-200 text-xs text-neutral-500">
+            <th className="pb-2 text-left">Rokok</th>
+            {categories.map((cat) => (
+              <th key={cat} className="pb-2 text-left capitalize pl-2">{cat}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rokok_ids.map((rokok_id) => {
+            const sample = penjualan.find((it) => it.rokok_id === rokok_id)
+            return (
+              <tr key={rokok_id} className="border-b border-neutral-100">
+                <td className="py-2 pr-3 font-medium">{sample?.rokok}</td>
+                {categories.map((cat) => {
+                  const entry = penjualan.find((it) => it.rokok_id === rokok_id && it.kategori === cat)
+                  return (
+                    <td key={cat} className="py-2 px-1">
+                      <input
+                        type="number"
+                        min="0"
+                        value={entry?.qty || ""}
+                        onChange={(e) => updateQty(rokok_id, cat, e.target.value)}
+                        placeholder="0"
+                        className={inputCls + " w-24"}
+                      />
+                    </td>
+                  )
+                })}
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+      <div className="flex items-center gap-2">
+        <label className="text-xs font-medium text-neutral-600">Tampilkan Perorangan</label>
+        <input type="checkbox" checked={showPerorangan} onChange={(e) => setShowPerorangan(e.target.checked)} className="h-4 w-4 rounded" />
       </div>
-      <button type="button" onClick={ensurePerorangan} className="text-xs text-neutral-400 hover:text-neutral-700">
-        {showPerorangan ? "▲ Sembunyikan perorangan" : "▼ Tampilkan perorangan"}
-      </button>
     </div>
   )
 }

@@ -21,8 +21,9 @@ export default function RokokPage({ rokokList, distribusi, retur }) {
     [rokokList]
   )
 
+
   const isUsed = (id) =>
-    distribusi.some((d) => d.items.some((it) => it.rokok_id === id)) ||
+    distribusi.some((d) => d.barangKeluar.some((it) => it.rokok_id === id)) ||
     retur.some((r) => r.items.some((it) => it.rokok_id === id))
 
   const close = () => { setMode(null); setEditing(null) }

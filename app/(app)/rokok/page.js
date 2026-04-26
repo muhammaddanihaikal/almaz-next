@@ -1,5 +1,5 @@
 import { getRokokList } from "@/actions/rokok"
-import { getDistribusi } from "@/actions/distribusi"
+import { getSesiList as getDistribusi } from "@/actions/distribusi"
 import { getRetur } from "@/actions/retur"
 import RokokPage from "@/components/pages/RokokPage"
 
