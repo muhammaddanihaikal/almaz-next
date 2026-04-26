@@ -339,6 +339,8 @@ export async function deleteSesi(id) {
         }
       }
     }
+    // Hapus konsinyasi (items & setoran cascade) sebelum hapus sesi
+    await tx.konsinyasi.deleteMany({ where: { sesi_id: id } })
     await tx.sesiHarian.delete({ where: { id } })
   })
   revalidatePath("/distribusi")
