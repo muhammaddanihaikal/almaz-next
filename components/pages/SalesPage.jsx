@@ -10,7 +10,7 @@ import Modal from "@/components/Modal"
 
 const PAGE_SIZE = 10
 
-export default function SalesPage({ salesList, distribusi, retur }) {
+export default function SalesPage({ salesList, sesiList }) {
   const router = useRouter()
   const [mode, setMode] = useState(null)
   const [editing, setEditing] = useState(null)
@@ -20,8 +20,7 @@ export default function SalesPage({ salesList, distribusi, retur }) {
     [salesList]
   )
 
-  const isUsed = (id) =>
-    distribusi.some((d) => d.sales_id === id) || retur.some((r) => r.sales_id === id)
+  const isUsed = (id) => sesiList.some((s) => s.sales_id === id)
 
   const close = () => { setMode(null); setEditing(null) }
 

@@ -22,16 +22,21 @@ function serialize(p) {
       rokok:      it.rokok.nama,
       rokok_id:   it.rokok_id,
       qty:        it.qty,
-      qty_sample: it.qty_sample,
     })),
     masukItems: p.masukItems.map((it) => ({
       id:         it.id,
       rokok:      it.rokok.nama,
       rokok_id:   it.rokok_id,
       qty:        it.qty,
-      qty_sample: it.qty_sample,
       harga:      it.harga,
       pembayaran: it.pembayaran,
+    })),
+    sampleItems: (p.sampleItems || []).map((it) => ({
+      id:         it.id,
+      rokok:      it.rokok.nama,
+      rokok_id:   it.rokok_id,
+      qty_keluar: it.qty_keluar,
+      qty_masuk:  it.qty_masuk,
     })),
   }
 }
@@ -41,6 +46,7 @@ const include = {
   toko:  true,
   keluarItems: { include: { rokok: true } },
   masukItems:  { include: { rokok: true } },
+  sampleItems: { include: { rokok: true } },
 }
 
 export async function getPenjualan() {
@@ -49,7 +55,8 @@ export async function getPenjualan() {
 }
 
 export async function addPenjualan(data) {
-  const masuk = data.masukItems || []
+  const masuk   = data.masukItems  || []
+  const samples = data.sampleItems || []
   await prisma.$transaction(async (tx) => {
     await tx.penjualan.create({
       data: {
@@ -60,18 +67,23 @@ export async function addPenjualan(data) {
         setoran_total: data.setoran_total != null ? Number(data.setoran_total) : null,
         keluarItems: {
           create: (data.keluarItems || []).map((it) => ({
-            rokok_id:   it.rokok_id,
-            qty:        it.qty,
-            qty_sample: it.qty_sample || 0,
+            rokok_id: it.rokok_id,
+            qty:      it.qty,
           })),
         },
         masukItems: {
           create: masuk.map((it) => ({
             rokok_id:   it.rokok_id,
             qty:        it.qty,
-            qty_sample: it.qty_sample || 0,
             harga:      it.harga || 0,
             pembayaran: it.pembayaran || "Cash",
+          })),
+        },
+        sampleItems: {
+          create: samples.map((it) => ({
+            rokok_id:  it.rokok_id,
+            qty_keluar: it.qty_keluar || 0,
+            qty_masuk:  it.qty_masuk  || 0,
           })),
         },
       },
@@ -79,8 +91,16 @@ export async function addPenjualan(data) {
     for (const it of masuk) {
       await tx.rokok.update({
         where: { id: it.rokok_id },
-        data:  { stok: { decrement: it.qty + (it.qty_sample || 0) } },
+        data:  { stok: { decrement: it.qty } },
       })
+    }
+    for (const it of samples) {
+      if (it.qty_masuk > 0) {
+        await tx.rokok.update({
+          where: { id: it.rokok_id },
+          data:  { stok: { decrement: it.qty_masuk } },
+        })
+      }
     }
   })
   revalidatePath("/penjualan")
@@ -88,17 +108,30 @@ export async function addPenjualan(data) {
 }
 
 export async function updatePenjualan(id, data) {
-  const masuk = data.masukItems || []
+  const masuk   = data.masukItems  || []
+  const samples = data.sampleItems || []
   await prisma.$transaction(async (tx) => {
-    const old = await tx.penjualan.findUnique({ where: { id }, include: { masukItems: true } })
+    const old = await tx.penjualan.findUnique({
+      where: { id },
+      include: { masukItems: true, sampleItems: true },
+    })
     for (const it of old.masukItems) {
       await tx.rokok.update({
         where: { id: it.rokok_id },
-        data:  { stok: { increment: it.qty + (it.qty_sample || 0) } },
+        data:  { stok: { increment: it.qty } },
       })
+    }
+    for (const it of old.sampleItems) {
+      if (it.qty_masuk > 0) {
+        await tx.rokok.update({
+          where: { id: it.rokok_id },
+          data:  { stok: { increment: it.qty_masuk } },
+        })
+      }
     }
     await tx.penjualanKeluar.deleteMany({ where: { penjualan_id: id } })
     await tx.penjualanMasuk.deleteMany({  where: { penjualan_id: id } })
+    await tx.penjualanSample.deleteMany({ where: { penjualan_id: id } })
     await tx.penjualan.update({
       where: { id },
       data: {
@@ -109,18 +142,23 @@ export async function updatePenjualan(id, data) {
         setoran_total: data.setoran_total != null ? Number(data.setoran_total) : null,
         keluarItems: {
           create: (data.keluarItems || []).map((it) => ({
-            rokok_id:   it.rokok_id,
-            qty:        it.qty,
-            qty_sample: it.qty_sample || 0,
+            rokok_id: it.rokok_id,
+            qty:      it.qty,
           })),
         },
         masukItems: {
           create: masuk.map((it) => ({
             rokok_id:   it.rokok_id,
             qty:        it.qty,
-            qty_sample: it.qty_sample || 0,
             harga:      it.harga || 0,
             pembayaran: it.pembayaran || "Cash",
+          })),
+        },
+        sampleItems: {
+          create: samples.map((it) => ({
+            rokok_id:   it.rokok_id,
+            qty_keluar: it.qty_keluar || 0,
+            qty_masuk:  it.qty_masuk  || 0,
           })),
         },
       },
@@ -128,8 +166,16 @@ export async function updatePenjualan(id, data) {
     for (const it of masuk) {
       await tx.rokok.update({
         where: { id: it.rokok_id },
-        data:  { stok: { decrement: it.qty + (it.qty_sample || 0) } },
+        data:  { stok: { decrement: it.qty } },
       })
+    }
+    for (const it of samples) {
+      if (it.qty_masuk > 0) {
+        await tx.rokok.update({
+          where: { id: it.rokok_id },
+          data:  { stok: { decrement: it.qty_masuk } },
+        })
+      }
     }
   })
   revalidatePath("/penjualan")
@@ -138,12 +184,23 @@ export async function updatePenjualan(id, data) {
 
 export async function deletePenjualan(id) {
   await prisma.$transaction(async (tx) => {
-    const old = await tx.penjualan.findUnique({ where: { id }, include: { masukItems: true } })
+    const old = await tx.penjualan.findUnique({
+      where: { id },
+      include: { masukItems: true, sampleItems: true },
+    })
     for (const it of old.masukItems) {
       await tx.rokok.update({
         where: { id: it.rokok_id },
-        data:  { stok: { increment: it.qty + (it.qty_sample || 0) } },
+        data:  { stok: { increment: it.qty } },
       })
+    }
+    for (const it of old.sampleItems) {
+      if (it.qty_masuk > 0) {
+        await tx.rokok.update({
+          where: { id: it.rokok_id },
+          data:  { stok: { increment: it.qty_masuk } },
+        })
+      }
     }
     await tx.penjualan.delete({ where: { id } })
   })

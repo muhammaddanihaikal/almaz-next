@@ -1,15 +1,13 @@
 import { getSalesList } from "@/actions/sales"
-import { getDistribusi } from "@/actions/distribusi"
-import { getRetur } from "@/actions/retur"
+import { getSesiList } from "@/actions/distribusi"
 import SalesPage from "@/components/pages/SalesPage"
 
-export const revalidate = 60
+export const revalidate = 0
 
 export default async function Page() {
-  const [salesList, distribusi, retur] = await Promise.all([
+  const [salesList, sesiList] = await Promise.all([
     getSalesList(),
-    getDistribusi(),
-    getRetur(),
+    getSesiList(),
   ])
-  return <SalesPage salesList={salesList} distribusi={distribusi} retur={retur} />
+  return <SalesPage salesList={salesList} sesiList={sesiList} />
 }

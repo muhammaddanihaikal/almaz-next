@@ -46,7 +46,11 @@ function SetoranCell({ record }) {
 }
 
 function emptyItem() {
-  return { rokok_id: "", keluar_qty: "", keluar_qsample: "0", masuk_qty: "", masuk_qsample: "0", pembayaran: "Cash" }
+  return { rokok_id: "", keluar_qty: "", masuk_qty: "", pembayaran: "Cash" }
+}
+
+function emptySample() {
+  return { rokok_id: "", keluar_qty: "", masuk_qty: "" }
 }
 
 function mergeItems(keluarItems = [], masukItems = []) {
@@ -55,12 +59,10 @@ function mergeItems(keluarItems = [], masukItems = []) {
   return keluarItems.map((kit) => {
     const mit = masukMap[kit.rokok_id]
     return {
-      rokok_id:       kit.rokok_id,
-      keluar_qty:     String(kit.qty),
-      keluar_qsample: String(kit.qty_sample || 0),
-      masuk_qty:      mit ? String(mit.qty) : "",
-      masuk_qsample:  mit ? String(mit.qty_sample || 0) : "0",
-      pembayaran:     mit?.pembayaran || "Cash",
+      rokok_id:   kit.rokok_id,
+      keluar_qty: String(kit.qty),
+      masuk_qty:  mit ? String(mit.qty) : "",
+      pembayaran: mit?.pembayaran || "Cash",
     }
   })
 }
@@ -170,7 +172,7 @@ export default function PenjualanPage({ penjualan, rokokList, salesList, tokoLis
               key: "keluar", label: "Keluar",
               render: (r) => {
                 const qty = r.keluarItems.reduce((s, it) => s + it.qty, 0)
-                const smp = r.keluarItems.reduce((s, it) => s + (it.qty_sample || 0), 0)
+                const smp = r.sampleItems?.reduce((s, it) => s + it.qty_keluar, 0) || 0
                 return (
                   <div className="text-sm tabular-nums">
                     <span className="font-medium">{qty}</span><span className="text-neutral-400"> pcs</span>
@@ -193,7 +195,7 @@ export default function PenjualanPage({ penjualan, rokokList, salesList, tokoLis
           ]}
           mobileRender={(r) => {
             const qty = r.keluarItems.reduce((s, it) => s + it.qty, 0)
-            const smp = r.keluarItems.reduce((s, it) => s + (it.qty_sample || 0), 0)
+            const smp = r.sampleItems?.reduce((s, it) => s + it.qty_keluar, 0) || 0
             return (
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
@@ -278,7 +280,6 @@ function PenjualanDetail({ record }) {
               <tr className="border-b border-neutral-200 bg-neutral-50 text-xs font-medium uppercase tracking-wide text-neutral-500">
                 <th className="px-3 py-2 text-left">Rokok</th>
                 <th className="px-3 py-2 text-right">Qty</th>
-                <th className="px-3 py-2 text-right">Sample</th>
               </tr>
             </thead>
             <tbody>
@@ -286,18 +287,39 @@ function PenjualanDetail({ record }) {
                 <tr key={i} className="border-b border-neutral-100">
                   <td className="px-3 py-2.5">{it.rokok}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums">{it.qty}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums">
-                    {it.qty_sample > 0
-                      ? <span className="font-medium text-amber-600">{it.qty_sample}</span>
-                      : <span className="text-neutral-400">—</span>
-                    }
-                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* Sample */}
+      {record.sampleItems?.length > 0 && (
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-amber-600">Sample</p>
+          <div className="overflow-hidden rounded-lg border border-amber-200">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-amber-200 bg-amber-50 text-xs font-medium uppercase tracking-wide text-amber-600">
+                  <th className="px-3 py-2 text-left">Rokok</th>
+                  <th className="px-3 py-2 text-right">Keluar</th>
+                  <th className="px-3 py-2 text-right">Masuk</th>
+                </tr>
+              </thead>
+              <tbody>
+                {record.sampleItems.map((it, i) => (
+                  <tr key={i} className="border-b border-amber-100">
+                    <td className="px-3 py-2.5">{it.rokok}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">{it.qty_keluar}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">{it.qty_masuk > 0 ? it.qty_masuk : <span className="text-neutral-400">—</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Masuk */}
       {record.masukItems.length > 0 && (
@@ -309,7 +331,6 @@ function PenjualanDetail({ record }) {
                 <tr className="border-b border-neutral-200 bg-neutral-50 text-xs font-medium uppercase tracking-wide text-neutral-500">
                   <th className="px-3 py-2 text-left">Rokok</th>
                   <th className="px-3 py-2 text-right">Qty</th>
-                  <th className="px-3 py-2 text-right">Sample</th>
                   <th className="px-3 py-2 text-left">Pembayaran</th>
                   <th className="px-3 py-2 text-right">Subtotal</th>
                 </tr>
@@ -319,12 +340,6 @@ function PenjualanDetail({ record }) {
                   <tr key={i} className="border-b border-neutral-100">
                     <td className="px-3 py-2.5">{it.rokok}</td>
                     <td className="px-3 py-2.5 text-right tabular-nums">{it.qty}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">
-                      {it.qty_sample > 0
-                        ? <span className="font-medium text-amber-600">{it.qty_sample}</span>
-                        : <span className="text-neutral-400">—</span>
-                      }
-                    </td>
                     <td className="px-3 py-2.5">
                       <span className="rounded-md bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600">{it.pembayaran}</span>
                     </td>
@@ -387,13 +402,26 @@ function PenjualanForm({ initial, rokokList, salesList, tokoList, onSubmit, onCa
       ? mergeItems(initial.keluarItems, initial.masukItems)
       : [emptyItem()]
   )
+  const [sampleItems, setSampleItems] = useState(() =>
+    initial?.sampleItems?.length
+      ? initial.sampleItems.map((it) => ({
+          rokok_id:   it.rokok_id,
+          keluar_qty: String(it.qty_keluar),
+          masuk_qty:  String(it.qty_masuk),
+        }))
+      : []
+  )
 
   const selectedToko = tokoList.find((t) => t.id === tokoId)
   const priceProp    = selectedToko?.tipe === "Toko" ? "harga_toko" : selectedToko?.tipe === "Grosir" ? "harga_grosir" : null
 
-  const addRow    = () => setItems([...items, emptyItem()])
-  const removeRow = (idx) => { if (items.length > 1) setItems(items.filter((_, i) => i !== idx)) }
-  const update    = (idx, field, val) => setItems(items.map((it, i) => i === idx ? { ...it, [field]: val } : it))
+  const addRow         = () => setItems([...items, emptyItem()])
+  const removeRow      = (idx) => { if (items.length > 1) setItems(items.filter((_, i) => i !== idx)) }
+  const update         = (idx, field, val) => setItems(items.map((it, i) => i === idx ? { ...it, [field]: val } : it))
+
+  const addSampleRow    = () => setSampleItems([...sampleItems, emptySample()])
+  const removeSampleRow = (idx) => setSampleItems(sampleItems.filter((_, i) => i !== idx))
+  const updateSample    = (idx, field, val) => setSampleItems(sampleItems.map((it, i) => i === idx ? { ...it, [field]: val } : it))
 
   const validItems = items.filter((it) => it.rokok_id && Number(it.keluar_qty) > 0)
   const hasMasuk   = items.some((it) => it.rokok_id && Number(it.masuk_qty) > 0)
@@ -416,14 +444,14 @@ function PenjualanForm({ initial, rokokList, salesList, tokoList, onSubmit, onCa
     e.preventDefault()
     if (!valid) return
     const rows = items.filter((it) => it.rokok_id && Number(it.keluar_qty) > 0)
+    const validSamples = sampleItems.filter((it) => it.rokok_id && (Number(it.keluar_qty) > 0 || Number(it.masuk_qty) > 0))
     onSubmit({
       tanggal,
       sales_id:  salesId,
       toko_id:   tokoId || null,
       keluarItems: rows.map((it) => ({
-        rokok_id:   it.rokok_id,
-        qty:        Number(it.keluar_qty),
-        qty_sample: Number(it.keluar_qsample) || 0,
+        rokok_id: it.rokok_id,
+        qty:      Number(it.keluar_qty),
       })),
       masukItems: rows
         .filter((it) => Number(it.masuk_qty) > 0)
@@ -432,11 +460,15 @@ function PenjualanForm({ initial, rokokList, salesList, tokoList, onSubmit, onCa
           return {
             rokok_id:   it.rokok_id,
             qty:        Number(it.masuk_qty),
-            qty_sample: Number(it.masuk_qsample) || 0,
             harga:      priceProp && r ? (r[priceProp] || 0) : 0,
             pembayaran: it.pembayaran || "Cash",
           }
         }),
+      sampleItems: validSamples.map((it) => ({
+        rokok_id:   it.rokok_id,
+        qty_keluar: Number(it.keluar_qty) || 0,
+        qty_masuk:  Number(it.masuk_qty)  || 0,
+      })),
       setoran_tipe:  hasMasuk ? (setoranTipe || null) : null,
       setoran_total: hasMasuk && setoranTotal !== "" ? Number(setoranTotal) : null,
     })
@@ -486,7 +518,6 @@ function PenjualanForm({ initial, rokokList, salesList, tokoList, onSubmit, onCa
               const available = rokokList.filter((r) => r.aktif !== false && (!usedIds.includes(r.id) || r.id === item.rokok_id))
               return (
                 <Fragment key={idx}>
-                  {/* Main row */}
                   <tr className="border-t border-neutral-100">
                     <td className="pt-2 pr-2">
                       <SelectInput value={item.rokok_id} onChange={(e) => update(idx, "rokok_id", e.target.value)}>
@@ -521,31 +552,6 @@ function PenjualanForm({ initial, rokokList, salesList, tokoList, onSubmit, onCa
                       )}
                     </td>
                   </tr>
-                  {/* Sample sub-row */}
-                  {item.rokok_id && (
-                    <tr className="bg-amber-50/60">
-                      <td className="py-1.5 pr-2 pl-2">
-                        <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">
-                          Sample
-                        </span>
-                      </td>
-                      <td className="py-1.5 px-2">
-                        <input
-                          type="number" min="0" value={item.keluar_qsample}
-                          onChange={(e) => update(idx, "keluar_qsample", e.target.value)}
-                          placeholder="0" className={sampleInputCls + " text-right"}
-                        />
-                      </td>
-                      <td className="py-1.5 px-2">
-                        <input
-                          type="number" min="0" value={item.masuk_qsample}
-                          onChange={(e) => update(idx, "masuk_qsample", e.target.value)}
-                          placeholder="0" className={sampleInputCls + " text-right"}
-                        />
-                      </td>
-                      <td colSpan={2} />
-                    </tr>
-                  )}
                 </Fragment>
               )
             })}
@@ -553,6 +559,57 @@ function PenjualanForm({ initial, rokokList, salesList, tokoList, onSubmit, onCa
         </table>
       </div>
       <AddRowButton onClick={addRow} />
+
+      {/* Sample */}
+      <SectionDivider label="Sample" optional />
+      {sampleItems.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[400px] border-collapse text-sm">
+            <thead>
+              <tr className="text-left text-xs font-medium text-amber-600">
+                <th className="pb-2 pr-2">Rokok Sample</th>
+                <th className="pb-2 px-2 w-24 text-right">Keluar</th>
+                <th className="pb-2 px-2 w-24 text-right">Masuk</th>
+                <th className="pb-2 pl-2 w-8"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {sampleItems.map((item, idx) => {
+                const usedIds   = sampleItems.map((it) => it.rokok_id).filter(Boolean)
+                const available = rokokList.filter((r) => r.aktif !== false && (!usedIds.includes(r.id) || r.id === item.rokok_id))
+                return (
+                  <tr key={idx} className="border-t border-amber-100">
+                    <td className="pt-2 pr-2">
+                      <SelectInput value={item.rokok_id} onChange={(e) => updateSample(idx, "rokok_id", e.target.value)}>
+                        <option value="">Pilih rokok</option>
+                        {available.map((r) => <option key={r.id} value={r.id}>{r.nama} (stok: {r.stok ?? 0})</option>)}
+                      </SelectInput>
+                    </td>
+                    <td className="pt-2 px-2">
+                      <input
+                        type="number" min="0" value={item.keluar_qty}
+                        onChange={(e) => updateSample(idx, "keluar_qty", e.target.value)}
+                        placeholder="0" className={sampleInputCls + " text-right"}
+                      />
+                    </td>
+                    <td className="pt-2 px-2">
+                      <input
+                        type="number" min="0" value={item.masuk_qty}
+                        onChange={(e) => updateSample(idx, "masuk_qty", e.target.value)}
+                        placeholder="0" className={sampleInputCls + " text-right"}
+                      />
+                    </td>
+                    <td className="pt-2 pl-2">
+                      <IconButton icon={Trash2} onClick={() => removeSampleRow(idx)} variant="danger" label="Hapus baris sample" />
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <AddRowButton onClick={addSampleRow} label="+ Tambah Sample" amber />
 
       {/* Setoran */}
       {hasMasuk && (
@@ -609,14 +666,18 @@ function SectionDivider({ label, optional }) {
   )
 }
 
-function AddRowButton({ onClick }) {
+function AddRowButton({ onClick, label = "+ Tambah Baris", amber = false }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="w-full rounded-lg border border-dashed border-neutral-300 px-4 py-2.5 text-sm font-medium text-neutral-500 transition hover:border-neutral-400 hover:bg-neutral-50 hover:text-neutral-700"
+      className={`w-full rounded-lg border border-dashed px-4 py-2.5 text-sm font-medium transition ${
+        amber
+          ? "border-amber-300 text-amber-600 hover:border-amber-400 hover:bg-amber-50 hover:text-amber-700"
+          : "border-neutral-300 text-neutral-500 hover:border-neutral-400 hover:bg-neutral-50 hover:text-neutral-700"
+      }`}
     >
-      + Tambah Baris
+      {label}
     </button>
   )
 }

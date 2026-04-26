@@ -32,9 +32,10 @@ model Rokok {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  returItems  ReturItem[]
-  keluarItems PenjualanKeluar[]
-  masukItems  PenjualanMasuk[]
+  sesiBarangKeluar  SesiBarangKeluar[]
+  sesiPenjualan     SesiPenjualan[]
+  sesiBarangKembali SesiBarangKembali[]
+  konsinyasiItems   KonsinyasiItem[]
 }
 
 model Sales {
@@ -45,87 +46,118 @@ model Sales {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  penjualan Penjualan[]
-  retur     Retur[]
-  absensi   Absensi[]
+  sesi       SesiHarian[]
+  konsinyasi Konsinyasi[]
+  absensi    Absensi[]
 }
 
-model Toko {
+// ─── DISTRIBUSI ───────────────────────────────────────────────────────────────
+
+model SesiHarian {
   id        String   @id @default(cuid())
-  nama      String   @unique
-  tipe      String   // "Toko" | "Grosir"
-  alamat    String?
-  aktif     Boolean  @default(true)
+  tanggal   DateTime @db.Date
+  sales_id  String
+  status    String   @default("aktif") // "aktif" | "selesai"
+  catatan   String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  penjualan Penjualan[]
+  sales         Sales              @relation(fields: [sales_id], references: [id])
+  barangKeluar  SesiBarangKeluar[]
+  penjualan     SesiPenjualan[]
+  setoran       SesiSetoran[]
+  barangKembali SesiBarangKembali[]
+  konsinyasi    Konsinyasi[]
+
+  @@unique([tanggal, sales_id])
 }
 
-// ─── TRANSAKSI ───────────────────────────────────────────────────────────────
-
-model Penjualan {
-  id            String   @id @default(cuid())
-  tanggal       DateTime @db.Date
-  sales_id      String
-  toko_id       String?  // nullable untuk kompatibilitas migrasi
-  setoran_tipe  String?  // "Cash" | "Transfer"
-  setoran_total Int?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  sales       Sales             @relation(fields: [sales_id], references: [id])
-  toko        Toko?             @relation(fields: [toko_id], references: [id])
-  keluarItems PenjualanKeluar[]
-  masukItems  PenjualanMasuk[]
-}
-
-model PenjualanKeluar {
-  id           String @id @default(cuid())
-  penjualan_id String
-  rokok_id     String
-  qty          Int
-  qty_sample   Int    @default(0)
-
-  penjualan Penjualan @relation(fields: [penjualan_id], references: [id], onDelete: Cascade)
-  rokok     Rokok     @relation(fields: [rokok_id], references: [id])
-}
-
-model PenjualanMasuk {
-  id           String @id @default(cuid())
-  penjualan_id String
-  rokok_id     String
-  qty          Int
-  qty_sample   Int    @default(0)
-  harga        Int    @default(0)
-  pembayaran   String @default("Cash") // "Cash" | "Transfer" | "Hutang"
-
-  penjualan Penjualan @relation(fields: [penjualan_id], references: [id], onDelete: Cascade)
-  rokok     Rokok     @relation(fields: [rokok_id], references: [id])
-}
-
-model Retur {
-  id             String   @id @default(cuid())
-  tanggal        DateTime @db.Date
-  tipe_penjualan String   // "Toko" | "Grosir" | "Perorangan"
-  sales_id       String
-  alasan         String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  sales Sales       @relation(fields: [sales_id], references: [id])
-  items ReturItem[]
-}
-
-model ReturItem {
+model SesiBarangKeluar {
   id       String @id @default(cuid())
-  retur_id String
+  sesi_id  String
   rokok_id String
   qty      Int
 
-  retur Retur @relation(fields: [retur_id], references: [id], onDelete: Cascade)
-  rokok Rokok @relation(fields: [rokok_id], references: [id])
+  sesi  SesiHarian @relation(fields: [sesi_id], references: [id], onDelete: Cascade)
+  rokok Rokok      @relation(fields: [rokok_id], references: [id])
 }
+
+model SesiPenjualan {
+  id       String @id @default(cuid())
+  sesi_id  String
+  rokok_id String
+  kategori String // "grosir" | "toko" | "perorangan"
+  qty      Int
+  harga    Int
+
+  sesi  SesiHarian @relation(fields: [sesi_id], references: [id], onDelete: Cascade)
+  rokok Rokok      @relation(fields: [rokok_id], references: [id])
+}
+
+model SesiSetoran {
+  id      String @id @default(cuid())
+  sesi_id String
+  metode  String // "cash" | "transfer"
+  jumlah  Int
+
+  sesi SesiHarian @relation(fields: [sesi_id], references: [id], onDelete: Cascade)
+}
+
+model SesiBarangKembali {
+  id       String @id @default(cuid())
+  sesi_id  String
+  rokok_id String
+  qty      Int
+
+  sesi  SesiHarian @relation(fields: [sesi_id], references: [id], onDelete: Cascade)
+  rokok Rokok      @relation(fields: [rokok_id], references: [id])
+}
+
+// ─── KONSINYASI ───────────────────────────────────────────────────────────────
+
+model Konsinyasi {
+  id                  String   @id @default(cuid())
+  sesi_id             String
+  sales_id            String
+  nama_toko           String
+  kategori            String   // "grosir" | "toko"
+  tanggal_jatuh_tempo DateTime @db.Date
+  status              String   @default("aktif") // "aktif" | "selesai"
+  catatan             String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  sesi    SesiHarian          @relation(fields: [sesi_id], references: [id])
+  sales   Sales               @relation(fields: [sales_id], references: [id])
+  items   KonsinyasiItem[]
+  setoran KonsinyasiSetoran[]
+}
+
+model KonsinyasiItem {
+  id            String @id @default(cuid())
+  konsinyasi_id String
+  rokok_id      String
+  qty_keluar    Int
+  qty_terjual   Int    @default(0)
+  qty_kembali   Int    @default(0)
+  harga         Int
+
+  konsinyasi Konsinyasi @relation(fields: [konsinyasi_id], references: [id], onDelete: Cascade)
+  rokok      Rokok      @relation(fields: [rokok_id], references: [id])
+}
+
+model KonsinyasiSetoran {
+  id                   String   @id @default(cuid())
+  konsinyasi_id        String
+  metode               String   // "cash" | "transfer"
+  jumlah               Int
+  tanggal              DateTime @db.Date
+  sesi_penyelesaian_id String?
+
+  konsinyasi Konsinyasi @relation(fields: [konsinyasi_id], references: [id], onDelete: Cascade)
+}
+
+// ─── LAINNYA ──────────────────────────────────────────────────────────────────
 
 model Pengeluaran {
   id         String   @id @default(cuid())

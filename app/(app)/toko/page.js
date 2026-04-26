@@ -1,9 +1,5 @@
-import { getTokoList } from "@/actions/toko"
-import TokoPage from "@/components/pages/TokoPage"
+import { redirect } from "next/navigation"
 
-export const revalidate = 60
-
-export default async function Page() {
-  const tokoList = await getTokoList()
-  return <TokoPage tokoList={tokoList} />
+export default function Page() {
+  redirect("/")
 }
