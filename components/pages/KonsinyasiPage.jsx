@@ -320,18 +320,21 @@ function SettlementForm({ konsinyasi, onSubmit, onCancel }) {
   const [loading, setLoading] = useState(false)
 
   const updateItem = (idx, field, val) =>
-    setItems(items.map((it, i) => i === idx ? { ...it, [field]: val } : it))
+    setItems(items.map((it, i) => {
+      if (i !== idx) return it
+      const updated = { ...it, [field]: val }
+      if (field === "qty_terjual") {
+        const terjual = Number(val) || 0
+        updated.qty_kembali = String(Math.max(0, it.qty_keluar - terjual))
+      }
+      return updated
+    }))
 
   const nilaiTerjual = items.reduce((s, it) => s + (Number(it.qty_terjual) || 0) * it.harga, 0)
   const totalSetoran = setoran.reduce((s, it) => s + (Number(it.jumlah) || 0), 0)
   const flagSelisih  = nilaiTerjual > 0 && totalSetoran !== nilaiTerjual
 
-  // Validasi: terjual + kembali tidak boleh melebihi keluar
-  const hasError = items.some((it) => {
-    const terjual = Number(it.qty_terjual) || 0
-    const kembali = Number(it.qty_kembali) || 0
-    return terjual + kembali > it.qty_keluar
-  })
+  const hasError = items.some((it) => (Number(it.qty_terjual) || 0) > it.qty_keluar)
 
   const handleSubmit = async () => {
     if (hasError) return
@@ -395,14 +398,8 @@ function SettlementForm({ konsinyasi, onSubmit, onCancel }) {
                       placeholder="0"
                     />
                   </td>
-                  <td className="py-2 text-right">
-                    <input
-                      type="number" min="0" max={it.qty_keluar}
-                      value={it.qty_kembali}
-                      onChange={(e) => updateItem(idx, "qty_kembali", e.target.value)}
-                      className={inputCls + " w-20 text-right" + (overflow ? " border-red-400" : "")}
-                      placeholder="0"
-                    />
+                  <td className="py-2 text-right tabular-nums text-neutral-600">
+                    {Math.max(0, it.qty_keluar - (Number(it.qty_terjual) || 0))}
                   </td>
                   <td className="py-2 text-right tabular-nums font-medium">{fmtIDR(terjual * it.harga)}</td>
                 </tr>
@@ -417,7 +414,7 @@ function SettlementForm({ konsinyasi, onSubmit, onCancel }) {
         {hasError && (
           <div className="mt-2 flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs text-red-700">
             <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-            Jumlah terjual + kembali tidak boleh melebihi jumlah keluar
+            Jumlah terjual tidak boleh melebihi jumlah keluar
           </div>
         )}
       </div>
@@ -454,7 +451,7 @@ function SettlementForm({ konsinyasi, onSubmit, onCancel }) {
         </div>
 
         {/* Validasi setoran */}
-        {nilaiTerjual > 0 && (
+        {totalSetoran > 0 && (
           <div className={`mt-3 flex items-center justify-between rounded-lg border px-3 py-2 text-xs ${flagSelisih ? "border-red-200 bg-red-50 text-red-700" : "border-green-200 bg-green-50 text-green-700"}`}>
             <span className="flex items-center gap-1.5">
               {flagSelisih ? <AlertCircle className="h-3.5 w-3.5" /> : <CheckCircle className="h-3.5 w-3.5" />}

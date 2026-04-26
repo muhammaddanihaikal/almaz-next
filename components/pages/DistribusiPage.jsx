@@ -2,7 +2,7 @@
 
 import { useMemo, useState, Fragment } from "react"
 import { useRouter } from "next/navigation"
-import { Plus, Trash2, AlertCircle, CheckCircle, ChevronDown, ChevronUp, Search } from "lucide-react"
+import { Plus, Trash2, AlertCircle, ChevronDown, ChevronUp, Search, Download } from "lucide-react"
 import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc } from "@/lib/utils"
 import { createSesi, updateSesiPagi, submitLaporanSore, editLaporanSore, deleteSesi } from "@/actions/distribusi"
 import { addToko } from "@/actions/toko"
@@ -50,6 +50,52 @@ function TabButton({ active, onClick, children }) {
   )
 }
 
+function exportToExcel(rows) {
+  const XLSX = require("xlsx-js-style")
+
+  const header = ["No", "Tanggal", "Sales", "Rokok", "Qty", "Harga", "Total"]
+  const headerStyle = {
+    font: { bold: true, color: { rgb: "FFFFFF" } },
+    fill: { fgColor: { rgb: "1F2937" } },
+    alignment: { horizontal: "center" },
+  }
+
+  const data = []
+  let no = 1
+  for (const sesi of rows) {
+    if (!sesi.penjualan?.length) continue
+    for (const it of sesi.penjualan) {
+      data.push([no++, sesi.tanggal, sesi.sales, it.rokok, it.qty, it.harga, it.qty * it.harga])
+    }
+  }
+
+  if (!data.length) { alert("Tidak ada data penjualan untuk diekspor."); return }
+
+  const wsData = [
+    header.map((h) => ({ v: h, s: headerStyle })),
+    ...data.map((row) =>
+      row.map((v, i) => {
+        const isNum = i >= 4
+        return {
+          v,
+          t: isNum ? "n" : "s",
+          s: { alignment: { horizontal: isNum ? "right" : "left" } },
+          ...(i >= 5 ? { z: '#,##0' } : {}),
+        }
+      })
+    ),
+  ]
+
+  const ws = XLSX.utils.aoa_to_sheet(wsData)
+  ws["!cols"] = [
+    { wch: 5 }, { wch: 14 }, { wch: 18 }, { wch: 26 }, { wch: 6 }, { wch: 14 }, { wch: 14 },
+  ]
+
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, "Distribusi")
+  XLSX.writeFile(wb, `distribusi_${new Date().toISOString().slice(0,10)}.xlsx`)
+}
+
 export default function DistribusiPage({ sesiList, rokokList, salesList, tokoList }) {
   const router  = useRouter()
   const [mode,    setMode]    = useState(null)
@@ -85,9 +131,18 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
         title="Distribusi"
         subtitle="Sesi harian sales — barang keluar pagi & laporan sore."
         action={
-          <PrimaryButton onClick={() => { setEditing(null); setMode("add") }} icon={Plus}>
-            Buat Sesi
-          </PrimaryButton>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => exportToExcel(rows)}
+              className="flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+            >
+              <Download className="h-4 w-4" />
+              Export Excel
+            </button>
+            <PrimaryButton onClick={() => { setEditing(null); setMode("add") }} icon={Plus}>
+              Buat Sesi
+            </PrimaryButton>
+          </div>
         }
       />
 
@@ -936,7 +991,7 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
                     <Field label={idx === 0 ? "Rokok" : ""}>
                       <SelectInput value={item.rokok_id} onChange={(e) => updateItem(idx, "rokok_id", e.target.value)}>
                         <option value="">Pilih rokok</option>
-                        {rokokDibawa.filter((r) => r.aktif !== false).map((r) => {
+                        {rokokDibawa.filter((r) => r.aktif !== false && (r.id === item.rokok_id || !data.items.some((it, i) => i !== idx && it.rokok_id === r.id))).map((r) => {
                           const avail = getAvailableQty(r.id)
                           return (
                             <option key={r.id} value={r.id}>{r.nama} (tersedia: {avail})</option>
