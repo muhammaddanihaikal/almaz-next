@@ -4,7 +4,7 @@ import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Plus } from "lucide-react"
 import { addSales, updateSales, deleteSales, toggleAktifSales } from "@/actions/sales"
-import { Card, PageHeader, PrimaryButton, RowActions, Field, FormActions, Toggle, inputCls } from "@/components/ui"
+import { Card, PageHeader, PrimaryButton, RowActions, Field, FormActions, Toggle, inputCls, useConfirm } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
 
@@ -12,6 +12,7 @@ const PAGE_SIZE = 10
 
 export default function SalesPage({ salesList, sesiList }) {
   const router = useRouter()
+  const { confirm, ConfirmModal } = useConfirm()
   const [mode, setMode] = useState(null)
   const [editing, setEditing] = useState(null)
 
@@ -25,7 +26,8 @@ export default function SalesPage({ salesList, sesiList }) {
   const close = () => { setMode(null); setEditing(null) }
 
   const handleDelete = async (s) => {
-    if (!window.confirm(`Hapus sales "${s.nama}"?`)) return
+    const ok = await confirm(`Hapus sales "${s.nama}"?`, { title: "Hapus Sales", variant: "danger", confirmLabel: "Ya, Hapus" })
+    if (!ok) return
     await deleteSales(s.id)
     router.refresh()
   }
@@ -107,6 +109,7 @@ export default function SalesPage({ salesList, sesiList }) {
           />
         </Modal>
       )}
+      {ConfirmModal}
     </div>
   )
 }

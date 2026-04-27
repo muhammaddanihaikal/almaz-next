@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Plus, Trash2 } from "lucide-react"
 import { fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc, downloadExcel } from "@/lib/utils"
 import { addRetur, updateRetur, deleteRetur } from "@/actions/retur"
-import { Card, PageHeader, DateFilter, DownloadButton, PrimaryButton, Field, FormActions, SelectInput, SearchableSelect, inputCls, RowActions, IconButton } from "@/components/ui"
+import { Card, PageHeader, DateFilter, DownloadButton, PrimaryButton, Field, FormActions, SelectInput, SearchableSelect, inputCls, RowActions, IconButton, useConfirm } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
 
@@ -28,6 +28,7 @@ function TipeBadge({ tipe }) {
 
 export default function ReturPage({ retur, rokokList, salesList }) {
   const router = useRouter()
+  const { confirm, ConfirmModal } = useConfirm()
   const [mode, setMode] = useState(null)
   const [editing, setEditing] = useState(null)
   const [detail, setDetail] = useState(null)
@@ -65,7 +66,8 @@ export default function ReturPage({ retur, rokokList, salesList }) {
   const close = () => { setMode(null); setEditing(null) }
 
   const handleDelete = async (r) => {
-    if (!window.confirm("Hapus data retur ini?")) return
+    const ok = await confirm("Hapus data retur ini?", { title: "Hapus Retur", variant: "danger", confirmLabel: "Ya, Hapus" })
+    if (!ok) return
     await deleteRetur(r.id)
     router.refresh()
   }
@@ -144,6 +146,7 @@ export default function ReturPage({ retur, rokokList, salesList }) {
           />
         </Modal>
       )}
+      {ConfirmModal}
     </div>
   )
 }

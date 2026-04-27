@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { Calendar, ChevronDown, Download, Eye, Pencil, Trash2, ChevronRight, CalendarDays } from "lucide-react"
 import { getDateRanges } from "@/lib/utils"
 
@@ -244,4 +244,51 @@ export function Badge({ children }) {
       {children}
     </span>
   )
+}
+
+export function useConfirm() {
+  const [dialog, setDialog] = useState(null)
+
+  const confirm = useCallback((message, options = {}) =>
+    new Promise((resolve) => setDialog({ message, options, resolve }))
+  , [])
+
+  const handleClose = (result) => {
+    setDialog((d) => { d?.resolve(result); return null })
+  }
+
+  const ConfirmModal = dialog ? (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-black/40" onClick={() => handleClose(false)} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm space-y-4 p-6">
+        {dialog.options?.title && (
+          <h3 className="text-base font-semibold text-neutral-900">{dialog.options.title}</h3>
+        )}
+        <p className="text-sm text-neutral-600 leading-relaxed">{dialog.message}</p>
+        <div className="flex justify-end gap-2.5 pt-1">
+          {!dialog.options?.hideCancel && (
+            <button
+              onClick={() => handleClose(false)}
+              className="rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 transition-colors"
+            >
+              Batal
+            </button>
+          )}
+          <button
+            autoFocus
+            onClick={() => handleClose(true)}
+            className={`rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors ${
+              dialog.options?.variant === "danger"
+                ? "bg-red-600 hover:bg-red-700"
+                : "bg-neutral-900 hover:bg-neutral-700"
+            }`}
+          >
+            {dialog.options?.confirmLabel ?? (dialog.options?.hideCancel ? "OK" : "Ya, Lanjutkan")}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null
+
+  return { confirm, ConfirmModal }
 }

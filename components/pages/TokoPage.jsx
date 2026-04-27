@@ -4,7 +4,7 @@ import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Plus } from "lucide-react"
 import { addToko, updateToko, deleteToko, toggleAktifToko } from "@/actions/toko"
-import { Card, PageHeader, PrimaryButton, RowActions, Field, FormActions, Toggle, SelectInput, inputCls } from "@/components/ui"
+import { Card, PageHeader, PrimaryButton, RowActions, Field, FormActions, Toggle, SelectInput, inputCls, useConfirm } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
 
@@ -17,6 +17,7 @@ const KATEGORI_COLOR = {
 
 export default function TokoPage({ tokoList, konsinyasiList }) {
   const router = useRouter()
+  const { confirm, ConfirmModal } = useConfirm()
   const [mode,    setMode]    = useState(null)
   const [editing, setEditing] = useState(null)
 
@@ -30,7 +31,8 @@ export default function TokoPage({ tokoList, konsinyasiList }) {
   const close = () => { setMode(null); setEditing(null) }
 
   const handleDelete = async (t) => {
-    if (!window.confirm(`Hapus toko "${t.nama}"?`)) return
+    const ok = await confirm(`Hapus toko "${t.nama}"?`, { title: "Hapus Toko", variant: "danger", confirmLabel: "Ya, Hapus" })
+    if (!ok) return
     await deleteToko(t.id)
     router.refresh()
   }
@@ -125,6 +127,7 @@ export default function TokoPage({ tokoList, konsinyasiList }) {
           />
         </Modal>
       )}
+      {ConfirmModal}
     </div>
   )
 }

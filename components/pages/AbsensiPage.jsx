@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Plus } from "lucide-react"
 import { fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc, downloadExcel } from "@/lib/utils"
 import { saveAbsensi, deleteAbsensi } from "@/actions/absensi"
-import { Card, PageHeader, DateFilter, DownloadButton, PrimaryButton, Field, FormActions, SelectInput, RowActions, inputCls } from "@/components/ui"
+import { Card, PageHeader, DateFilter, DownloadButton, PrimaryButton, Field, FormActions, SelectInput, RowActions, inputCls, useConfirm } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
 
@@ -37,6 +37,7 @@ function groupByDate(absensiList) {
 
 export default function AbsensiPage({ absensiList, salesList }) {
   const router = useRouter()
+  const { confirm, ConfirmModal } = useConfirm()
   const [mode, setMode] = useState(null)
   const [editingTanggal, setEditingTanggal] = useState(null)
   const [detail, setDetail] = useState(null)
@@ -64,7 +65,8 @@ export default function AbsensiPage({ absensiList, salesList }) {
   const close = () => { setMode(null); setEditingTanggal(null) }
 
   const handleDelete = async (tanggal) => {
-    if (!window.confirm(`Hapus semua data absensi tanggal ${fmtTanggal(tanggal)}?`)) return
+    const ok = await confirm(`Hapus semua data absensi tanggal ${fmtTanggal(tanggal)}?`, { title: "Hapus Absensi", variant: "danger", confirmLabel: "Ya, Hapus" })
+    if (!ok) return
     await deleteAbsensi(tanggal)
     router.refresh()
   }
@@ -193,6 +195,7 @@ export default function AbsensiPage({ absensiList, salesList }) {
           />
         </Modal>
       )}
+      {ConfirmModal}
     </div>
   )
 }

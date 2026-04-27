@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Plus } from "lucide-react"
 import { fmtIDR } from "@/lib/utils"
 import { addRokok, updateRokok, deleteRokok, toggleAktifRokok, tambahStok } from "@/actions/rokok"
-import { Card, PageHeader, PrimaryButton, RowActions, Field, FormActions, Toggle, inputCls } from "@/components/ui"
+import { Card, PageHeader, PrimaryButton, RowActions, Field, FormActions, Toggle, inputCls, useConfirm } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
 
@@ -13,9 +13,10 @@ const PAGE_SIZE = 10
 
 export default function RokokPage({ rokokList, distribusi, retur }) {
   const router = useRouter()
+  const { confirm, ConfirmModal } = useConfirm()
   const [mode, setMode] = useState(null)
   const [editing, setEditing] = useState(null)
-  const [stokTarget, setStokTarget] = useState(null) // rokok yang sedang ditambah stok
+  const [stokTarget, setStokTarget] = useState(null)
 
   const rows = useMemo(
     () => [...rokokList].sort((a, b) => a.nama.localeCompare(b.nama, "id")),
@@ -29,7 +30,8 @@ export default function RokokPage({ rokokList, distribusi, retur }) {
   const close = () => { setMode(null); setEditing(null) }
 
   const handleDelete = async (r) => {
-    if (!window.confirm(`Hapus rokok "${r.nama}"?\n\nData distribusi & retur tidak akan ikut terhapus.`)) return
+    const ok = await confirm(`Hapus rokok "${r.nama}"? Data distribusi & retur tidak akan ikut terhapus.`, { title: "Hapus Rokok", variant: "danger", confirmLabel: "Ya, Hapus" })
+    if (!ok) return
     await deleteRokok(r.id)
     router.refresh()
   }
@@ -184,6 +186,7 @@ export default function RokokPage({ rokokList, distribusi, retur }) {
           />
         </Modal>
       )}
+      {ConfirmModal}
     </div>
   )
 }

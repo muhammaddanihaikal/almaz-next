@@ -18,7 +18,7 @@ function Badge({ label, colorClass }) {
   )
 }
 
-export default function SettlementForm({ konsinyasi, onSubmit, onCancel }) {
+export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, onCancel }) {
   const today = new Date().toISOString().split("T")[0]
   const [items,   setItems]   = useState(
     konsinyasi.items.map((it) => ({
@@ -27,7 +27,11 @@ export default function SettlementForm({ konsinyasi, onSubmit, onCancel }) {
       qty_kembali: String(it.qty_kembali || ""),
     }))
   )
-  const [setoran, setSetoran] = useState([{ metode: "cash", jumlah: "" }])
+  const [setoran, setSetoran] = useState(
+    initialSetoran?.length
+      ? initialSetoran.map((s) => ({ metode: s.metode, jumlah: String(s.jumlah) }))
+      : [{ metode: "cash", jumlah: "" }]
+  )
   const [loading, setLoading] = useState(false)
 
   const updateItem = (idx, field, val) =>

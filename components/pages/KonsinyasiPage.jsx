@@ -4,8 +4,8 @@ import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AlertCircle, Clock, Search, CheckCircle } from "lucide-react"
 import { fmtIDR, fmtTanggal } from "@/lib/utils"
-import { settleKonsinyasi } from "@/actions/konsinyasi"
-import { Card, PageHeader, SelectInput, inputCls } from "@/components/ui"
+import { settleKonsinyasi, editSettlement, revertSettlement, editKonsinyasiDetail, deleteKonsinyasi } from "@/actions/konsinyasi"
+import { Card, PageHeader, SelectInput, Field, FormActions, inputCls, useConfirm } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
 import SettlementForm from "@/components/SettlementForm"
@@ -51,8 +51,11 @@ export default function KonsinyasiPage({ konsinyasiList, salesList }) {
   const [activeTab,    setActiveTab]    = useState("aktif")
   const [search,       setSearch]       = useState("")
   const [salesFilter,  setSalesFilter]  = useState("")
-  const [settling,     setSettling]     = useState(null)
-  const [detail,       setDetail]       = useState(null)
+  const { confirm, ConfirmModal } = useConfirm()
+  const [settling,          setSettling]          = useState(null)
+  const [editingSettlement, setEditingSettlement] = useState(null)
+  const [editingDetail,     setEditingDetail]     = useState(null)
+  const [detail,            setDetail]            = useState(null)
 
   const jatuhTempoHariIni = konsinyasiList.filter((k) => k.status === "aktif" && k.selisihHari <= 0)
   const jatuhTempoSegera  = konsinyasiList.filter((k) => k.status === "aktif" && k.selisihHari > 0 && k.selisihHari <= 3)
@@ -189,12 +192,52 @@ export default function KonsinyasiPage({ konsinyasiList, salesList }) {
               render: (r) => (
                 <div className="flex items-center justify-end gap-1.5">
                   {r.status === "aktif" && (
-                    <button
-                      onClick={() => setSettling(r)}
-                      className="rounded-md border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100 whitespace-nowrap"
-                    >
-                      Selesaikan
-                    </button>
+                    <>
+                      <button
+                        onClick={() => setSettling(r)}
+                        className="rounded-md border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100 whitespace-nowrap"
+                      >
+                        Selesaikan
+                      </button>
+                      <button
+                        onClick={() => setEditingDetail(r)}
+                        className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 whitespace-nowrap"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={async () => {
+                          const ok = await confirm(`Hapus titip jual "${r.nama_toko}"? Stok akan dikembalikan.`, { title: "Hapus Titip Jual", variant: "danger", confirmLabel: "Ya, Hapus" })
+                          if (!ok) return
+                          await deleteKonsinyasi(r.id)
+                          router.refresh()
+                        }}
+                        className="rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-100 whitespace-nowrap"
+                      >
+                        Hapus
+                      </button>
+                    </>
+                  )}
+                  {r.status === "selesai" && (
+                    <>
+                      <button
+                        onClick={() => setEditingSettlement(r)}
+                        className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 whitespace-nowrap"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={async () => {
+                          const ok = await confirm(`Batalkan penyelesaian titip jual "${r.nama_toko}"? Status akan kembali ke Aktif.`, { title: "Batalkan Penyelesaian", variant: "danger", confirmLabel: "Ya, Batalkan" })
+                          if (!ok) return
+                          await revertSettlement(r.id)
+                          router.refresh()
+                        }}
+                        className="rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-100 whitespace-nowrap"
+                      >
+                        Batalkan
+                      </button>
+                    </>
                   )}
                   <button
                     onClick={() => setDetail(r)}
@@ -230,7 +273,74 @@ export default function KonsinyasiPage({ konsinyasiList, salesList }) {
           />
         </Modal>
       )}
+
+      {/* Edit Detail Modal (untuk aktif) */}
+      {editingDetail && (
+        <Modal title={`Edit Titip Jual — ${editingDetail.nama_toko}`} onClose={() => setEditingDetail(null)} width="max-w-md">
+          <KonsinyasiDetailForm
+            record={editingDetail}
+            onSubmit={async (data) => {
+              await editKonsinyasiDetail(editingDetail.id, data)
+              setEditingDetail(null)
+              router.refresh()
+            }}
+            onCancel={() => setEditingDetail(null)}
+          />
+        </Modal>
+      )}
+
+      {/* Edit Settlement Modal */}
+      {editingSettlement && (
+        <Modal title={`Edit Penyelesaian — ${editingSettlement.nama_toko}`} onClose={() => setEditingSettlement(null)} width="max-w-2xl">
+          <SettlementForm
+            konsinyasi={editingSettlement}
+            initialSetoran={editingSettlement.setoran}
+            onSubmit={async (data) => {
+              await editSettlement(editingSettlement.id, data)
+              setEditingSettlement(null)
+              router.refresh()
+            }}
+            onCancel={() => setEditingSettlement(null)}
+          />
+        </Modal>
+      )}
+      {ConfirmModal}
     </div>
+  )
+}
+
+// ─── Edit Detail Form ─────────────────────────────────────────────────────────
+
+function KonsinyasiDetailForm({ record, onSubmit, onCancel }) {
+  const [tanggalJatuhTempo, setTanggalJatuhTempo] = useState(record.tanggal_jatuh_tempo)
+  const [catatan,            setCatatan]           = useState(record.catatan || "")
+  const [loading,            setLoading]           = useState(false)
+
+  const valid = !!tanggalJatuhTempo
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!valid) return
+    setLoading(true)
+    try { await onSubmit({ tanggal_jatuh_tempo: tanggalJatuhTempo, catatan }) }
+    finally { setLoading(false) }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4 text-sm">
+      <div className="grid grid-cols-2 gap-3 text-xs pb-2 border-b border-neutral-100">
+        <div><p className="text-neutral-500">Sales</p><p className="font-medium">{record.sales}</p></div>
+        <div><p className="text-neutral-500">Toko</p><p className="font-medium">{record.nama_toko}</p></div>
+        <div><p className="text-neutral-500">Kategori</p><p className="font-medium capitalize">{record.kategori}</p></div>
+      </div>
+      <Field label="Jatuh Tempo">
+        <input type="date" value={tanggalJatuhTempo} onChange={(e) => setTanggalJatuhTempo(e.target.value)} className={inputCls} required />
+      </Field>
+      <Field label="Catatan (opsional)">
+        <input type="text" value={catatan} onChange={(e) => setCatatan(e.target.value)} placeholder="Opsional" className={inputCls} />
+      </Field>
+      <FormActions onCancel={onCancel} disabled={!valid || loading} submitLabel={loading ? "Menyimpan..." : "Simpan Perubahan"} />
+    </form>
   )
 }
 

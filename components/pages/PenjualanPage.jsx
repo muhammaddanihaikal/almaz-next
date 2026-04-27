@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Plus, Trash2 } from "lucide-react"
 import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc, downloadExcel } from "@/lib/utils"
 import { addPenjualan, updatePenjualan, deletePenjualan } from "@/actions/penjualan"
-import { Card, PageHeader, DateFilter, DownloadButton, PrimaryButton, Field, FormActions, SelectInput, SearchableSelect, inputCls, RowActions, IconButton } from "@/components/ui"
+import { Card, PageHeader, DateFilter, DownloadButton, PrimaryButton, Field, FormActions, SelectInput, SearchableSelect, inputCls, RowActions, IconButton, useConfirm } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
 
@@ -69,6 +69,7 @@ function mergeItems(keluarItems = [], masukItems = []) {
 
 export default function PenjualanPage({ penjualan, rokokList, salesList, tokoList }) {
   const router = useRouter()
+  const { confirm, ConfirmModal } = useConfirm()
   const [mode,        setMode]        = useState(null)
   const [editing,     setEditing]     = useState(null)
   const [detail,      setDetail]      = useState(null)
@@ -113,7 +114,8 @@ export default function PenjualanPage({ penjualan, rokokList, salesList, tokoLis
   const close = () => { setMode(null); setEditing(null) }
 
   const handleDelete = async (r) => {
-    if (!window.confirm("Hapus data penjualan ini?")) return
+    const ok = await confirm("Hapus data penjualan ini?", { title: "Hapus Penjualan", variant: "danger", confirmLabel: "Ya, Hapus" })
+    if (!ok) return
     await deletePenjualan(r.id)
     router.refresh()
   }
@@ -251,6 +253,7 @@ export default function PenjualanPage({ penjualan, rokokList, salesList, tokoLis
           />
         </Modal>
       )}
+      {ConfirmModal}
     </div>
   )
 }

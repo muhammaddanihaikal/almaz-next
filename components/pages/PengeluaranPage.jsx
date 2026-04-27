@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Plus } from "lucide-react"
 import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc, downloadExcel } from "@/lib/utils"
 import { addPengeluaran, updatePengeluaran, deletePengeluaran } from "@/actions/pengeluaran"
-import { Card, PageHeader, DateFilter, DownloadButton, PrimaryButton, Field, FormActions, RowActions, inputCls } from "@/components/ui"
+import { Card, PageHeader, DateFilter, DownloadButton, PrimaryButton, Field, FormActions, RowActions, inputCls, useConfirm } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
 
@@ -13,6 +13,7 @@ const PAGE_SIZE = 10
 
 export default function PengeluaranPage({ pengeluaranList }) {
   const router = useRouter()
+  const { confirm, ConfirmModal } = useConfirm()
   const [mode, setMode] = useState(null)
   const [editing, setEditing] = useState(null)
   const [dateRange, setDateRange] = useState(defaultDateRange("bulan_ini"))
@@ -37,7 +38,8 @@ export default function PengeluaranPage({ pengeluaranList }) {
   const close = () => { setMode(null); setEditing(null) }
 
   const handleDelete = async (r) => {
-    if (!window.confirm(`Hapus pengeluaran "${r.keterangan}"?`)) return
+    const ok = await confirm(`Hapus pengeluaran "${r.keterangan}"?`, { title: "Hapus Pengeluaran", variant: "danger", confirmLabel: "Ya, Hapus" })
+    if (!ok) return
     await deletePengeluaran(r.id)
     router.refresh()
   }
@@ -122,6 +124,7 @@ export default function PengeluaranPage({ pengeluaranList }) {
           />
         </Modal>
       )}
+      {ConfirmModal}
     </div>
   )
 }
