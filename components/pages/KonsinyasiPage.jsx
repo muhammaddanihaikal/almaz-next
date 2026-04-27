@@ -175,6 +175,7 @@ export default function KonsinyasiPage({ konsinyasiList, salesList }) {
               ),
             },
             { key: "nilai", label: "Nilai", align: "right", render: (r) => fmtIDR(r.nilaiTotal) },
+            { key: "tgl_selesai", label: "Tgl Selesai", render: (r) => r.tanggal_selesai ? <span className="text-green-700 font-medium">{fmtTanggal(r.tanggal_selesai)}</span> : <span className="text-neutral-300">—</span> },
             {
               key: "flag", label: "",
               render: (r) => r.flagSetoran ? (
@@ -355,6 +356,7 @@ function KonsinyasiDetail({ record }) {
         <div><p className="text-xs text-neutral-500">Kategori</p><Badge label={record.kategori} colorClass={KATEGORI_COLOR[record.kategori] || "bg-neutral-100 text-neutral-600"} /></div>
         <div><p className="text-xs text-neutral-500">Status</p><Badge label={record.status === "selesai" ? "Selesai" : "Aktif"} colorClass={STATUS_COLOR[record.status]} /></div>
         <div><p className="text-xs text-neutral-500">Jatuh Tempo</p><p className={`font-medium ${record.status === "aktif" && record.selisihHari <= 0 ? "text-red-600" : ""}`}>{fmtTanggal(record.tanggal_jatuh_tempo)}</p></div>
+        {record.tanggal_selesai && <div><p className="text-xs text-neutral-500">Tgl Selesai</p><p className="font-medium text-green-700">{fmtTanggal(record.tanggal_selesai)}</p></div>}
         {record.catatan && <div><p className="text-xs text-neutral-500">Catatan</p><p>{record.catatan}</p></div>}
       </div>
 

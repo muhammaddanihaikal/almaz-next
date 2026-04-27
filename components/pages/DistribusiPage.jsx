@@ -55,11 +55,21 @@ function TabButton({ active, onClick, children }) {
 function exportToExcel(rows, rokokList, dateRange, onNoData) {
   const XLSX = require("xlsx-js-style")
 
-  // Kumpulkan semua item penjualan
+  // Kumpulkan semua item penjualan (langsung + konsinyasi selesai)
   const allItems = []
   for (const sesi of rows) {
-    if (!sesi.penjualan?.length) continue
-    for (const it of sesi.penjualan) allItems.push({ tanggal: sesi.tanggal, ...it })
+    for (const it of (sesi.penjualan || [])) {
+      allItems.push({ tanggal: sesi.tanggal, rokok_id: it.rokok_id, rokok: it.rokok, qty: it.qty, harga: it.harga })
+    }
+    for (const k of (sesi.konsinyasi || [])) {
+      if (k.status !== "selesai") continue
+      const tanggal = k.tanggal_selesai || sesi.tanggal
+      for (const it of k.items) {
+        if (it.qty_terjual > 0) {
+          allItems.push({ tanggal, rokok_id: it.rokok_id, rokok: it.rokok, qty: it.qty_terjual, harga: it.harga })
+        }
+      }
+    }
   }
   if (!allItems.length) { onNoData?.(); return }
 
@@ -544,7 +554,8 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, onSubmit, onCan
   const updateQty = (idx, val) => setItems(items.map((it, i) => i === idx ? { ...it, qty: val } : it))
 
   const validItems = items.filter((it) => Number(it.qty) > 0)
-  const valid = tanggal && salesId && validItems.length >= 1
+  const hasStokError = validItems.some((it) => Number(it.qty) > it.stok)
+  const valid = tanggal && salesId && validItems.length >= 1 && !hasStokError
 
   const submit = async (e) => {
     e.preventDefault()
@@ -593,21 +604,37 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, onSubmit, onCan
             </tr>
           </thead>
           <tbody>
-            {items.map((item, idx) => (
-              <tr key={item.rokok_id} className="border-b border-neutral-100">
-                <td className="py-1.5 font-medium">{item.nama}</td>
-                <td className="py-1.5 text-right pr-3 text-xs text-neutral-400 tabular-nums">{item.stok}</td>
-                <td className="py-1.5 text-right">
-                  <input
-                    type="number" min="0"
-                    value={item.qty}
-                    onChange={(e) => updateQty(idx, e.target.value)}
-                    placeholder="—"
-                    className={inputCls + " w-24 text-right"}
-                  />
-                </td>
-              </tr>
-            ))}
+            {items.map((item, idx) => {
+              const qty = Number(item.qty)
+              const melebihi = qty > 0 && qty > item.stok
+              return (
+                <Fragment key={item.rokok_id}>
+                  <tr className="border-b border-neutral-100">
+                    <td className="py-1.5 font-medium">{item.nama}</td>
+                    <td className="py-1.5 text-right pr-3 text-xs text-neutral-400 tabular-nums">{item.stok}</td>
+                    <td className="py-1.5 text-right">
+                      <input
+                        type="number" min="0"
+                        value={item.qty}
+                        onChange={(e) => updateQty(idx, e.target.value)}
+                        placeholder="—"
+                        className={inputCls + " w-24 text-right" + (melebihi ? " border-red-400 focus:border-red-500" : "")}
+                      />
+                    </td>
+                  </tr>
+                  {melebihi && (
+                    <tr>
+                      <td colSpan={3} className="pb-1.5 pt-0">
+                        <div className="flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs text-red-700">
+                          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                          Melebihi stok — tersedia {item.stok} bungkus
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              )
+            })}
           </tbody>
         </table>
       </div>
@@ -885,7 +912,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
                     <div key={`pre-${k.id}`} className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 px-3 py-2.5">
                       <div>
                         <p className="text-sm font-medium text-green-800">{k.nama_toko} <span className="text-xs font-normal text-green-600">— Selesai</span></p>
-                        <p className="text-xs text-green-600">Nilai terjual: {fmtIDR(nilaiTerjual)}</p>
+                        <p className="text-xs text-green-600">Nilai terjual: {fmtIDR(nilaiTerjual)}{k.tanggal_selesai ? ` · Selesai: ${fmtTanggal(k.tanggal_selesai)}` : ""}</p>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <button type="button" onClick={() => setDetailKonsinyasi(k)} className="rounded-md border border-neutral-200 bg-white px-2.5 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50 whitespace-nowrap">Detail</button>
@@ -918,7 +945,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
                     <div key={`settled-${i}`} className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 px-3 py-2.5">
                       <div>
                         <p className="text-sm font-medium text-green-800">{record.konsinyasi.nama_toko} <span className="text-xs font-normal text-green-600">— Selesai</span></p>
-                        <p className="text-xs text-green-600">Nilai terjual: {fmtIDR(nilaiTerjual)}</p>
+                        <p className="text-xs text-green-600">Nilai terjual: {fmtIDR(nilaiTerjual)}{record.submittedData.tanggal ? ` · Selesai: ${fmtTanggal(record.submittedData.tanggal)}` : ""}</p>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <button type="button" onClick={() => setDetailKonsinyasi(record.konsinyasi)} className="rounded-md border border-neutral-200 bg-white px-2.5 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50 whitespace-nowrap">Detail</button>
@@ -1157,6 +1184,7 @@ function PenyelesaianDetail({ record }) {
         <div><p className="text-neutral-500">Kategori</p><p className="font-medium capitalize">{record.kategori}</p></div>
         <div><p className="text-neutral-500">Jatuh Tempo</p><p className="font-medium">{fmtTanggal(record.tanggal_jatuh_tempo)}</p></div>
         <div><p className="text-neutral-500">Status</p><p className={`font-medium capitalize ${record.status === "selesai" ? "text-green-600" : "text-yellow-600"}`}>{record.status}</p></div>
+        {record.tanggal_selesai && <div><p className="text-neutral-500">Tgl Selesai</p><p className="font-medium text-green-700">{fmtTanggal(record.tanggal_selesai)}</p></div>}
       </div>
       <div>
         <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">Barang</p>

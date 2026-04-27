@@ -55,6 +55,7 @@ function serialize(s) {
       nama_toko:           k.toko.nama,
       kategori:            k.kategori,
       tanggal_jatuh_tempo: k.tanggal_jatuh_tempo.toISOString().split("T")[0],
+      tanggal_selesai:     k.tanggal_selesai ? k.tanggal_selesai.toISOString().split("T")[0] : null,
       status:              k.status,
       items: k.items.map((it) => ({
         id: it.id, rokok_id: it.rokok_id, rokok: it.rokok.nama,

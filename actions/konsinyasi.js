@@ -29,6 +29,7 @@ function serialize(k) {
     nama_toko:           k.toko.nama,
     kategori:            k.kategori,
     tanggal_jatuh_tempo: jatuhTempo,
+    tanggal_selesai:     k.tanggal_selesai ? k.tanggal_selesai.toISOString().split("T")[0] : null,
     status:              k.status,
     catatan:             k.catatan,
     createdAt:           k.createdAt.toISOString(),
@@ -113,7 +114,7 @@ export async function settleKonsinyasi(id, data) {
     // Update status jadi selesai
     await tx.konsinyasi.update({
       where: { id },
-      data:  { status: "selesai" },
+      data:  { status: "selesai", tanggal_selesai: today },
     })
   })
 
@@ -239,7 +240,7 @@ export async function revertSettlement(id) {
     }
 
     await tx.konsinyasiSetoran.deleteMany({ where: { konsinyasi_id: id } })
-    await tx.konsinyasi.update({ where: { id }, data: { status: "aktif" } })
+    await tx.konsinyasi.update({ where: { id }, data: { status: "aktif", tanggal_selesai: null } })
   })
 
   revalidatePath("/konsinyasi")
