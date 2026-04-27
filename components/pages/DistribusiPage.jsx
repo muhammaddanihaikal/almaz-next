@@ -2,7 +2,7 @@
 
 import { useMemo, useState, Fragment } from "react"
 import { useRouter } from "next/navigation"
-import { Plus, Trash2, AlertCircle, ChevronDown, ChevronUp, Search, Download } from "lucide-react"
+import { Plus, Trash2, AlertCircle, ChevronDown, ChevronUp, Download } from "lucide-react"
 import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc } from "@/lib/utils"
 import { createSesi, updateSesiPagi, submitLaporanSore, editLaporanSore, deleteSesi } from "@/actions/distribusi"
 import { settleKonsinyasi, createKonsinyasi, editSettlement, revertSettlement, editKonsinyasiDetail, deleteKonsinyasi } from "@/actions/konsinyasi"
@@ -10,7 +10,7 @@ import { addToko } from "@/actions/toko"
 import SettlementForm from "@/components/SettlementForm"
 import {
   Card, PageHeader, DateFilter, PrimaryButton, Field, FormActions,
-  SearchableSelect, SelectInput, inputCls, RowActions, IconButton, useConfirm,
+  SearchableSelect, SelectInput, inputCls, MoneyInput, RowActions, IconButton, useConfirm,
 } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
@@ -194,17 +194,14 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
   const [editLaporan,  setEditLaporan]  = useState(null)
   const [dateRange,   setDateRange]   = useState(defaultDateRange("bulan_ini"))
   const [salesFilter, setSalesFilter] = useState("")
-  const [search,      setSearch]      = useState("")
+  const [rokokFilter, setRokokFilter] = useState("")
 
   const rows = useMemo(() => {
     let filtered = filterByDateRange(sesiList, dateRange)
     if (salesFilter) filtered = filtered.filter((r) => r.sales_id === salesFilter)
-    if (search.trim()) {
-      const q = search.trim().toLowerCase()
-      filtered = filtered.filter((r) => r.sales.toLowerCase().includes(q))
-    }
+    if (rokokFilter) filtered = filtered.filter((r) => r.barangKeluar.some((it) => it.rokok_id === rokokFilter))
     return sortByDateDesc(filtered)
-  }, [sesiList, dateRange, salesFilter, search])
+  }, [sesiList, dateRange, salesFilter, rokokFilter])
 
   const close = () => { setMode(null); setEditing(null) }
 
@@ -252,21 +249,22 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
             />
           </div>
         </div>
-        <div className="relative flex-1 lg:max-w-xs">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-400 pointer-events-none" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari nama sales..."
-            className={inputCls + " pl-8 text-sm"}
-          />
+        <div className="flex items-center gap-3">
+          <label className="text-sm font-medium text-neutral-600 w-16 shrink-0">Produk:</label>
+          <div className="w-48">
+            <SearchableSelect
+              value={rokokFilter}
+              onChange={(e) => setRokokFilter(e.target.value)}
+              placeholder="Semua Produk"
+              options={[{ value: "", label: "Semua Produk" }, ...rokokList.map((r) => ({ value: r.id, label: r.nama }))]}
+            />
+          </div>
         </div>
       </div>
 
       <Card>
         <DataTable
-          key={`${dateRange?.start}-${dateRange?.end}-${salesFilter}-${search}`}
+          key={`${dateRange?.start}-${dateRange?.end}-${salesFilter}-${rokokFilter}`}
           pageSize={PAGE_SIZE}
           rows={rows}
           empty="Belum ada sesi distribusi."
@@ -274,7 +272,22 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
             { key: "no",      label: "No",      render: (_, idx) => idx + 1 },
             { key: "tanggal", label: "Tanggal", render: (r) => fmtTanggal(r.tanggal) },
             { key: "sales",   label: "Sales",   render: (r) => r.sales },
-            { key: "status",  label: "Status",  render: (r) => <Badge label={r.status === "selesai" ? "Selesai" : "Aktif"} colorClass={STATUS_COLOR[r.status]} /> },
+            {
+              key: "status", label: "Status",
+              render: (r) => {
+                const hasAktifKonsinyasi = r.konsinyasi?.some((k) => k.status === "aktif")
+                return (
+                  <div className="flex flex-col gap-1">
+                    <Badge label={r.status === "selesai" ? "Selesai" : "Aktif"} colorClass={STATUS_COLOR[r.status]} />
+                    {hasAktifKonsinyasi && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
+                        <AlertCircle className="h-3 w-3" /> Titip jual aktif
+                      </span>
+                    )}
+                  </div>
+                )
+              },
+            },
             {
               key: "keluar", label: "Barang Keluar",
               render: (r) => (
@@ -683,6 +696,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
   const [editingKonsinyasiDetail, setEditingKonsinyasiDetail] = useState(null)
   const [detailKonsinyasi,        setDetailKonsinyasi]        = useState(null)
   const [showPerorangan,    setShowPerorangan]    = useState(false)
+  const [setoranAuto,       setSetoranAuto]       = useState(false)
 
   const nilaiPenjualan = penjualan.reduce((s, it) => {
     const r = rokokList.find((r) => r.id === it.rokok_id)
@@ -828,11 +842,29 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
 
           {/* Setoran */}
           <SectionCard title="Setoran">
+            <div className="flex items-center justify-between mb-1">
+              <span />
+              <label className="flex cursor-pointer items-center gap-1.5 text-xs text-neutral-600 select-none">
+                <input
+                  type="checkbox"
+                  checked={setoranAuto}
+                  onChange={(e) => {
+                    setSetoranAuto(e.target.checked)
+                    if (e.target.checked && nilaiPenjualan > 0) {
+                      setSetoran([{ metode: setoran[0]?.metode || "cash", jumlah: String(nilaiPenjualan) }])
+                    }
+                  }}
+                  disabled={nilaiPenjualan === 0}
+                  className="h-3.5 w-3.5 rounded"
+                />
+                Sesuai nilai penjualan
+              </label>
+            </div>
             {setoran.map((it, idx) => (
               <div key={idx} className="flex items-end gap-3">
                 <div className="w-36">
                   <Field label={idx === 0 ? "Metode" : ""}>
-                    <SelectInput value={it.metode} onChange={(e) => setSetoran(setoran.map((s, i) => i === idx ? { ...s, metode: e.target.value } : s))}>
+                    <SelectInput value={it.metode} onChange={(e) => setSetoran(setoran.map((s, i) => i === idx ? { ...s, metode: e.target.value } : s))} disabled={setoranAuto}>
                       <option value="cash">Cash</option>
                       <option value="transfer">Transfer</option>
                     </SelectInput>
@@ -840,17 +872,23 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
                 </div>
                 <div className="flex-1">
                   <Field label={idx === 0 ? "Jumlah" : ""}>
-                    <input type="number" min="0" value={it.jumlah} onChange={(e) => setSetoran(setoran.map((s, i) => i === idx ? { ...s, jumlah: e.target.value } : s))} placeholder="0" className={inputCls} />
+                    <MoneyInput
+                      value={it.jumlah}
+                      onChange={(raw) => setSetoran(setoran.map((s, i) => i === idx ? { ...s, jumlah: raw } : s))}
+                      placeholder="0"
+                      className={inputCls + (setoranAuto ? " bg-neutral-50 opacity-70" : "")}
+                      disabled={setoranAuto}
+                    />
                   </Field>
                 </div>
-                {setoran.length > 1 && (
+                {setoran.length > 1 && !setoranAuto && (
                   <div className="pb-1">
                     <IconButton icon={Trash2} onClick={() => setSetoran(setoran.filter((_, i) => i !== idx))} variant="danger" label="Hapus" />
                   </div>
                 )}
               </div>
             ))}
-            {setoran.length < 2 && (
+            {setoran.length < 2 && !setoranAuto && (
               <button type="button" onClick={() => setSetoran([...setoran, { metode: "transfer", jumlah: "" }])} className="text-xs text-blue-600 hover:underline mt-1">
                 + Tambah metode setoran
               </button>

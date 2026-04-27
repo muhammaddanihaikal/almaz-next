@@ -7,6 +7,25 @@ import { getDateRanges } from "@/lib/utils"
 export const inputCls =
   "w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10"
 
+export function MoneyInput({ value, onChange, placeholder, className, disabled }) {
+  const [focused, setFocused] = useState(false)
+  const raw = String(value || "").replace(/\D/g, "")
+  const display = focused ? raw : (raw ? Number(raw).toLocaleString("id-ID") : "")
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      value={display}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      onChange={(e) => onChange(e.target.value.replace(/\D/g, ""))}
+      placeholder={placeholder}
+      className={className}
+      disabled={disabled}
+    />
+  )
+}
+
 export function SelectInput({ value, onChange, required, children }) {
   return (
     <div className="relative">

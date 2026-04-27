@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { AlertCircle, CheckCircle, Trash2 } from "lucide-react"
 import { fmtIDR, fmtTanggal } from "@/lib/utils"
-import { SelectInput, inputCls, IconButton } from "@/components/ui"
+import { SelectInput, inputCls, IconButton, MoneyInput, Field } from "@/components/ui"
 
 const KATEGORI_COLOR = {
   grosir: "bg-violet-100 text-violet-700",
@@ -19,20 +19,22 @@ function Badge({ label, colorClass }) {
 }
 
 export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, onCancel }) {
-  const today = new Date().toISOString().split("T")[0]
-  const [items,   setItems]   = useState(
+  const todayStr = new Date().toISOString().split("T")[0]
+  const [tanggal,     setTanggal]     = useState(konsinyasi.tanggal_selesai || todayStr)
+  const [items,       setItems]       = useState(
     konsinyasi.items.map((it) => ({
       ...it,
       qty_terjual: String(it.qty_terjual || ""),
       qty_kembali: String(it.qty_kembali || ""),
     }))
   )
-  const [setoran, setSetoran] = useState(
+  const [setoran,     setSetoran]     = useState(
     initialSetoran?.length
       ? initialSetoran.map((s) => ({ metode: s.metode, jumlah: String(s.jumlah) }))
       : [{ metode: "cash", jumlah: "" }]
   )
-  const [loading, setLoading] = useState(false)
+  const [setoranAuto, setSetoranAuto] = useState(false)
+  const [loading,     setLoading]     = useState(false)
 
   const updateItem = (idx, field, val) =>
     setItems(items.map((it, i) => {
@@ -50,12 +52,19 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
   const flagSelisih  = nilaiTerjual > 0 && totalSetoran !== nilaiTerjual
   const hasError     = items.some((it) => (Number(it.qty_terjual) || 0) > it.qty_keluar)
 
+  const handleSetoranAuto = (checked) => {
+    setSetoranAuto(checked)
+    if (checked && nilaiTerjual > 0) {
+      setSetoran([{ metode: setoran[0]?.metode || "cash", jumlah: String(nilaiTerjual) }])
+    }
+  }
+
   const handleSubmit = async () => {
     if (hasError) return
     setLoading(true)
     try {
       await onSubmit({
-        tanggal: today,
+        tanggal,
         items: items.map((it) => ({
           id:          it.id,
           rokok_id:    it.rokok_id,
@@ -84,6 +93,11 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
         <div>
           <p className="text-neutral-500">Kategori</p>
           <Badge label={konsinyasi.kategori} colorClass={KATEGORI_COLOR[konsinyasi.kategori] || "bg-neutral-100 text-neutral-600"} />
+        </div>
+        <div className="col-span-2">
+          <Field label="Tanggal Selesai">
+            <input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} className={inputCls} />
+          </Field>
         </div>
       </div>
 
@@ -142,29 +156,45 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
 
       {/* Setoran */}
       <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">Setoran</p>
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">Setoran</p>
+          <label className="flex cursor-pointer items-center gap-1.5 text-xs text-neutral-600 select-none">
+            <input
+              type="checkbox"
+              checked={setoranAuto}
+              onChange={(e) => handleSetoranAuto(e.target.checked)}
+              disabled={nilaiTerjual === 0}
+              className="h-3.5 w-3.5 rounded"
+            />
+            Sesuai nilai terjual ({fmtIDR(nilaiTerjual)})
+          </label>
+        </div>
         <div className="space-y-2">
           {setoran.map((st, idx) => (
             <div key={idx} className="flex items-center gap-2">
               <div className="w-32">
-                <SelectInput value={st.metode} onChange={(e) => setSetoran(setoran.map((s, i) => i === idx ? { ...s, metode: e.target.value } : s))}>
+                <SelectInput
+                  value={st.metode}
+                  onChange={(e) => setSetoran(setoran.map((s, i) => i === idx ? { ...s, metode: e.target.value } : s))}
+                  disabled={setoranAuto}
+                >
                   <option value="cash">Cash</option>
                   <option value="transfer">Transfer</option>
                 </SelectInput>
               </div>
-              <input
-                type="number" min="0"
+              <MoneyInput
                 value={st.jumlah}
-                onChange={(e) => setSetoran(setoran.map((s, i) => i === idx ? { ...s, jumlah: e.target.value } : s))}
+                onChange={(raw) => setSetoran(setoran.map((s, i) => i === idx ? { ...s, jumlah: raw } : s))}
                 placeholder="0"
-                className={inputCls + " flex-1"}
+                className={inputCls + " flex-1" + (setoranAuto ? " bg-neutral-50 opacity-70" : "")}
+                disabled={setoranAuto}
               />
-              {setoran.length > 1 && (
+              {setoran.length > 1 && !setoranAuto && (
                 <IconButton icon={Trash2} onClick={() => setSetoran(setoran.filter((_, i) => i !== idx))} variant="danger" label="Hapus" />
               )}
             </div>
           ))}
-          {setoran.length < 2 && (
+          {setoran.length < 2 && !setoranAuto && (
             <button type="button" onClick={() => setSetoran([...setoran, { metode: "transfer", jumlah: "" }])} className="text-xs text-blue-600 hover:underline">
               + Tambah metode setoran
             </button>
