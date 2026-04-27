@@ -252,8 +252,6 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
               />
             </div>
           </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-3">
             <label className="text-sm font-medium text-neutral-600 shrink-0">Produk:</label>
             <div className="w-44">
@@ -265,6 +263,8 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
               />
             </div>
           </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-3">
             <label className="text-sm font-medium text-neutral-600 shrink-0">Status:</label>
             <div className="w-40">
