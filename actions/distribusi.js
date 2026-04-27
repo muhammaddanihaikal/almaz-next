@@ -208,7 +208,7 @@ export async function submitLaporanSore(id, data) {
           items: {
             create: k.items.map((it) => ({
               rokok_id:   it.rokok_id,
-              qty_keluar: it.qty,
+              qty_keluar: Number(it.qty),
               harga:      hargaMap[it.rokok_id]?.[k.kategori] || 0,
             })),
           },
