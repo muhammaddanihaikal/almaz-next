@@ -50,50 +50,126 @@ function TabButton({ active, onClick, children }) {
   )
 }
 
-function exportToExcel(rows) {
+function exportToExcel(rows, rokokList, dateRange) {
   const XLSX = require("xlsx-js-style")
 
-  const header = ["No", "Tanggal", "Sales", "Rokok", "Qty", "Harga", "Total"]
-  const headerStyle = {
-    font: { bold: true, color: { rgb: "FFFFFF" } },
-    fill: { fgColor: { rgb: "1F2937" } },
-    alignment: { horizontal: "center" },
-  }
-
-  const data = []
-  let no = 1
+  // Kumpulkan semua item penjualan
+  const allItems = []
   for (const sesi of rows) {
     if (!sesi.penjualan?.length) continue
-    for (const it of sesi.penjualan) {
-      data.push([no++, sesi.tanggal, sesi.sales, it.rokok, it.qty, it.harga, it.qty * it.harga])
-    }
+    for (const it of sesi.penjualan) allItems.push({ tanggal: sesi.tanggal, ...it })
+  }
+  if (!allItems.length) { alert("Tidak ada data penjualan untuk diekspor."); return }
+
+  // Produk unik (urut alfabet) & tanggal unik (urut asc)
+  const products = [...new Set(allItems.map((it) => it.rokok))].sort((a, b) => a.localeCompare(b, "id"))
+  const dates    = [...new Set(allItems.map((it) => it.tanggal))].sort()
+
+  // Map harga_beli per rokok_id
+  const hargaBeli = Object.fromEntries(rokokList.map((r) => [r.id, r.harga_beli || 0]))
+
+  // Agregasi per tanggal
+  const dateMap = {}
+  for (const it of allItems) {
+    if (!dateMap[it.tanggal]) dateMap[it.tanggal] = { byProduct: {}, penjualan: 0, profit: 0 }
+    dateMap[it.tanggal].byProduct[it.rokok] = (dateMap[it.tanggal].byProduct[it.rokok] || 0) + it.qty
+    dateMap[it.tanggal].penjualan += it.qty * it.harga
+    dateMap[it.tanggal].profit   += it.qty * (it.harga - (hargaBeli[it.rokok_id] || 0))
   }
 
-  if (!data.length) { alert("Tidak ada data penjualan untuk diekspor."); return }
+  // Hitung total
+  const totalByProduct = Object.fromEntries(products.map((p) => [p, dates.reduce((s, d) => s + (dateMap[d].byProduct[p] || 0), 0)]))
+  const totalPenjualan = dates.reduce((s, d) => s + dateMap[d].penjualan, 0)
+  const totalProfit    = dates.reduce((s, d) => s + dateMap[d].profit, 0)
+
+  const fmtD = (d) => { const [y, m, day] = d.split("-"); return `${day}/${m}/${y}` }
+
+  const start = dateRange?.start ? fmtD(dateRange.start) : fmtD(dates[0])
+  const end   = dateRange?.end   ? fmtD(dateRange.end)   : fmtD(dates[dates.length - 1])
+  const title = `LAPORAN PENJUALAN HARIAN ${start} - ${end}`
+
+  const totalCols = 2 + products.length + 2
+
+  // Border tipis
+  const bThin = { style: "thin", color: { rgb: "9CA3AF" } }
+  const border = { top: bThin, bottom: bThin, left: bThin, right: bThin }
+
+  // Styles
+  const sH     = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, alignment: { horizontal: "center", vertical: "center" }, border }
+  const sSub   = { font: { bold: true }, fill: { fgColor: { rgb: "E5E7EB" } }, alignment: { horizontal: "center", vertical: "center" }, border }
+  const sData  = { alignment: { horizontal: "center" }, border }
+  const sNum   = { alignment: { horizontal: "right" }, border }
+  const sTotal = { font: { bold: true }, fill: { fgColor: { rgb: "1F2937" } }, alignment: { horizontal: "center" }, border, font: { bold: true, color: { rgb: "FFFFFF" } } }
+  const sTotalNum = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, alignment: { horizontal: "right" }, border }
 
   const wsData = [
-    header.map((h) => ({ v: h, s: headerStyle })),
-    ...data.map((row) =>
-      row.map((v, i) => {
-        const isNum = i >= 4
-        return {
-          v,
-          t: isNum ? "n" : "s",
-          s: { alignment: { horizontal: isNum ? "right" : "left" } },
-          ...(i >= 5 ? { z: '#,##0' } : {}),
-        }
-      })
-    ),
+    // Baris 1: judul
+    [{ v: title, s: { font: { bold: true, sz: 12 } } }, ...Array(totalCols - 1).fill({ v: "" })],
+    // Baris 2: kosong
+    Array(totalCols).fill({ v: "" }),
+    // Baris 3: header atas
+    [
+      { v: "NO",             s: sH },
+      { v: "TANGGAL",        s: sH },
+      { v: "PRODUK",         s: sH },
+      ...Array(products.length - 1).fill({ v: "", s: sH }),
+      { v: "PENJUALAN (RP)", s: sH },
+      { v: "PROFIT (RP)",    s: sH },
+    ],
+    // Baris 4: nama produk
+    [
+      { v: "", s: sSub },
+      { v: "", s: sSub },
+      ...products.map((p) => ({ v: p.toUpperCase(), s: sSub })),
+      { v: "", s: sSub },
+      { v: "", s: sSub },
+    ],
+    // Baris data
+    ...dates.map((date, i) => {
+      const d = dateMap[date]
+      return [
+        { v: i + 1,       t: "n", s: sData },
+        { v: fmtD(date),          s: sData },
+        ...products.map((p) => ({ v: d.byProduct[p] || 0, t: "n", s: sData })),
+        { v: d.penjualan, t: "n", s: sNum,  z: "#,##0" },
+        { v: d.profit,    t: "n", s: sNum,  z: "#,##0" },
+      ]
+    }),
+    // Baris TOTAL
+    [
+      { v: "",        s: sTotal },
+      { v: "TOTAL",   s: sTotal },
+      ...products.map((p) => ({ v: totalByProduct[p], t: "n", s: sTotal })),
+      { v: totalPenjualan, t: "n", s: sTotalNum, z: "#,##0" },
+      { v: totalProfit,    t: "n", s: sTotalNum, z: "#,##0" },
+    ],
   ]
 
   const ws = XLSX.utils.aoa_to_sheet(wsData)
+
+  // Merge cells
+  ws["!merges"] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: totalCols - 1 } },
+    { s: { r: 2, c: 0 }, e: { r: 3, c: 0 } },
+    { s: { r: 2, c: 1 }, e: { r: 3, c: 1 } },
+    { s: { r: 2, c: 2 }, e: { r: 2, c: 1 + products.length } },
+    { s: { r: 2, c: 2 + products.length }, e: { r: 3, c: 2 + products.length } },
+    { s: { r: 2, c: 3 + products.length }, e: { r: 3, c: 3 + products.length } },
+  ]
+
+  // Auto-fit column widths berdasarkan konten terpanjang
+  const autoW = (values) => ({ wch: Math.min(Math.max(...values.map((v) => String(v ?? "").length)) + 3, 40) })
   ws["!cols"] = [
-    { wch: 5 }, { wch: 14 }, { wch: 18 }, { wch: 26 }, { wch: 6 }, { wch: 14 }, { wch: 14 },
+    autoW(["NO", ...dates.map((_, i) => i + 1)]),                                            // NO
+    autoW(["TANGGAL", ...dates.map(fmtD)]),                                                   // TANGGAL
+    ...products.map((p) => autoW([p, ...dates.map((d) => dateMap[d].byProduct[p] || 0)])),   // per produk
+    autoW(["PENJUALAN (RP)", totalPenjualan, ...dates.map((d) => dateMap[d].penjualan)]),     // PENJUALAN
+    autoW(["PROFIT (RP)",    totalProfit,    ...dates.map((d) => dateMap[d].profit)]),        // PROFIT
   ]
 
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, "Distribusi")
-  XLSX.writeFile(wb, `distribusi_${new Date().toISOString().slice(0,10)}.xlsx`)
+  XLSX.writeFile(wb, `laporan_penjualan_${new Date().toISOString().slice(0, 10)}.xlsx`)
 }
 
 export default function DistribusiPage({ sesiList, rokokList, salesList, tokoList }) {
@@ -133,7 +209,7 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
         action={
           <div className="flex items-center gap-2">
             <button
-              onClick={() => exportToExcel(rows)}
+              onClick={() => exportToExcel(rows, rokokList, dateRange)}
               className="flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
             >
               <Download className="h-4 w-4" />
