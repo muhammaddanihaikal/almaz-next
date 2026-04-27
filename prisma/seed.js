@@ -5,11 +5,23 @@ const prisma = new PrismaClient()
 
 async function main() {
   // ─── User ─────────────────────────────────────────────────────────────────
-  const password = await bcrypt.hash("admin123", 10)
+  const superadminPass = await bcrypt.hash("jagungmanis9192", 10)
+  const adminPass      = await bcrypt.hash("admin123", 10)
+  const staffPass      = await bcrypt.hash("staff123", 10)
+  await prisma.user.upsert({
+    where:  { username: "mdanihaikal" },
+    update: { role: "superadmin" },
+    create: { username: "mdanihaikal", password: superadminPass, name: "M. Dani Haikal", role: "superadmin" },
+  })
   await prisma.user.upsert({
     where:  { username: "admin" },
-    update: {},
-    create: { username: "admin", password, name: "Administrator" },
+    update: { role: "admin" },
+    create: { username: "admin", password: adminPass, name: "Administrator", role: "admin" },
+  })
+  await prisma.user.upsert({
+    where:  { username: "staff" },
+    update: { role: "staff" },
+    create: { username: "staff", password: staffPass, name: "Staff", role: "staff" },
   })
 
   // ─── Rokok ────────────────────────────────────────────────────────────────
@@ -199,7 +211,7 @@ async function main() {
   const sesiLama1 = await prisma.sesiHarian.findFirst({ where: { sales_id: sales[1].id, tanggal: new Date("2026-03-18") } })
 
   // Selesai
-  await prisma.konsinyasi.create({
+  await prisma.titipJual.create({
     data: {
       sesi_id:             sesiLama0?.id ?? sesiAktifCreated[0].id,
       sales_id:            sales[0].id,
@@ -219,7 +231,7 @@ async function main() {
     },
   })
 
-  await prisma.konsinyasi.create({
+  await prisma.titipJual.create({
     data: {
       sesi_id:             sesiLama1?.id ?? sesiAktifCreated[1].id,
       sales_id:            sales[1].id,
@@ -239,7 +251,7 @@ async function main() {
   })
 
   // Aktif — sudah jatuh tempo (merah di dashboard)
-  await prisma.konsinyasi.create({
+  await prisma.titipJual.create({
     data: {
       sesi_id:             sesiAktifCreated[0].id,
       sales_id:            sales[0].id,
@@ -257,7 +269,7 @@ async function main() {
   })
 
   // Aktif — jatuh tempo 2 hari lagi (kuning di dashboard)
-  await prisma.konsinyasi.create({
+  await prisma.titipJual.create({
     data: {
       sesi_id:             sesiAktifCreated[1].id,
       sales_id:            sales[1].id,
@@ -274,7 +286,7 @@ async function main() {
   })
 
   // Aktif — jatuh tempo 7 hari lagi (normal)
-  await prisma.konsinyasi.create({
+  await prisma.titipJual.create({
     data: {
       sesi_id:             sesiAktifCreated[2].id,
       sales_id:            sales[2].id,
@@ -292,12 +304,12 @@ async function main() {
   })
 
   console.log("Seed selesai!")
-  console.log(`- 1 user admin (password: admin123)`)
+  console.log(`- 3 user: mdanihaikal (superadmin), admin/admin123, staff/staff123`)
   console.log(`- ${rokok.length} rokok`)
   console.log(`- ${sales.length} sales`)
   console.log(`- ${toko.length} toko`)
   console.log(`- ${sesiLama.length} sesi selesai + ${sesiAktif.length} sesi aktif hari ini`)
-  console.log(`- 5 konsinyasi (2 selesai, 3 aktif)`)
+  console.log(`- 5 titip jual (2 selesai, 3 aktif)`)
   console.log(`- ${pengeluaranData.length} pengeluaran`)
 }
 
