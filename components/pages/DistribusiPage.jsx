@@ -527,21 +527,19 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, onSubmit, onCan
   const [tanggal,  setTanggal]  = useState(initial?.tanggal || today)
   const [salesId,  setSalesId]  = useState(initial?.sales_id || "")
   const [catatan,  setCatatan]  = useState(initial?.catatan || "")
-  const [items, setItems] = useState(
-    initial?.barangKeluar?.length
-      ? initial.barangKeluar.map((it) => ({ rokok_id: it.rokok_id, qty: it.qty }))
-      : [{ rokok_id: "", qty: "" }, { rokok_id: "", qty: "" }]
-  )
+  const [items, setItems] = useState(() => {
+    const aktif = rokokList.filter((r) => r.aktif !== false)
+    return aktif.map((r) => {
+      const existing = initial?.barangKeluar?.find((it) => it.rokok_id === r.id)
+      return { rokok_id: r.id, nama: r.nama, stok: r.stok ?? 0, qty: existing ? String(existing.qty) : "" }
+    })
+  })
   const [error, setError] = useState("")
 
-  const addItem    = () => setItems([...items, { rokok_id: "", qty: "" }])
-  const removeItem = (idx) => setItems(items.filter((_, i) => i !== idx))
-  const updateItem = (idx, field, val) => setItems(items.map((it, i) => i === idx ? { ...it, [field]: val } : it))
+  const updateQty = (idx, val) => setItems(items.map((it, i) => i === idx ? { ...it, qty: val } : it))
 
-  const validItems = items.filter((it) => it.rokok_id && Number(it.qty) > 0)
-  const usedRokokIds = new Set(validItems.map((it) => it.rokok_id))
-  const hasDuplikat = usedRokokIds.size !== validItems.length
-  const valid = tanggal && salesId && validItems.length >= 1 && !hasDuplikat
+  const validItems = items.filter((it) => Number(it.qty) > 0)
+  const valid = tanggal && salesId && validItems.length >= 1
 
   const submit = async (e) => {
     e.preventDefault()
@@ -578,40 +576,35 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, onSubmit, onCan
         </Field>
       </div>
 
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wider text-neutral-500">Barang Dibawa</span>
-        </div>
-        {items.map((item, idx) => {
-          const selectedIds = items.map((it) => it.rokok_id).filter(Boolean)
-          return (
-            <div key={idx} className="flex items-end gap-3">
-              <div className="flex-1">
-                <Field label={idx === 0 ? "Rokok" : ""}>
-                  <SelectInput value={item.rokok_id} onChange={(e) => updateItem(idx, "rokok_id", e.target.value)}>
-                    <option value="">Pilih rokok</option>
-                    {rokokList.filter((r) => r.aktif !== false && (r.id === item.rokok_id || !selectedIds.slice(0, idx).concat(selectedIds.slice(idx + 1)).includes(r.id))).map((r) => (
-                      <option key={r.id} value={r.id}>{r.nama} (stok: {r.stok ?? 0})</option>
-                    ))}
-                  </SelectInput>
-                </Field>
-              </div>
-              <div className="w-24">
-                <Field label={idx === 0 ? "Qty" : ""}>
-                  <input type="number" min="1" value={item.qty} onChange={(e) => updateItem(idx, "qty", e.target.value)} placeholder="0" className={inputCls} />
-                </Field>
-              </div>
-              {items.length > 1 && (
-                <div className="pb-1">
-                  <IconButton icon={Trash2} onClick={() => removeItem(idx)} variant="danger" label="Hapus baris" />
-                </div>
-              )}
-            </div>
-          )
-        })}
-        <button type="button" onClick={addItem} className="w-full rounded-lg border border-dashed border-neutral-300 px-4 py-2.5 text-sm font-medium text-neutral-500 hover:border-neutral-400 hover:bg-neutral-50 hover:text-neutral-700">
-          + Tambah Baris
-        </button>
+      <div className="space-y-2">
+        <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">Barang Dibawa</p>
+        <p className="text-xs text-neutral-400">Isi qty untuk rokok yang dibawa, kosongkan jika tidak dibawa.</p>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-neutral-200 text-xs text-neutral-500">
+              <th className="pb-1.5 text-left">Rokok</th>
+              <th className="pb-1.5 text-right pr-3">Stok</th>
+              <th className="pb-1.5 text-right">Qty Dibawa</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item, idx) => (
+              <tr key={item.rokok_id} className="border-b border-neutral-100">
+                <td className="py-1.5 font-medium">{item.nama}</td>
+                <td className="py-1.5 text-right pr-3 text-xs text-neutral-400 tabular-nums">{item.stok}</td>
+                <td className="py-1.5 text-right">
+                  <input
+                    type="number" min="0"
+                    value={item.qty}
+                    onChange={(e) => updateQty(idx, e.target.value)}
+                    placeholder="—"
+                    className={inputCls + " w-24 text-right"}
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       <Field label="Catatan (opsional)">
@@ -621,12 +614,6 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, onSubmit, onCan
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
           {error}
-        </div>
-      )}
-
-      {hasDuplikat && (
-        <div className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-700">
-          Rokok tidak boleh dipilih lebih dari sekali dalam satu sesi.
         </div>
       )}
 
