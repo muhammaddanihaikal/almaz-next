@@ -195,13 +195,15 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
   const [dateRange,   setDateRange]   = useState(defaultDateRange("bulan_ini"))
   const [salesFilter, setSalesFilter] = useState("")
   const [rokokFilter, setRokokFilter] = useState("")
+  const [statusFilter, setStatusFilter] = useState("")
 
   const rows = useMemo(() => {
     let filtered = filterByDateRange(sesiList, dateRange)
     if (salesFilter) filtered = filtered.filter((r) => r.sales_id === salesFilter)
     if (rokokFilter) filtered = filtered.filter((r) => r.barangKeluar.some((it) => it.rokok_id === rokokFilter))
+    if (statusFilter) filtered = filtered.filter((r) => r.status === statusFilter)
     return sortByDateDesc(filtered)
-  }, [sesiList, dateRange, salesFilter, rokokFilter])
+  }, [sesiList, dateRange, salesFilter, rokokFilter, statusFilter])
 
   const close = () => { setMode(null); setEditing(null) }
 
@@ -233,13 +235,10 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
         }
       />
 
-      <div className="flex flex-col gap-4 rounded-xl border border-neutral-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] lg:flex-row lg:items-center lg:gap-6">
-        <div className="flex items-center gap-3">
-          <label className="text-sm font-medium text-neutral-600 w-14">Waktu:</label>
-          <DateFilter value={dateRange} onChange={setDateRange} />
-        </div>
-        <div className="flex items-center gap-3">
-          <label className="text-sm font-medium text-neutral-600 w-10">Sales:</label>
+      <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] space-y-3">
+        <DateFilter value={dateRange} onChange={setDateRange} />
+        <div className="h-px bg-neutral-100" />
+        <div className="flex flex-wrap gap-3">
           <div className="w-48">
             <SearchableSelect
               value={salesFilter}
@@ -248,9 +247,6 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
               options={[{ value: "", label: "Semua Sales" }, ...salesList.map((s) => ({ value: s.id, label: s.nama }))]}
             />
           </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <label className="text-sm font-medium text-neutral-600 w-16 shrink-0">Produk:</label>
           <div className="w-48">
             <SearchableSelect
               value={rokokFilter}
@@ -259,12 +255,19 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
               options={[{ value: "", label: "Semua Produk" }, ...rokokList.map((r) => ({ value: r.id, label: r.nama }))]}
             />
           </div>
+          <div className="w-40">
+            <SelectInput value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              <option value="">Semua Status</option>
+              <option value="aktif">Aktif</option>
+              <option value="selesai">Selesai</option>
+            </SelectInput>
+          </div>
         </div>
       </div>
 
       <Card>
         <DataTable
-          key={`${dateRange?.start}-${dateRange?.end}-${salesFilter}-${rokokFilter}`}
+          key={`${dateRange?.start}-${dateRange?.end}-${salesFilter}-${rokokFilter}-${statusFilter}`}
           pageSize={PAGE_SIZE}
           rows={rows}
           empty="Belum ada sesi distribusi."
