@@ -236,31 +236,44 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
       />
 
       <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] space-y-3">
-        <DateFilter value={dateRange} onChange={setDateRange} />
-        <div className="h-px bg-neutral-100" />
-        <div className="flex flex-wrap gap-3">
-          <div className="w-48">
-            <SearchableSelect
-              value={salesFilter}
-              onChange={(e) => setSalesFilter(e.target.value)}
-              placeholder="Semua Sales"
-              options={[{ value: "", label: "Semua Sales" }, ...salesList.map((s) => ({ value: s.id, label: s.nama }))]}
-            />
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-3">
+            <label className="text-sm font-medium text-neutral-600 shrink-0">Waktu:</label>
+            <DateFilter value={dateRange} onChange={setDateRange} />
           </div>
-          <div className="w-48">
-            <SearchableSelect
-              value={rokokFilter}
-              onChange={(e) => setRokokFilter(e.target.value)}
-              placeholder="Semua Produk"
-              options={[{ value: "", label: "Semua Produk" }, ...rokokList.map((r) => ({ value: r.id, label: r.nama }))]}
-            />
+          <div className="flex items-center gap-3">
+            <label className="text-sm font-medium text-neutral-600 shrink-0">Sales:</label>
+            <div className="w-44">
+              <SearchableSelect
+                value={salesFilter}
+                onChange={(e) => setSalesFilter(e.target.value)}
+                placeholder="Semua Sales"
+                options={[{ value: "", label: "Semua Sales" }, ...salesList.map((s) => ({ value: s.id, label: s.nama }))]}
+              />
+            </div>
           </div>
-          <div className="w-40">
-            <SelectInput value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <option value="">Semua Status</option>
-              <option value="aktif">Aktif</option>
-              <option value="selesai">Selesai</option>
-            </SelectInput>
+        </div>
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-3">
+            <label className="text-sm font-medium text-neutral-600 shrink-0">Produk:</label>
+            <div className="w-44">
+              <SearchableSelect
+                value={rokokFilter}
+                onChange={(e) => setRokokFilter(e.target.value)}
+                placeholder="Semua Produk"
+                options={[{ value: "", label: "Semua Produk" }, ...rokokList.map((r) => ({ value: r.id, label: r.nama }))]}
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <label className="text-sm font-medium text-neutral-600 shrink-0">Status:</label>
+            <div className="w-40">
+              <SelectInput value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                <option value="">Semua Status</option>
+                <option value="aktif">Aktif</option>
+                <option value="selesai">Selesai</option>
+              </SelectInput>
+            </div>
           </div>
         </div>
       </div>
