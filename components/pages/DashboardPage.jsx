@@ -6,7 +6,7 @@ import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, R
 import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange } from "@/lib/utils"
 import { Card, KpiCard, DateFilter } from "@/components/ui"
 
-export default function DashboardPage({ sesiList, konsinyasiJatuhTempo, rokokList, pengeluaranList }) {
+export default function DashboardPage({ sesiList, titipJualJatuhTempo, rokokList, pengeluaranList }) {
   const [dateRange, setDateRange] = useState(defaultDateRange("bulan_ini"))
 
   const sesiF        = useMemo(() => filterByDateRange(sesiList,       dateRange), [sesiList, dateRange])

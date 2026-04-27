@@ -29,7 +29,7 @@ model Toko {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  konsinyasi Konsinyasi[]
+  titipJual TitipJual[]
 }
 
 model Rokok {
@@ -47,7 +47,7 @@ model Rokok {
   sesiBarangKeluar  SesiBarangKeluar[]
   sesiPenjualan     SesiPenjualan[]
   sesiBarangKembali SesiBarangKembali[]
-  konsinyasiItems   KonsinyasiItem[]
+  titipJualItems    TitipJualItem[]
   returItems        ReturItem[]
 }
 
@@ -59,10 +59,10 @@ model Sales {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  sesi       SesiHarian[]
-  konsinyasi Konsinyasi[]
-  absensi    Absensi[]
-  retur      Retur[]
+  sesi      SesiHarian[]
+  titipJual TitipJual[]
+  absensi   Absensi[]
+  retur     Retur[]
 }
 
 // ─── DISTRIBUSI ───────────────────────────────────────────────────────────────
@@ -81,7 +81,7 @@ model SesiHarian {
   penjualan     SesiPenjualan[]
   setoran       SesiSetoran[]
   barangKembali SesiBarangKembali[]
-  konsinyasi    Konsinyasi[]
+  titipJual     TitipJual[]
 
   @@unique([tanggal, sales_id])
 }
@@ -127,9 +127,9 @@ model SesiBarangKembali {
   rokok Rokok      @relation(fields: [rokok_id], references: [id])
 }
 
-// ─── KONSINYASI ───────────────────────────────────────────────────────────────
+// ─── TITIP JUAL ───────────────────────────────────────────────────────────────
 
-model Konsinyasi {
+model TitipJual {
   id                  String   @id @default(cuid())
   sesi_id             String
   sales_id            String
@@ -142,35 +142,35 @@ model Konsinyasi {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  sesi    SesiHarian          @relation(fields: [sesi_id], references: [id])
-  sales   Sales               @relation(fields: [sales_id], references: [id])
-  toko    Toko                @relation(fields: [toko_id], references: [id])
-  items   KonsinyasiItem[]
-  setoran KonsinyasiSetoran[]
+  sesi    SesiHarian      @relation(fields: [sesi_id], references: [id])
+  sales   Sales           @relation(fields: [sales_id], references: [id])
+  toko    Toko            @relation(fields: [toko_id], references: [id])
+  items   TitipJualItem[]
+  setoran TitipJualSetoran[]
 }
 
-model KonsinyasiItem {
+model TitipJualItem {
   id            String @id @default(cuid())
-  konsinyasi_id String
+  titip_jual_id String
   rokok_id      String
   qty_keluar    Int
   qty_terjual   Int    @default(0)
   qty_kembali   Int    @default(0)
   harga         Int
 
-  konsinyasi Konsinyasi @relation(fields: [konsinyasi_id], references: [id], onDelete: Cascade)
-  rokok      Rokok      @relation(fields: [rokok_id], references: [id])
+  titipJual TitipJual @relation(fields: [titip_jual_id], references: [id], onDelete: Cascade)
+  rokok     Rokok     @relation(fields: [rokok_id], references: [id])
 }
 
-model KonsinyasiSetoran {
+model TitipJualSetoran {
   id                   String   @id @default(cuid())
-  konsinyasi_id        String
+  titip_jual_id        String
   metode               String   // "cash" | "transfer"
   jumlah               Int
   tanggal              DateTime @db.Date
   sesi_penyelesaian_id String?
 
-  konsinyasi Konsinyasi @relation(fields: [konsinyasi_id], references: [id], onDelete: Cascade)
+  titipJual TitipJual @relation(fields: [titip_jual_id], references: [id], onDelete: Cascade)
 }
 
 // ─── LAINNYA ──────────────────────────────────────────────────────────────────

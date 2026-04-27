@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Plus, Trash2, AlertCircle, ChevronDown, ChevronUp, Download } from "lucide-react"
 import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc } from "@/lib/utils"
 import { createSesi, updateSesiPagi, submitLaporanSore, editLaporanSore, deleteSesi } from "@/actions/distribusi"
-import { settleKonsinyasi, createKonsinyasi, editSettlement, revertSettlement, editKonsinyasiDetail, deleteKonsinyasi } from "@/actions/konsinyasi"
+import { settleTitipJual, createTitipJual, editSettlement, revertSettlement, editTitipJualDetail, deleteTitipJual } from "@/actions/titip_jual"
 import { addToko } from "@/actions/toko"
 import SettlementForm from "@/components/SettlementForm"
 import {
@@ -758,7 +758,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
   }
 
   const handleSaveAndSettle = async (kData, idx) => {
-    const created = await createKonsinyasi(sesi.id, sesi.sales_id, kData)
+    const created = await createTitipJual(sesi.id, sesi.sales_id, kData)
     setKonsinyasiBaru((prev) => prev.filter((_, i) => i !== idx))
     setSavedKonsinyasiItems((prev) => [
       ...prev,
@@ -794,7 +794,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
   const handleHapusKonsinyasi = async (k) => {
     const ok = await confirm(`Hapus titip jual "${k.nama_toko}"? Stok akan dikembalikan.`, { title: "Hapus Titip Jual", variant: "danger", confirmLabel: "Ya, Hapus" })
     if (!ok) return
-    await deleteKonsinyasi(k.id)
+    await deleteTitipJual(k.id)
     setNewlyCreatedKonsinyasi((prev) => prev.filter((x) => x.id !== k.id))
   }
 
@@ -1042,7 +1042,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
           <SettlementForm
             konsinyasi={settlingKonsinyasi}
             onSubmit={async (data) => {
-              await settleKonsinyasi(settlingKonsinyasi.id, data)
+              await settleTitipJual(settlingKonsinyasi.id, data)
               setSettledIds((prev) => new Set([...prev, settlingKonsinyasi.id]))
               setSettledRecords((prev) => [...prev, { konsinyasi: settlingKonsinyasi, submittedData: data }])
               setSettlingKonsinyasi(null)
@@ -1070,7 +1070,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
           <KonsinyasiDetailEditForm
             record={editingKonsinyasiDetail}
             onSubmit={async (data) => {
-              await editKonsinyasiDetail(editingKonsinyasiDetail.id, data)
+              await editTitipJualDetail(editingKonsinyasiDetail.id, data)
               setEditingKonsinyasiDetail(null)
             }}
             onCancel={() => setEditingKonsinyasiDetail(null)}

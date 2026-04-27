@@ -4,7 +4,7 @@ import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AlertCircle, Clock, Search, CheckCircle, ChevronDown } from "lucide-react"
 import { fmtIDR, fmtTanggal } from "@/lib/utils"
-import { settleKonsinyasi, editSettlement, revertSettlement, editKonsinyasiDetail, deleteKonsinyasi } from "@/actions/konsinyasi"
+import { settleTitipJual, editSettlement, revertSettlement, editTitipJualDetail, deleteTitipJual } from "@/actions/titip_jual"
 import { Card, PageHeader, SelectInput, Field, FormActions, inputCls, useConfirm } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
@@ -46,7 +46,8 @@ function TabButton({ active, onClick, children }) {
   )
 }
 
-export default function KonsinyasiPage({ konsinyasiList, salesList }) {
+export default function KonsinyasiPage({ titipJualList, salesList }) {
+  const konsinyasiList = titipJualList
   const router = useRouter()
   const [activeTab,    setActiveTab]    = useState("aktif")
   const [search,       setSearch]       = useState("")
@@ -238,7 +239,7 @@ export default function KonsinyasiPage({ konsinyasiList, salesList }) {
                         onClick={async () => {
                           const ok = await confirm(`Hapus titip jual "${r.nama_toko}"? Stok akan dikembalikan.`, { title: "Hapus Titip Jual", variant: "danger", confirmLabel: "Ya, Hapus" })
                           if (!ok) return
-                          await deleteKonsinyasi(r.id)
+                          await deleteTitipJual(r.id)
                           router.refresh()
                         }}
                         className="rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-100 whitespace-nowrap"
@@ -294,7 +295,7 @@ export default function KonsinyasiPage({ konsinyasiList, salesList }) {
           <SettlementForm
             konsinyasi={settling}
             onSubmit={async (data) => {
-              await settleKonsinyasi(settling.id, data)
+              await settleTitipJual(settling.id, data)
               setSettling(null)
               router.refresh()
             }}
@@ -309,7 +310,7 @@ export default function KonsinyasiPage({ konsinyasiList, salesList }) {
           <KonsinyasiDetailForm
             record={editingDetail}
             onSubmit={async (data) => {
-              await editKonsinyasiDetail(editingDetail.id, data)
+              await editTitipJualDetail(editingDetail.id, data)
               setEditingDetail(null)
               router.refresh()
             }}

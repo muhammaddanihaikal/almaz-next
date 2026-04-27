@@ -15,7 +15,7 @@ const KATEGORI_COLOR = {
   toko:   "bg-blue-100 text-blue-700",
 }
 
-export default function TokoPage({ tokoList, konsinyasiList }) {
+export default function TokoPage({ tokoList, titipJualList }) {
   const router = useRouter()
   const { confirm, ConfirmModal } = useConfirm()
   const [mode,    setMode]    = useState(null)
@@ -26,7 +26,7 @@ export default function TokoPage({ tokoList, konsinyasiList }) {
     [tokoList]
   )
 
-  const isUsed = (id) => konsinyasiList.some((k) => k.toko_id === id)
+  const isUsed = (id) => titipJualList.some((k) => k.toko_id === id)
 
   const close = () => { setMode(null); setEditing(null) }
 
@@ -46,7 +46,7 @@ export default function TokoPage({ tokoList, konsinyasiList }) {
     <div className="space-y-6">
       <PageHeader
         title="Master Toko"
-        subtitle={`${tokoList.length} toko terdaftar — digunakan untuk konsinyasi.`}
+        subtitle={`${tokoList.length} toko terdaftar — digunakan untuk titip jual.`}
         action={
           <PrimaryButton onClick={() => { setEditing(null); setMode("add") }} icon={Plus}>
             Tambah Toko
