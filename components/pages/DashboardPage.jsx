@@ -56,6 +56,10 @@ export default function DashboardPage({ sesiList, titipJualJatuhTempo, rokokList
       .map(([tanggal, total]) => ({ tanggal: fmtTanggal(tanggal), total }))
   }, [sesiF])
 
+  const dateStr = dateRange?.start && dateRange?.end
+    ? `${fmtTanggal(dateRange.start)} s/d ${fmtTanggal(dateRange.end)}`
+    : "Semua Waktu"
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -75,7 +79,14 @@ export default function DashboardPage({ sesiList, titipJualJatuhTempo, rokokList
         <KpiCard icon={ArrowDownCircle} label="Total Pengeluaran" value={fmtIDR(stats.totalPengeluaran)} />
       </div>
 
-      <Card title="Qty Terjual per Rokok">
+      <Card 
+        title="Qty Terjual per Rokok" 
+        action={
+          <div className="rounded-md border border-neutral-200 bg-neutral-50 px-2.5 py-1">
+            <span className="text-xs font-medium text-neutral-600">{dateStr}</span>
+          </div>
+        }
+      >
         {qtyPerRokok.every((r) => r.qty === 0) ? (
           <p className="py-8 text-center text-sm text-neutral-400">Tidak ada data pada periode ini.</p>
         ) : (
@@ -91,14 +102,21 @@ export default function DashboardPage({ sesiList, titipJualJatuhTempo, rokokList
         )}
       </Card>
 
-      <Card title="Total Penjualan Harian">
+      <Card 
+        title="Total Penjualan Harian"
+        action={
+          <div className="rounded-md border border-neutral-200 bg-neutral-50 px-2.5 py-1">
+            <span className="text-xs font-medium text-neutral-600">{dateStr}</span>
+          </div>
+        }
+      >
         {penjualanHarian.length === 0 ? (
           <p className="py-8 text-center text-sm text-neutral-400">Tidak ada data pada periode ini.</p>
         ) : (
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={penjualanHarian}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="tanggal" tick={{ fontSize: 10 }} />
+              <XAxis dataKey="tanggal" tick={{ fontSize: 10 }} tickFormatter={(val) => val.split(" ")[0]} />
               <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => fmtIDR(v)} width={90} />
               <Tooltip formatter={(v) => fmtIDR(v)} />
               <Line type="monotone" dataKey="total" stroke="#171717" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />

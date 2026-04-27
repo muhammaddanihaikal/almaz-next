@@ -201,7 +201,13 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
     let filtered = filterByDateRange(sesiList, dateRange)
     if (salesFilter) filtered = filtered.filter((r) => r.sales_id === salesFilter)
     if (rokokFilter) filtered = filtered.filter((r) => r.barangKeluar.some((it) => it.rokok_id === rokokFilter))
-    if (statusFilter) filtered = filtered.filter((r) => r.status === statusFilter)
+    if (statusFilter) {
+      if (statusFilter === "titip_jual_aktif") {
+        filtered = filtered.filter((r) => r.konsinyasi?.some((k) => k.status === "aktif"))
+      } else {
+        filtered = filtered.filter((r) => r.status === statusFilter)
+      }
+    }
     return sortByDateDesc(filtered)
   }, [sesiList, dateRange, salesFilter, rokokFilter, statusFilter])
 
@@ -272,6 +278,7 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
                 <option value="">Semua Status</option>
                 <option value="aktif">Aktif</option>
                 <option value="selesai">Selesai</option>
+                <option value="titip_jual_aktif">Titip Jual Aktif</option>
               </SelectInput>
             </div>
           </div>
