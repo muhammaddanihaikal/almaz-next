@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation"
 import { Plus, Trash2, AlertCircle, ChevronDown, ChevronUp, Search, Download } from "lucide-react"
 import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc } from "@/lib/utils"
 import { createSesi, updateSesiPagi, submitLaporanSore, editLaporanSore, deleteSesi } from "@/actions/distribusi"
+import { settleKonsinyasi } from "@/actions/konsinyasi"
 import { addToko } from "@/actions/toko"
+import SettlementForm from "@/components/SettlementForm"
 import {
   Card, PageHeader, DateFilter, PrimaryButton, Field, FormActions,
   SearchableSelect, SelectInput, inputCls, RowActions, IconButton,
@@ -638,9 +640,10 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
       ? sesi.setoran.map((s) => ({ metode: s.metode, jumlah: String(s.jumlah) }))
       : [{ metode: "cash", jumlah: "" }]
   )
-  const [konsinyasiBaru,       setKonsinyasiBaru]       = useState([])
-  const [penyelesaianKonsinyasi, setPenyelesaianKonsinyasi] = useState([])
-  const [showPerorangan, setShowPerorangan] = useState(false)
+  const [konsinyasiBaru,    setKonsinyasiBaru]    = useState([])
+  const [settlingKonsinyasi, setSettlingKonsinyasi] = useState(null)
+  const [settledIds,        setSettledIds]        = useState(new Set())
+  const [showPerorangan,    setShowPerorangan]    = useState(false)
 
   const nilaiPenjualan = penjualan.reduce((s, it) => {
     const r = rokokList.find((r) => r.id === it.rokok_id)
@@ -649,11 +652,13 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
   }, 0)
   const totalSetoran = setoran.reduce((s, it) => s + (Number(it.jumlah) || 0), 0)
   const flagSetoran  = nilaiPenjualan > 0 && totalSetoran !== nilaiPenjualan
+  const setoranEmpty = nilaiPenjualan > 0 && totalSetoran === 0
 
   const submit = (e) => {
     e.preventDefault()
-    const validPenjualan = penjualan.filter((it) => it.rokok_id && Number(it.qty) > 0)
-    const validSetoran   = setoran.filter((it) => Number(it.jumlah) > 0)
+    if (setoranEmpty) return
+    const validPenjualan  = penjualan.filter((it) => it.rokok_id && Number(it.qty) > 0)
+    const validSetoran    = setoran.filter((it) => Number(it.jumlah) > 0)
     const validKonsinyasi = konsinyasiBaru.filter((k) => k.toko_id && k.kategori && k.tanggal_jatuh_tempo && k.items.some((it) => it.rokok_id && Number(it.qty) > 0))
 
     const barangKembaliAuto = {}
@@ -673,15 +678,14 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
       .map(([rokok_id, qty]) => ({ rokok_id, qty }))
 
     onSubmit({
-      penjualan:             validPenjualan.map((it) => ({ rokok_id: it.rokok_id, kategori: it.kategori, qty: Number(it.qty) })),
-      setoran:               validSetoran.map((it) => ({ metode: it.metode, jumlah: Number(it.jumlah) })),
-      barangKembali:         validKembali,
-      konsinyasiBaru:        validKonsinyasi,
-      penyelesaianKonsinyasi,
+      penjualan:      validPenjualan.map((it) => ({ rokok_id: it.rokok_id, kategori: it.kategori, qty: Number(it.qty) })),
+      setoran:        validSetoran.map((it) => ({ metode: it.metode, jumlah: Number(it.jumlah) })),
+      barangKembali:  validKembali,
+      konsinyasiBaru: validKonsinyasi,
     })
   }
 
-  const hasKonsinyasiAktif = sesi.konsinyasi?.filter((k) => k.status === "aktif").length > 0
+  const activeKonsinyasi = (sesi.konsinyasi || []).filter((k) => k.status === "aktif" && !settledIds.has(k.id))
 
   // Qty tersedia per rokok untuk konsinyasi: dibawa - penjualan langsung
   const qtyDibawa = useMemo(
@@ -713,7 +717,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
           Penjualan Langsung
         </TabButton>
         <TabButton active={activeTab === "konsinyasi"} onClick={() => setActiveTab("konsinyasi")}>
-          Titip Jual {hasKonsinyasiAktif && <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-yellow-500 text-xs text-white">{sesi.konsinyasi.filter((k) => k.status === "aktif").length}</span>}
+          Titip Jual {activeKonsinyasi.length > 0 && <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-yellow-500 text-xs text-white">{activeKonsinyasi.length}</span>}
         </TabButton>
       </div>
 
@@ -762,6 +766,12 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
                 + Tambah metode setoran
               </button>
             )}
+            {setoranEmpty && (
+              <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 mt-2">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                Setoran wajib diisi jika ada penjualan
+              </div>
+            )}
             {flagSetoran && totalSetoran > 0 && (
               <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 mt-2">
                 <AlertCircle className="h-3.5 w-3.5 shrink-0" />
@@ -800,30 +810,47 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
             </button>
           </SectionCard>
 
-          {/* Penyelesaian Konsinyasi */}
-          {hasKonsinyasiAktif && (
+          {/* Penyelesaian Titip Jual */}
+          {activeKonsinyasi.length > 0 && (
             <SectionCard title="Penyelesaian Titip Jual">
-              {sesi.konsinyasi.filter((k) => k.status === "aktif").map((k) => (
-                <PenyelesaianKonsinyasiInput
-                  key={k.id}
-                  konsinyasi={k}
-                  onChange={(data) => {
-                    const exists = penyelesaianKonsinyasi.find((p) => p.konsinyasi_id === k.id)
-                    if (data) {
-                      if (exists) setPenyelesaianKonsinyasi(penyelesaianKonsinyasi.map((p) => p.konsinyasi_id === k.id ? data : p))
-                      else setPenyelesaianKonsinyasi([...penyelesaianKonsinyasi, data])
-                    } else {
-                      setPenyelesaianKonsinyasi(penyelesaianKonsinyasi.filter((p) => p.konsinyasi_id !== k.id))
-                    }
-                  }}
-                />
-              ))}
+              <div className="space-y-2">
+                {activeKonsinyasi.map((k) => (
+                  <div key={k.id} className="flex items-center justify-between rounded-lg border border-neutral-200 bg-white px-3 py-2.5">
+                    <div>
+                      <p className="text-sm font-medium">{k.nama_toko}</p>
+                      <p className="text-xs text-neutral-400">Jatuh Tempo: {fmtTanggal(k.tanggal_jatuh_tempo)}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSettlingKonsinyasi(k)}
+                      className="rounded-md border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100 whitespace-nowrap"
+                    >
+                      Selesaikan
+                    </button>
+                  </div>
+                ))}
+              </div>
             </SectionCard>
           )}
         </div>
       )}
 
-      <FormActions onCancel={onCancel} submitLabel={isEdit ? "Simpan Perubahan" : "Submit Laporan"} />
+      {/* Settlement Modal */}
+      {settlingKonsinyasi && (
+        <Modal title={`Selesaikan Titip Jual — ${settlingKonsinyasi.nama_toko}`} onClose={() => setSettlingKonsinyasi(null)} width="max-w-2xl">
+          <SettlementForm
+            konsinyasi={settlingKonsinyasi}
+            onSubmit={async (data) => {
+              await settleKonsinyasi(settlingKonsinyasi.id, data)
+              setSettledIds((prev) => new Set([...prev, settlingKonsinyasi.id]))
+              setSettlingKonsinyasi(null)
+            }}
+            onCancel={() => setSettlingKonsinyasi(null)}
+          />
+        </Modal>
+      )}
+
+      <FormActions onCancel={onCancel} disabled={setoranEmpty} submitLabel={isEdit ? "Simpan Perubahan" : "Submit Laporan"} />
     </form>
   )
 }
@@ -1099,88 +1126,3 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
   )
 }
 
-function PenyelesaianKonsinyasiInput({ konsinyasi, onChange }) {
-  const [checked, setChecked]   = useState(false)
-  const [items,   setItems]     = useState(konsinyasi.items.map((it) => ({ ...it, qty_terjual: it.qty_terjual || "", qty_kembali: it.qty_kembali || "" })))
-  const [setoran, setSetoran]   = useState([{ metode: "cash", jumlah: "" }])
-
-  const toggle = (val) => {
-    setChecked(val)
-    if (!val) {
-      onChange(null)
-    } else {
-      onChange(buildPayload())
-    }
-  }
-
-  const buildPayload = () => ({
-    konsinyasi_id: konsinyasi.id,
-    items: items.map((it) => ({
-      id:          it.id,
-      rokok_id:    it.rokok_id,
-      qty_terjual: Number(it.qty_terjual) || 0,
-      qty_kembali: Number(it.qty_kembali) || 0,
-    })),
-    setoran: setoran.filter((s) => Number(s.jumlah) > 0).map((s) => ({ metode: s.metode, jumlah: Number(s.jumlah) })),
-  })
-
-  const update = (newItems, newSetoran) => {
-    if (checked) onChange({ konsinyasi_id: konsinyasi.id, items: newItems.map((it) => ({ id: it.id, rokok_id: it.rokok_id, qty_terjual: Number(it.qty_terjual) || 0, qty_kembali: Number(it.qty_kembali) || 0 })), setoran: newSetoran.filter((s) => Number(s.jumlah) > 0).map((s) => ({ metode: s.metode, jumlah: Number(s.jumlah) })) })
-  }
-
-  return (
-    <div className="rounded-lg border border-neutral-200 bg-white p-3 space-y-3">
-      <label className="flex items-center gap-2 cursor-pointer">
-        <input type="checkbox" checked={checked} onChange={(e) => toggle(e.target.checked)} className="h-4 w-4 rounded" />
-        <span className="font-medium text-sm">{konsinyasi.nama_toko}</span>
-        <span className="text-xs text-neutral-400">— Jatuh Tempo: {fmtTanggal(konsinyasi.tanggal_jatuh_tempo)}</span>
-      </label>
-      {checked && (
-        <div className="space-y-3 pl-6">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-neutral-200 text-neutral-500">
-                <th className="pb-1.5 text-left">Rokok</th>
-                <th className="pb-1.5 text-right">Keluar</th>
-                <th className="pb-1.5 text-right">Terjual</th>
-                <th className="pb-1.5 text-right">Kembali</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((it, idx) => (
-                <tr key={idx} className="border-b border-neutral-100">
-                  <td className="py-1.5">{it.rokok}</td>
-                  <td className="py-1.5 text-right tabular-nums">{it.qty_keluar}</td>
-                  <td className="py-1.5 text-right">
-                    <input type="number" min="0" max={it.qty_keluar} value={it.qty_terjual} onChange={(e) => { const ni = items.map((x, i) => i === idx ? { ...x, qty_terjual: e.target.value } : x); setItems(ni); update(ni, setoran) }} className={inputCls + " w-20 text-right"} placeholder="0" />
-                  </td>
-                  <td className="py-1.5 text-right">
-                    <input type="number" min="0" max={it.qty_keluar} value={it.qty_kembali} onChange={(e) => { const ni = items.map((x, i) => i === idx ? { ...x, qty_kembali: e.target.value } : x); setItems(ni); update(ni, setoran) }} className={inputCls + " w-20 text-right"} placeholder="0" />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="space-y-2">
-            <p className="text-xs font-medium text-neutral-500">Setoran</p>
-            {setoran.map((st, idx) => (
-              <div key={idx} className="flex items-center gap-2">
-                <SelectInput value={st.metode} onChange={(e) => { const ns = setoran.map((s, i) => i === idx ? { ...s, metode: e.target.value } : s); setSetoran(ns); update(items, ns) }} className="w-32">
-                  <option value="cash">Cash</option>
-                  <option value="transfer">Transfer</option>
-                </SelectInput>
-                <input type="number" min="0" value={st.jumlah} onChange={(e) => { const ns = setoran.map((s, i) => i === idx ? { ...s, jumlah: e.target.value } : s); setSetoran(ns); update(items, ns) }} placeholder="0" className={inputCls + " flex-1"} />
-                {setoran.length > 1 && <IconButton icon={Trash2} onClick={() => { const ns = setoran.filter((_, i) => i !== idx); setSetoran(ns); update(items, ns) }} variant="danger" label="Hapus" />}
-              </div>
-            ))}
-            {setoran.length < 2 && (
-              <button type="button" onClick={() => { const ns = [...setoran, { metode: "transfer", jumlah: "" }]; setSetoran(ns); update(items, ns) }} className="text-xs text-blue-600 hover:underline">
-                + Tambah metode
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}

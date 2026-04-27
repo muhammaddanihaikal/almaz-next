@@ -300,6 +300,28 @@ export async function editLaporanSore(id, data) {
     for (const it of kembali) {
       await tx.rokok.update({ where: { id: it.rokok_id }, data: { stok: { increment: it.qty } } })
     }
+
+    // Tambah konsinyasi baru jika ada
+    const konsinyasiBaru = data.konsinyasiBaru || []
+    for (const k of konsinyasiBaru) {
+      await tx.konsinyasi.create({
+        data: {
+          sesi_id:             id,
+          sales_id:            data.sales_id,
+          toko_id:             k.toko_id,
+          kategori:            k.kategori,
+          tanggal_jatuh_tempo: new Date(k.tanggal_jatuh_tempo),
+          catatan:             k.catatan || null,
+          items: {
+            create: k.items.map((it) => ({
+              rokok_id:   it.rokok_id,
+              qty_keluar: Number(it.qty),
+              harga:      hargaMap[it.rokok_id]?.[k.kategori] || 0,
+            })),
+          },
+        },
+      })
+    }
     // Tidak mengubah status sesi (tetap "selesai")
   })
   revalidatePath("/distribusi")
