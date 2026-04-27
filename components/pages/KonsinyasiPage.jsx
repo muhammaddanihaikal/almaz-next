@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { AlertCircle, Clock, Search, CheckCircle } from "lucide-react"
+import { AlertCircle, Clock, Search, CheckCircle, ChevronDown } from "lucide-react"
 import { fmtIDR, fmtTanggal } from "@/lib/utils"
 import { settleKonsinyasi, editSettlement, revertSettlement, editKonsinyasiDetail, deleteKonsinyasi } from "@/actions/konsinyasi"
 import { Card, PageHeader, SelectInput, Field, FormActions, inputCls, useConfirm } from "@/components/ui"
@@ -51,6 +51,7 @@ export default function KonsinyasiPage({ konsinyasiList, salesList }) {
   const [activeTab,    setActiveTab]    = useState("aktif")
   const [search,       setSearch]       = useState("")
   const [salesFilter,  setSalesFilter]  = useState("")
+  const [expandedAlert, setExpandedAlert] = useState(false)
   const { confirm, ConfirmModal } = useConfirm()
   const [settling,          setSettling]          = useState(null)
   const [editingSettlement, setEditingSettlement] = useState(null)
@@ -59,6 +60,7 @@ export default function KonsinyasiPage({ konsinyasiList, salesList }) {
 
   const jatuhTempoHariIni = konsinyasiList.filter((k) => k.status === "aktif" && k.selisihHari <= 0)
   const jatuhTempoSegera  = konsinyasiList.filter((k) => k.status === "aktif" && k.selisihHari > 0 && k.selisihHari <= 3)
+  const totalJatuhTempo = jatuhTempoHariIni.length + jatuhTempoSegera.length
 
   const rows = useMemo(() => {
     let filtered = konsinyasiList.filter((r) => r.status === activeTab)
@@ -82,37 +84,60 @@ export default function KonsinyasiPage({ konsinyasiList, salesList }) {
         subtitle="Daftar semua transaksi titip jual sales."
       />
 
-      {jatuhTempoHariIni.length > 0 && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-2">
-          <div className="flex items-center gap-2 text-sm font-semibold text-red-700">
-            <AlertCircle className="h-4 w-4" />
-            {jatuhTempoHariIni.length} titip jual sudah jatuh tempo hari ini
-          </div>
-          <div className="space-y-1">
-            {jatuhTempoHariIni.map((k) => (
-              <div key={k.id} className="flex items-center justify-between text-xs text-red-600">
-                <span>{k.sales} → {k.nama_toko} ({k.kategori})</span>
-                <span>{fmtIDR(k.nilaiTotal)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {totalJatuhTempo > 0 && (
+        <div className="rounded-xl border border-neutral-200 bg-white">
+          <button
+            type="button"
+            onClick={() => setExpandedAlert(!expandedAlert)}
+            className="w-full flex items-center justify-between p-4 hover:bg-neutral-50 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 text-red-600" />
+              <span className="font-medium text-neutral-900">Jatuh Tempo Alert</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-red-600 px-2 text-xs font-semibold text-white">{totalJatuhTempo}</span>
+              <ChevronDown className={`h-5 w-5 text-neutral-400 transition-transform ${expandedAlert ? "rotate-180" : ""}`} />
+            </div>
+          </button>
 
-      {jatuhTempoSegera.length > 0 && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-2">
-          <div className="flex items-center gap-2 text-sm font-semibold text-amber-700">
-            <Clock className="h-4 w-4" />
-            {jatuhTempoSegera.length} titip jual jatuh tempo dalam 3 hari
-          </div>
-          <div className="space-y-1">
-            {jatuhTempoSegera.map((k) => (
-              <div key={k.id} className="flex items-center justify-between text-xs text-amber-600">
-                <span>{k.sales} → {k.nama_toko} ({k.kategori}) — {k.selisihHari} hari lagi</span>
-                <span>{fmtIDR(k.nilaiTotal)}</span>
-              </div>
-            ))}
-          </div>
+          {expandedAlert && (
+            <div className="border-t border-neutral-200 p-4 space-y-3">
+              {jatuhTempoHariIni.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-red-700">
+                    <AlertCircle className="h-4 w-4" />
+                    {jatuhTempoHariIni.length} titip jual sudah jatuh tempo hari ini
+                  </div>
+                  <div className="space-y-1">
+                    {jatuhTempoHariIni.map((k) => (
+                      <div key={k.id} className="flex items-center justify-between text-xs text-red-600">
+                        <span>{k.sales} → {k.nama_toko} ({k.kategori})</span>
+                        <span>{fmtIDR(k.nilaiTotal)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {jatuhTempoSegera.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-amber-700">
+                    <Clock className="h-4 w-4" />
+                    {jatuhTempoSegera.length} titip jual jatuh tempo dalam 3 hari
+                  </div>
+                  <div className="space-y-1">
+                    {jatuhTempoSegera.map((k) => (
+                      <div key={k.id} className="flex items-center justify-between text-xs text-amber-600">
+                        <span>{k.sales} → {k.nama_toko} ({k.kategori}) — {k.selisihHari} hari lagi</span>
+                        <span>{fmtIDR(k.nilaiTotal)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
