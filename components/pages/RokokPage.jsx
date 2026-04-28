@@ -19,7 +19,7 @@ export default function RokokPage({ rokokList, distribusi, retur }) {
   const [stokTarget, setStokTarget] = useState(null)
 
   const rows = useMemo(
-    () => [...rokokList].sort((a, b) => a.nama.localeCompare(b.nama, "id")),
+    () => [...rokokList].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)),
     [rokokList]
   )
 
