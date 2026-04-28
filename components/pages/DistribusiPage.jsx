@@ -837,6 +837,26 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
     return map
   }, [penjualan])
 
+  const qtyTitipLama = useMemo(() => {
+    const map = {}
+    for (const it of savedKonsinyasiItems) {
+      map[it.rokok_id] = (map[it.rokok_id] || 0) + it.qty
+    }
+    return map
+  }, [savedKonsinyasiItems])
+
+  const qtyTitipBaru = useMemo(() => {
+    const map = { ...qtyTitipLama }
+    for (const k of konsinyasiBaru) {
+      for (const it of k.items) {
+        if (it.rokok_id && Number(it.qty) > 0) {
+          map[it.rokok_id] = (map[it.rokok_id] || 0) + Number(it.qty)
+        }
+      }
+    }
+    return map
+  }, [konsinyasiBaru, qtyTitipLama])
+
   // Rokok yang dibawa sales hari ini (sudah terfilter)
   const rokokDibawa = useMemo(
     () => rokokList.filter((r) => sesi.barangKeluar.some((bk) => bk.rokok_id === r.id)),
@@ -864,6 +884,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
               penjualan={penjualan}
               setPenjualan={setPenjualan}
               barangKeluar={sesi.barangKeluar}
+              qtyTitipBaru={qtyTitipBaru}
               showPerorangan={showPerorangan}
               setShowPerorangan={setShowPerorangan}
             />
@@ -953,6 +974,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
                 rokokDibawa={rokokDibawa}
                 qtyDibawa={qtyDibawa}
                 qtyTerjualLangsung={qtyTerjualLangsung}
+                qtyTitipLama={qtyTitipLama}
                 konsinyasiBaru={konsinyasiBaru}
                 tokoList={tokoList}
                 onChange={(updated) => setKonsinyasiBaru(konsinyasiBaru.map((x, i) => i === idx ? updated : x))}
@@ -1135,7 +1157,7 @@ function SectionCard({ title, children }) {
   )
 }
 
-function PenjualanLangsungInput({ penjualan, setPenjualan, barangKeluar = [], showPerorangan, setShowPerorangan }) {
+function PenjualanLangsungInput({ penjualan, setPenjualan, barangKeluar = [], qtyTitipBaru = {}, showPerorangan, setShowPerorangan }) {
   const categories = showPerorangan ? ["grosir", "toko", "perorangan"] : ["grosir", "toko"]
   const rokok_ids  = [...new Set(penjualan.map((it) => it.rokok_id))]
 
@@ -1168,14 +1190,16 @@ function PenjualanLangsungInput({ penjualan, setPenjualan, barangKeluar = [], sh
             const sample  = penjualan.find((it) => it.rokok_id === rokok_id)
             const dibawa  = qtyDibawa[rokok_id] ?? 0
             const terjual = totalTerjualPerRokok(rokok_id)
-            const melebihi = terjual > dibawa
+            const dititip = qtyTitipBaru[rokok_id] ?? 0
+            const sisa    = dibawa - terjual - dititip
+            const melebihi = terjual + dititip > dibawa
             return (
               <Fragment key={rokok_id}>
                 <tr className="border-b border-neutral-100">
                   <td className="py-2 pr-3 font-medium">
                     {sample?.rokok}
-                    <div className={`text-[10px] font-medium transition-colors ${melebihi ? "text-red-500" : terjual > 0 ? "text-blue-600" : "text-neutral-400"}`}>
-                      Sisa: {dibawa - terjual} / {dibawa}
+                    <div className={`text-[10px] font-medium transition-colors ${melebihi ? "text-red-500" : terjual + dititip > 0 ? "text-blue-600" : "text-neutral-400"}`}>
+                      Sisa: {sisa} / {dibawa}
                     </div>
                   </td>
                   {categories.map((cat) => {
@@ -1199,7 +1223,7 @@ function PenjualanLangsungInput({ penjualan, setPenjualan, barangKeluar = [], sh
                     <td colSpan={1 + categories.length} className="pb-1.5 pt-0">
                       <div className="flex items-center gap-1.5 rounded-md border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs text-orange-700">
                         <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                        Total terjual ({terjual}) melebihi yang dibawa ({dibawa}) — selisih {terjual - dibawa} bungkus
+                        Total terjual & dititip ({terjual + dititip}) melebihi yang dibawa ({dibawa}) — selisih {terjual + dititip - dibawa} bungkus
                       </div>
                     </td>
                   </tr>
@@ -1312,7 +1336,7 @@ function PenyelesaianDetail({ record }) {
   )
 }
 
-function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerjualLangsung, konsinyasiBaru, tokoList, onChange, onRemove, onTokoCreated, onSaveAndSettle, extraUsedTokoIds = [] }) {
+function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerjualLangsung, qtyTitipLama = {}, konsinyasiBaru, tokoList, onChange, onRemove, onTokoCreated, onSaveAndSettle, extraUsedTokoIds = [] }) {
   const [open,        setOpen]        = useState(true)
   const [showAddToko, setShowAddToko] = useState(false)
   const [newTokoNama, setNewTokoNama] = useState("")
@@ -1333,15 +1357,25 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
   }
 
   // Qty tersedia per rokok: dibawa - terjual langsung - item di konsinyasi lain (bukan ini)
-  const getAvailableQty = (rokok_id) => {
+  const getAvailableQty = (rokok_id, excludeItemIdx = -1) => {
     const dibawa  = qtyDibawa[rokok_id] || 0
     const terjual = qtyTerjualLangsung[rokok_id] || 0
-    const otherKonsinyasi = konsinyasiBaru
+    const lama    = qtyTitipLama[rokok_id] || 0
+    
+    // Qty dari konsinyasi baru lainnya (accordion lain)
+    const otherAccordions = konsinyasiBaru
       .filter((_, i) => i !== currentIdx)
       .flatMap((k) => k.items)
       .filter((it) => it.rokok_id === rokok_id)
       .reduce((s, it) => s + (Number(it.qty) || 0), 0)
-    return Math.max(0, dibawa - terjual - otherKonsinyasi)
+
+    // Qty dari item lain dalam accordion yang sama
+    const currentAccordionOthers = data.items
+      .filter((_, i) => i !== excludeItemIdx)
+      .filter((it) => it.rokok_id === rokok_id)
+      .reduce((s, it) => s + (Number(it.qty) || 0), 0)
+
+    return Math.max(0, dibawa - terjual - lama - otherAccordions - currentAccordionOthers)
   }
 
   const updateItem = (idx, field, val) =>
@@ -1436,42 +1470,43 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
           )}
 
           {data.items.map((item, idx) => {
-            const available = getAvailableQty(item.rokok_id)
-            const melebihi  = item.rokok_id && Number(item.qty) > available
+            const usedByOthers = getAvailableQty(item.rokok_id, idx)
+            const available    = Math.max(0, usedByOthers - (Number(item.qty) || 0))
+            const totalDibawa  = qtyDibawa[item.rokok_id] || 0
+            const melebihi     = item.rokok_id && Number(item.qty) > usedByOthers
             return (
               <div key={idx}>
                 <div className="flex items-end gap-3">
                   <div className="flex-1">
-                    <Field label={idx === 0 ? "Rokok" : ""}>
-                      <SelectInput value={item.rokok_id} onChange={(e) => updateItem(idx, "rokok_id", e.target.value)}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-medium text-neutral-600">{idx === 0 ? "Rokok" : ""}</span>
+                      {item.rokok_id && (
+                        <span className={`text-[10px] font-bold tabular-nums ${melebihi ? "text-red-500" : (Number(item.qty) || 0) > 0 ? "text-blue-600" : "text-neutral-400"}`}>
+                          Sisa: {available} / {totalDibawa}
+                        </span>
+                      )}
+                    </div>
+                    <SelectInput value={item.rokok_id} onChange={(e) => updateItem(idx, "rokok_id", e.target.value)}>
                         <option value="">Pilih rokok</option>
                         {rokokDibawa.filter((r) => r.aktif !== false && (r.id === item.rokok_id || !data.items.some((it, i) => i !== idx && it.rokok_id === r.id))).map((r) => {
                           const avail = getAvailableQty(r.id)
                           return (
-                            <option key={r.id} value={r.id}>{r.nama} (tersedia: {avail})</option>
+                            <option key={r.id} value={r.id}>{r.nama}</option>
                           )
                         })}
                       </SelectInput>
-                    </Field>
-                  </div>
-                  <div className="w-24">
+                    </div>
+                    <div className="w-24">
                     <Field label={idx === 0 ? "Qty" : ""}>
-                      <div className="relative">
-                        <input
-                          type="number" min="1"
-                          max={item.rokok_id ? available + (Number(item.qty) || 0) : undefined}
-                          value={item.qty}
-                          onChange={(e) => updateItem(idx, "qty", e.target.value)}
-                          placeholder="0"
-                          disabled={!item.rokok_id}
-                          className={inputCls + " pr-8" + (melebihi ? " border-orange-400" : "") + (!item.rokok_id ? " opacity-40 cursor-not-allowed" : "")}
-                        />
-                        {item.rokok_id && (
-                          <div className={`absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold tabular-nums ${melebihi ? "text-red-500" : "text-neutral-400"}`}>
-                            {available}
-                          </div>
-                        )}
-                      </div>
+                      <input
+                        type="number" min="1"
+                        max={item.rokok_id ? available + (Number(item.qty) || 0) : undefined}
+                        value={item.qty}
+                        onChange={(e) => updateItem(idx, "qty", e.target.value)}
+                        placeholder="0"
+                        disabled={!item.rokok_id}
+                        className={inputCls + (melebihi ? " border-orange-400" : "") + (!item.rokok_id ? " opacity-40 cursor-not-allowed" : "")}
+                      />
                     </Field>
                   </div>
                   {data.items.length > 1 && (
@@ -1483,7 +1518,7 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
                 {melebihi && (
                   <div className="flex items-center gap-1.5 mt-1 rounded-md border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs text-orange-700">
                     <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                    Qty melebihi yang tersedia ({available})
+                    Qty melebihi yang tersedia ({usedByOthers})
                   </div>
                 )}
               </div>
