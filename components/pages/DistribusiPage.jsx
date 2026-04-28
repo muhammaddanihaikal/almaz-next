@@ -1174,7 +1174,9 @@ function PenjualanLangsungInput({ penjualan, setPenjualan, barangKeluar = [], sh
                 <tr className="border-b border-neutral-100">
                   <td className="py-2 pr-3 font-medium">
                     {sample?.rokok}
-                    <span className="ml-1 font-normal text-neutral-400 text-xs">({dibawa})</span>
+                    <div className={`text-[10px] font-medium transition-colors ${melebihi ? "text-red-500" : terjual > 0 ? "text-blue-600" : "text-neutral-400"}`}>
+                      Sisa: {dibawa - terjual} / {dibawa}
+                    </div>
                   </td>
                   {categories.map((cat) => {
                     const entry = penjualan.find((it) => it.rokok_id === rokok_id && it.kategori === cat)
@@ -1454,15 +1456,22 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
                   </div>
                   <div className="w-24">
                     <Field label={idx === 0 ? "Qty" : ""}>
-                      <input
-                        type="number" min="1"
-                        max={item.rokok_id ? available + (Number(item.qty) || 0) : undefined}
-                        value={item.qty}
-                        onChange={(e) => updateItem(idx, "qty", e.target.value)}
-                        placeholder="0"
-                        disabled={!item.rokok_id}
-                        className={inputCls + (melebihi ? " border-orange-400" : "") + (!item.rokok_id ? " opacity-40 cursor-not-allowed" : "")}
-                      />
+                      <div className="relative">
+                        <input
+                          type="number" min="1"
+                          max={item.rokok_id ? available + (Number(item.qty) || 0) : undefined}
+                          value={item.qty}
+                          onChange={(e) => updateItem(idx, "qty", e.target.value)}
+                          placeholder="0"
+                          disabled={!item.rokok_id}
+                          className={inputCls + " pr-8" + (melebihi ? " border-orange-400" : "") + (!item.rokok_id ? " opacity-40 cursor-not-allowed" : "")}
+                        />
+                        {item.rokok_id && (
+                          <div className={`absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold tabular-nums ${melebihi ? "text-red-500" : "text-neutral-400"}`}>
+                            {available}
+                          </div>
+                        )}
+                      </div>
                     </Field>
                   </div>
                   {data.items.length > 1 && (
