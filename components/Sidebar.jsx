@@ -39,15 +39,18 @@ function buildMenus(role) {
     { id: "absensi", href: "/absensi", label: "Absensi", icon: CalendarCheck },
   ]
 
-  if (role === "superadmin") {
+  if (role === "superadmin" || role === "admin") {
+    const adminItems = []
+    if (role === "superadmin") {
+      adminItems.push({ id: "pengguna", href: "/pengguna", label: "Pengguna", icon: UserCog })
+    }
+    adminItems.push({ id: "backup", href: "/backup", label: "Backup DB", icon: HardDrive })
+
     menus.push({
       id: "group-admin",
       label: "Admin",
       icon: ShieldCheck,
-      items: [
-        { id: "pengguna", href: "/pengguna", label: "Pengguna", icon: UserCog },
-        { id: "backup",   href: "/backup",   label: "Backup DB", icon: HardDrive },
-      ],
+      items: adminItems,
     })
   }
 

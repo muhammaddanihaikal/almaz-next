@@ -4,6 +4,6 @@ import BackupPage from "@/components/pages/BackupPage"
 
 export default async function Page() {
   const session = await auth()
-  if (!session || session.user.role !== "superadmin") redirect("/")
+  if (!session || !["superadmin", "admin"].includes(session.user.role)) redirect("/")
   return <BackupPage />
 }
