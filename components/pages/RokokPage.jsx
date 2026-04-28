@@ -243,20 +243,16 @@ function TambahStokForm({ rokok, onSubmit, onCancel }) {
       </div>
 
       {/* Preview total */}
-      {valid && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-center justify-between">
-          <span className="text-sm text-emerald-700">Total tambahan</span>
-          <span className="text-base font-semibold tabular-nums text-emerald-700">+{totalBungkus} bungkus</span>
-        </div>
-      )}
+      <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-center justify-between">
+        <span className="text-sm text-emerald-700">Total tambahan</span>
+        <span className="text-base font-semibold tabular-nums text-emerald-700">+{totalBungkus} bungkus</span>
+      </div>
 
       {/* Preview stok sesudah */}
-      {valid && (
-        <div className="rounded-lg border border-neutral-200 bg-white px-4 py-3 flex items-center justify-between">
-          <span className="text-sm text-neutral-600">Stok setelah tambah</span>
-          <span className="text-lg font-semibold tabular-nums text-neutral-900">{(rokok.stok ?? 0) + totalBungkus} bungkus</span>
-        </div>
-      )}
+      <div className="rounded-lg border border-neutral-200 bg-white px-4 py-3 flex items-center justify-between">
+        <span className="text-sm text-neutral-600">Stok setelah tambah</span>
+        <span className="text-lg font-semibold tabular-nums text-neutral-900">{(rokok.stok ?? 0) + totalBungkus} bungkus</span>
+      </div>
 
       <FormActions onCancel={onCancel} disabled={!valid} submitLabel="Simpan Stok" />
     </form>
@@ -267,7 +263,7 @@ function TambahStokForm({ rokok, onSubmit, onCancel }) {
 
 function RokokForm({ initial, rokokList, onSubmit, onCancel }) {
   const [nama, setNama]                     = useState(initial?.nama || "")
-  const [stok, setStok]                     = useState(initial?.stok ?? 0)
+  const [stok, setStok]                     = useState(initial?.stok || "")
   const [hargaBeli, setHargaBeli]           = useState(initial?.harga_beli || "")
   const [hargaGrosir, setHargaGrosir]       = useState(initial?.harga_grosir || "")
   const [hargaToko, setHargaToko]           = useState(initial?.harga_toko || "")

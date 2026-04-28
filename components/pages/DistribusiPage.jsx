@@ -588,7 +588,7 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, onSubmit, onCan
       // Saat edit, stok efektif = stok saat ini + qty lama (karena stok sudah dikurangi saat create sesi)
       const existingQty = existing ? existing.qty : 0
       const effectiveStok = (r.stok ?? 0) + existingQty
-      return { rokok_id: r.id, nama: r.nama, stok: effectiveStok, qty: existing ? String(existing.qty) : "" }
+      return { rokok_id: r.id, nama: r.nama, stok: effectiveStok, qty: existing?.qty || "" }
     })
   })
   const [error, setError] = useState("")
