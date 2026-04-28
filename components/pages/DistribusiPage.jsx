@@ -315,9 +315,12 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
               key: "keluar", label: "Barang Keluar",
               render: (r) => (
                 <div className="space-y-0.5">
-                  {r.barangKeluar.map((it, i) => (
+                  {r.barangKeluar.slice(0, 3).map((it, i) => (
                     <div key={i} className="text-xs text-neutral-700">{it.rokok} ×{it.qty}</div>
                   ))}
+                  {r.barangKeluar.length > 3 && (
+                    <div className="text-xs text-neutral-500 font-medium">+{r.barangKeluar.length - 3} lebih</div>
+                  )}
                 </div>
               ),
             },
