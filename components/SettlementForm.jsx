@@ -51,6 +51,8 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
   const totalSetoran = setoran.reduce((s, it) => s + (Number(it.jumlah) || 0), 0)
   const flagSelisih  = nilaiTerjual > 0 && totalSetoran !== nilaiTerjual
   const hasError     = items.some((it) => (Number(it.qty_terjual) || 0) > it.qty_keluar)
+  const hasTerjual   = items.some((it) => Number(it.qty_terjual) > 0)
+  const hasSetoran   = totalSetoran > 0
 
   const handleSetoranAuto = (checked) => {
     setSetoranAuto(checked)
@@ -222,8 +224,8 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={loading || hasError}
-          className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
+          disabled={loading || hasError || !hasTerjual || !hasSetoran}
+          className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? "Menyimpan..." : "Selesaikan Titip Jual"}
         </button>

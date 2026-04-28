@@ -585,7 +585,10 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, onSubmit, onCan
     const aktif = rokokList.filter((r) => r.aktif !== false)
     return aktif.map((r) => {
       const existing = initial?.barangKeluar?.find((it) => it.rokok_id === r.id)
-      return { rokok_id: r.id, nama: r.nama, stok: r.stok ?? 0, qty: existing ? String(existing.qty) : "" }
+      // Saat edit, stok efektif = stok saat ini + qty lama (karena stok sudah dikurangi saat create sesi)
+      const existingQty = existing ? existing.qty : 0
+      const effectiveStok = (r.stok ?? 0) + existingQty
+      return { rokok_id: r.id, nama: r.nama, stok: effectiveStok, qty: existing ? String(existing.qty) : "" }
     })
   })
   const [error, setError] = useState("")
@@ -645,12 +648,15 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, onSubmit, onCan
           <tbody>
             {items.map((item, idx) => {
               const qty = Number(item.qty)
+              const sisaStok = item.stok - (qty > 0 ? qty : 0)
               const melebihi = qty > 0 && qty > item.stok
               return (
                 <Fragment key={item.rokok_id}>
                   <tr className="border-b border-neutral-100">
                     <td className="py-1.5 font-medium">{item.nama}</td>
-                    <td className="py-1.5 text-right pr-3 text-xs text-neutral-400 tabular-nums">{item.stok}</td>
+                    <td className={`py-1.5 text-right pr-3 text-xs tabular-nums font-medium transition-colors ${melebihi ? "text-red-500" : qty > 0 ? "text-blue-600" : "text-neutral-400"}`}>
+                      {qty > 0 ? sisaStok : item.stok}
+                    </td>
                     <td className="py-1.5 text-right">
                       <input
                         type="number" min="0"
