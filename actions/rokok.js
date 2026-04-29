@@ -99,8 +99,12 @@ export async function updateRokokOrder(items) {
       )
     )
     revalidatePath("/rokok")
+    return { success: true }
   } catch (error) {
     console.error("Gagal menyimpan urutan rokok:", error)
-    throw new Error("Gagal menyimpan urutan. Pastikan database sudah diperbarui.")
+    return { 
+      success: false, 
+      error: "Gagal menyimpan urutan ke database. Kolom 'urutan' mungkin belum ada di produksi." 
+    }
   }
 }

@@ -84,10 +84,18 @@ export default function RokokPage({ rokokList, distribusi, retur }) {
   }
 
   const saveOrder = async () => {
-    const items = sortedList.map((it, idx) => ({ id: it.id, urutan: idx }))
-    await updateRokokOrder(items)
-    setIsSorting(false)
-    router.refresh()
+    try {
+      const items = sortedList.map((it, idx) => ({ id: it.id, urutan: idx }))
+      const res = await updateRokokOrder(items)
+      if (res?.success) {
+        setIsSorting(false)
+        router.refresh()
+      } else {
+        alert(res?.error || "Gagal menyimpan urutan.")
+      }
+    } catch (err) {
+      alert("Terjadi kesalahan sistem saat menyimpan urutan.")
+    }
   }
 
   return (
