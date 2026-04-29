@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "Rokok" ADD COLUMN     "urutan" INTEGER NOT NULL DEFAULT 0;
+
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN     "aktif" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN     "role" TEXT NOT NULL DEFAULT 'staff';
