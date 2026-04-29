@@ -6,7 +6,7 @@ const prisma = new PrismaClient()
 async function main() {
   // ─── User ─────────────────────────────────────────────────────────────────
   const superadminPass = await bcrypt.hash("jagungmanis9192", 10)
-  const adminPass      = await bcrypt.hash("admin123", 10)
+  const adminPass      = await bcrypt.hash("WedangJahe15!", 10)
   const staffPass      = await bcrypt.hash("staff123", 10)
   await prisma.user.upsert({
     where:  { username: "mdanihaikal" },
@@ -14,9 +14,9 @@ async function main() {
     create: { username: "mdanihaikal", password: superadminPass, name: "M. Dani Haikal", role: "superadmin" },
   })
   await prisma.user.upsert({
-    where:  { username: "admin" },
+    where:  { username: "alwin" },
     update: { role: "admin" },
-    create: { username: "admin", password: adminPass, name: "Administrator", role: "admin" },
+    create: { username: "alwin", password: adminPass, name: "Alwin", role: "admin" },
   })
   await prisma.user.upsert({
     where:  { username: "staff" },
@@ -304,7 +304,7 @@ async function main() {
   })
 
   console.log("Seed selesai!")
-  console.log(`- 3 user: mdanihaikal (superadmin), admin/admin123, staff/staff123`)
+  console.log(`- 3 user: mdanihaikal (superadmin), alwin/WedangJahe15!, staff/staff123`)
   console.log(`- ${rokok.length} rokok`)
   console.log(`- ${sales.length} sales`)
   console.log(`- ${toko.length} toko`)
