@@ -28,7 +28,7 @@ import { CSS } from "@dnd-kit/utilities"
 
 const PAGE_SIZE = 10
 
-export default function RokokPage({ rokokList, distribusi, retur }) {
+export default function RokokPage({ rokokList, usedIds }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const { confirm, ConfirmModal } = useConfirm()
@@ -50,9 +50,7 @@ export default function RokokPage({ rokokList, distribusi, retur }) {
     return [...rokokList]
   }, [rokokList, isSorting, sortedList, isPending, isSaving])
 
-  const isUsed = (id) =>
-    distribusi.some((d) => d.barangKeluar.some((it) => it.rokok_id === id)) ||
-    retur.some((r) => r.items.some((it) => it.rokok_id === id))
+  const isUsed = (id) => usedIds.includes(id)
 
   const close = () => { setMode(null); setEditing(null) }
 

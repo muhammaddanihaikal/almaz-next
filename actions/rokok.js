@@ -108,3 +108,20 @@ export async function updateRokokOrder(items) {
     }
   }
 }
+export async function getUsedRokokIds() {
+  const [keluar, jual, kembali, konsinyasi, retur] = await Promise.all([
+    prisma.sesiBarangKeluar.findMany({ select: { rokok_id: true }, distinct: ["rokok_id"] }),
+    prisma.sesiPenjualan.findMany({ select: { rokok_id: true }, distinct: ["rokok_id"] }),
+    prisma.sesiBarangKembali.findMany({ select: { rokok_id: true }, distinct: ["rokok_id"] }),
+    prisma.titipJualItem.findMany({ select: { rokok_id: true }, distinct: ["rokok_id"] }),
+    prisma.returItem.findMany({ select: { rokok_id: true }, distinct: ["rokok_id"] }),
+  ])
+  const ids = new Set([
+    ...keluar.map(i => i.rokok_id),
+    ...jual.map(i => i.rokok_id),
+    ...kembali.map(i => i.rokok_id),
+    ...konsinyasi.map(i => i.rokok_id),
+    ...retur.map(i => i.rokok_id),
+  ])
+  return Array.from(ids)
+}

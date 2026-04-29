@@ -1,15 +1,12 @@
-import { getRokokList } from "@/actions/rokok"
-import { getSesiList as getDistribusi } from "@/actions/distribusi"
-import { getRetur } from "@/actions/retur"
+import { getRokokList, getUsedRokokIds } from "@/actions/rokok"
 import RokokPage from "@/components/pages/RokokPage"
 
 export const dynamic = "force-dynamic"
 
 export default async function Page() {
-  const [rokokList, distribusi, retur] = await Promise.all([
+  const [rokokList, usedIds] = await Promise.all([
     getRokokList(),
-    getDistribusi(),
-    getRetur(),
+    getUsedRokokIds(),
   ])
-  return <RokokPage rokokList={rokokList} distribusi={distribusi} retur={retur} />
+  return <RokokPage rokokList={rokokList} usedIds={usedIds} />
 }

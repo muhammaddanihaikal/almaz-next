@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { Wallet, TrendingUp, Package, ArrowDownCircle } from "lucide-react"
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } from "recharts"
 import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange } from "@/lib/utils"
 import { Card, KpiCard, DateFilter } from "@/components/ui"
 
@@ -149,7 +149,9 @@ export default function DashboardPage({ sesiList, titipJualList, titipJualJatuhT
               <XAxis dataKey="rokok" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 11 }} />
               <Tooltip />
-              <Bar dataKey="qty" fill="#171717" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="qty" fill="#171717" radius={[3, 3, 0, 0]}>
+                <LabelList dataKey="qty" position="top" style={{ fontSize: 10, fill: "#666", fontWeight: 500 }} />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         )}
