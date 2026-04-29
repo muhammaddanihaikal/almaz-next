@@ -1,8 +1,8 @@
 "use client"
 
-import { useMemo, useState, useEffect } from "react"
+import { useMemo, useState, useEffect, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { Plus, GripVertical, Save, X, MoveVertical } from "lucide-react"
+import { Plus, GripVertical, Save, X, MoveVertical, Loader2 } from "lucide-react"
 import { fmtIDR } from "@/lib/utils"
 import { addRokok, updateRokok, deleteRokok, toggleAktifRokok, tambahStok, updateRokokOrder } from "@/actions/rokok"
 import { Card, PageHeader, PrimaryButton, RowActions, Field, FormActions, Toggle, inputCls, useConfirm } from "@/components/ui"
@@ -30,12 +30,14 @@ const PAGE_SIZE = 10
 
 export default function RokokPage({ rokokList, distribusi, retur }) {
   const router = useRouter()
+  const [isPending, startTransition] = useTransition()
   const { confirm, ConfirmModal } = useConfirm()
   const [mode, setMode] = useState(null)
   const [editing, setEditing] = useState(null)
   const [stokTarget, setStokTarget] = useState(null)
   const [isSorting, setIsSorting] = useState(false)
   const [sortedList, setSortedList] = useState([])
+  const [isSaving, setIsSaving] = useState(false)
 
   // Initialize sortedList when rokokList changes or isSorting is enabled
   useEffect(() => {
@@ -43,9 +45,10 @@ export default function RokokPage({ rokokList, distribusi, retur }) {
   }, [rokokList])
 
   const rows = useMemo(() => {
-    if (isSorting) return sortedList
+    // During transition or sorting, keep the local sortedList
+    if (isSorting || isPending || isSaving) return sortedList
     return [...rokokList]
-  }, [rokokList, isSorting, sortedList])
+  }, [rokokList, isSorting, sortedList, isPending, isSaving])
 
   const isUsed = (id) =>
     distribusi.some((d) => d.barangKeluar.some((it) => it.rokok_id === id)) ||
@@ -84,17 +87,22 @@ export default function RokokPage({ rokokList, distribusi, retur }) {
   }
 
   const saveOrder = async () => {
+    setIsSaving(true)
     try {
       const items = sortedList.map((it, idx) => ({ id: it.id, urutan: idx }))
       const res = await updateRokokOrder(items)
       if (res?.success) {
-        setIsSorting(false)
-        router.refresh()
+        startTransition(() => {
+          setIsSorting(false)
+          router.refresh()
+        })
       } else {
         alert(res?.error || "Gagal menyimpan urutan.")
       }
     } catch (err) {
       alert("Terjadi kesalahan sistem saat menyimpan urutan.")
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -113,8 +121,18 @@ export default function RokokPage({ rokokList, distribusi, retur }) {
                 >
                   <X className="h-4 w-4" /> Batal
                 </button>
-                <PrimaryButton onClick={saveOrder} icon={Save}>
-                  Simpan Urutan
+                <PrimaryButton 
+                  onClick={saveOrder} 
+                  disabled={isSaving || isPending}
+                  icon={isSaving || isPending ? null : Save}
+                >
+                  {isSaving || isPending ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Menyimpan...
+                    </span>
+                  ) : (
+                    "Simpan Urutan"
+                  )}
                 </PrimaryButton>
               </>
             ) : (
@@ -136,7 +154,12 @@ export default function RokokPage({ rokokList, distribusi, retur }) {
 
       <Card>
         {isSorting ? (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <div className="space-y-4">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5 flex items-center gap-3 text-amber-800 text-sm animate-in fade-in slide-in-from-top-2 duration-300">
+              <MoveVertical className="h-4 w-4" />
+              <span>Geser ikon titik-titik di sebelah kiri untuk mengatur urutan rokok, lalu tekan <b>Simpan Urutan</b>.</span>
+            </div>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -156,7 +179,8 @@ export default function RokokPage({ rokokList, distribusi, retur }) {
                 </tbody>
               </table>
             </div>
-          </DndContext>
+            </DndContext>
+          </div>
         ) : (
           <DataTable
             pageSize={PAGE_SIZE}
@@ -304,22 +328,30 @@ function SortableRow({ r }) {
     transition,
     zIndex: isDragging ? 50 : "auto",
     position: "relative",
+    opacity: isDragging ? 0.8 : 1,
+    scale: isDragging ? 1.02 : 1,
   }
 
   return (
     <tr
       ref={setNodeRef}
       style={style}
-      className={`border-b border-neutral-100 last:border-0 hover:bg-neutral-50/60 ${isDragging ? "bg-white shadow-lg" : ""}`}
+      className={`border-b border-neutral-100 last:border-0 hover:bg-neutral-50/60 transition-colors ${isDragging ? "bg-white shadow-xl ring-1 ring-black/5" : ""}`}
     >
-      <td className="px-3 py-3">
-        <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-neutral-400 hover:text-neutral-600 transition p-1">
+      <td className="px-3 py-3 w-10">
+        <button 
+          {...attributes} 
+          {...listeners} 
+          className="cursor-grab active:cursor-grabbing text-neutral-400 hover:text-emerald-600 transition-colors p-2 rounded-md hover:bg-emerald-50"
+        >
           <GripVertical className="h-5 w-5" />
         </button>
       </td>
-      <td className="px-3 py-3 text-neutral-800 font-medium">{r.nama}</td>
+      <td className="px-3 py-3">
+        <span className="font-medium text-neutral-900">{r.nama}</span>
+      </td>
       <td className="px-3 py-3 text-right tabular-nums text-neutral-600">{r.stok ?? 0}</td>
-      <td className="px-3 py-3 text-right tabular-nums text-neutral-600">{fmtIDR(r.harga_beli)}</td>
+      <td className="px-3 py-3 text-right tabular-nums text-neutral-600 font-medium">{fmtIDR(r.harga_beli)}</td>
     </tr>
   )
 }
