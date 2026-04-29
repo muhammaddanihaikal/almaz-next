@@ -11,11 +11,12 @@ import Modal from "@/components/Modal"
 
 const PAGE_SIZE = 10
 
-const STATUS_LABEL = { hadir: "Hadir", izin: "Izin", alpha: "Alpha" }
+const STATUS_LABEL = { hadir: "Hadir", izin: "Izin", alpha: "Alpha", sakit: "Sakit" }
 const STATUS_COLOR = {
   hadir: "bg-green-100 text-green-700",
   izin:  "bg-yellow-100 text-yellow-700",
   alpha: "bg-red-100 text-red-700",
+  sakit: "bg-blue-100 text-blue-700",
 }
 
 function StatusBadge({ status }) {
@@ -107,11 +108,13 @@ export default function AbsensiPage({ absensiList, salesList }) {
               render: (r) => {
                 const hadir = r.records.filter((a) => a.status === "hadir").length
                 const izin  = r.records.filter((a) => a.status === "izin").length
+                const sakit = r.records.filter((a) => a.status === "sakit").length
                 const alpha = r.records.filter((a) => a.status === "alpha").length
                 return (
                   <div className="flex flex-wrap gap-1.5">
                     {hadir > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">{hadir} Hadir</span>}
                     {izin  > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-700">{izin} Izin</span>}
+                    {sakit > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700">{sakit} Sakit</span>}
                     {alpha > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700">{alpha} Alpha</span>}
                   </div>
                 )
@@ -132,6 +135,7 @@ export default function AbsensiPage({ absensiList, salesList }) {
           mobileRender={(r) => {
             const hadir = r.records.filter((a) => a.status === "hadir").length
             const izin  = r.records.filter((a) => a.status === "izin").length
+            const sakit = r.records.filter((a) => a.status === "sakit").length
             const alpha = r.records.filter((a) => a.status === "alpha").length
             return (
               <div className="space-y-2">
@@ -149,6 +153,7 @@ export default function AbsensiPage({ absensiList, salesList }) {
                 <div className="flex flex-wrap gap-1.5">
                   {hadir > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">{hadir} Hadir</span>}
                   {izin  > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-700">{izin} Izin</span>}
+                  {sakit > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700">{sakit} Sakit</span>}
                   {alpha > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700">{alpha} Alpha</span>}
                 </div>
               </div>
@@ -282,6 +287,7 @@ function AbsensiForm({ tanggal: initialTanggal, absensiList, salesList, onSubmit
                   <SelectInput value={status} onChange={(e) => setStatuses((prev) => ({ ...prev, [s.id]: e.target.value }))}>
                     <option value="hadir">Hadir</option>
                     <option value="izin">Izin</option>
+                    <option value="sakit">Sakit</option>
                     <option value="alpha">Alpha</option>
                   </SelectInput>
                 </div>

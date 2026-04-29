@@ -190,7 +190,7 @@ model Absensi {
   id        String   @id @default(cuid())
   tanggal   DateTime @db.Date
   sales_id  String
-  status    String   // "hadir" | "izin" | "alpha"
+  status    String   // "hadir" | "izin" | "alpha" | "sakit"
   reason    String?
   createdAt DateTime @default(now())
 
