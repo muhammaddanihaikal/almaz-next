@@ -44,7 +44,7 @@ function serialize(k) {
       .map((it) => ({
       id:          it.id,
       rokok_id:    it.rokok_id,
-      rokok:       it.rokok.nama,
+      rokok:       it.rokok?.nama || "???",
       qty_keluar:  it.qty_keluar,
       qty_terjual: it.qty_terjual,
       qty_kembali: it.qty_kembali,

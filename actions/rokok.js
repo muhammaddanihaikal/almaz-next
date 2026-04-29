@@ -4,18 +4,34 @@ import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 
 export async function getRokokList() {
-  const rows = await prisma.rokok.findMany({ orderBy: { urutan: "asc" } })
-  return rows.map((r) => ({
-    id: r.id,
-    nama: r.nama,
-    stok: r.stok,
-    harga_beli: r.harga_beli,
-    harga_grosir: r.harga_grosir,
-    harga_toko: r.harga_toko,
-    harga_perorangan: r.harga_perorangan,
-    aktif: r.aktif,
-    urutan: r.urutan,
-  }))
+  try {
+    const rows = await prisma.rokok.findMany({ orderBy: { urutan: "asc" } })
+    return rows.map((r) => ({
+      id: r.id,
+      nama: r.nama,
+      stok: r.stok,
+      harga_beli: r.harga_beli,
+      harga_grosir: r.harga_grosir,
+      harga_toko: r.harga_toko,
+      harga_perorangan: r.harga_perorangan,
+      aktif: r.aktif,
+      urutan: r.urutan,
+    }))
+  } catch (error) {
+    console.error("Gagal mengambil daftar rokok dengan urutan custom:", error)
+    const rows = await prisma.rokok.findMany({ orderBy: { nama: "asc" } })
+    return rows.map((r) => ({
+      id: r.id,
+      nama: r.nama,
+      stok: r.stok,
+      harga_beli: r.harga_beli,
+      harga_grosir: r.harga_grosir,
+      harga_toko: r.harga_toko,
+      harga_perorangan: r.harga_perorangan,
+      aktif: r.aktif,
+      urutan: r.urutan ?? 0,
+    }))
+  }
 }
 
 export async function addRokok(data) {

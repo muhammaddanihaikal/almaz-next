@@ -39,12 +39,12 @@ function serialize(s) {
     barangKeluar: s.barangKeluar
       .sort((a, b) => (a.rokok?.urutan ?? 0) - (b.rokok?.urutan ?? 0))
       .map((it) => ({
-        id: it.id, rokok_id: it.rokok_id, rokok: it.rokok.nama, qty: it.qty,
+        id: it.id, rokok_id: it.rokok_id, rokok: it.rokok?.nama || "???", qty: it.qty,
       })),
     penjualan: s.penjualan
       .sort((a, b) => (a.rokok?.urutan ?? 0) - (b.rokok?.urutan ?? 0))
       .map((it) => ({
-        id: it.id, rokok_id: it.rokok_id, rokok: it.rokok.nama,
+        id: it.id, rokok_id: it.rokok_id, rokok: it.rokok?.nama || "???",
         kategori: it.kategori, qty: it.qty, harga: it.harga,
       })),
     setoran: s.setoran.map((it) => ({
@@ -53,7 +53,7 @@ function serialize(s) {
     barangKembali: s.barangKembali
       .sort((a, b) => (a.rokok?.urutan ?? 0) - (b.rokok?.urutan ?? 0))
       .map((it) => ({
-        id: it.id, rokok_id: it.rokok_id, rokok: it.rokok.nama, qty: it.qty,
+        id: it.id, rokok_id: it.rokok_id, rokok: it.rokok?.nama || "???", qty: it.qty,
       })),
     konsinyasi: s.titipJual.map((k) => ({
       id:                  k.id,
@@ -66,7 +66,7 @@ function serialize(s) {
       items: k.items
         .sort((a, b) => (a.rokok?.urutan ?? 0) - (b.rokok?.urutan ?? 0))
         .map((it) => ({
-          id: it.id, rokok_id: it.rokok_id, rokok: it.rokok.nama,
+          id: it.id, rokok_id: it.rokok_id, rokok: it.rokok?.nama || "???",
           qty_keluar: it.qty_keluar, qty_terjual: it.qty_terjual,
           qty_kembali: it.qty_kembali, harga: it.harga,
         })),

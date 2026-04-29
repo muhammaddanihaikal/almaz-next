@@ -15,7 +15,7 @@ function serialize(r) {
       .sort((a, b) => (a.rokok?.urutan ?? 0) - (b.rokok?.urutan ?? 0))
       .map((it) => ({
       id: it.id,
-      rokok: it.rokok.nama,
+      rokok: it.rokok?.nama || "???",
       rokok_id: it.rokok_id,
       qty: it.qty,
     })),
