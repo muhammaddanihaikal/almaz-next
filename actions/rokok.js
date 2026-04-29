@@ -101,10 +101,10 @@ export async function updateRokokOrder(items) {
     revalidatePath("/rokok")
     return { success: true }
   } catch (error) {
-    console.error("Gagal menyimpan urutan rokok:", error)
+    console.error("DETAIL ERROR SIMPAN URUTAN:", error)
     return { 
       success: false, 
-      error: "Gagal menyimpan urutan ke database. Kolom 'urutan' mungkin belum ada di produksi." 
+      error: `Gagal: ${error.message || "Unknown error"}` 
     }
   }
 }
