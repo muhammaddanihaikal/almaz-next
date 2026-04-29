@@ -4,6 +4,7 @@ import { getRokokList } from "@/actions/rokok"
 import { getPengeluaran } from "@/actions/pengeluaran"
 import DashboardPage from "@/components/pages/DashboardPage"
 
+export const dynamic = "force-dynamic"
 export const revalidate = 0
 
 export default async function Page() {

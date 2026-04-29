@@ -3,7 +3,7 @@ import { getSesiList as getDistribusi } from "@/actions/distribusi"
 import { getRetur } from "@/actions/retur"
 import RokokPage from "@/components/pages/RokokPage"
 
-export const revalidate = 60
+export const dynamic = "force-dynamic"
 
 export default async function Page() {
   const [rokokList, distribusi, retur] = await Promise.all([
