@@ -73,8 +73,9 @@ function exportToExcel(rows, rokokList, dateRange, onNoData) {
   }
   if (!allItems.length) { onNoData?.(); return }
 
-  // Produk unik (urut alfabet) & tanggal unik (urut asc)
-  const products = [...new Set(allItems.map((it) => it.rokok))].sort((a, b) => a.localeCompare(b, "id"))
+  // Produk unik (urut berdasarkan urutan rokokList) & tanggal unik (urut asc)
+  const rokokOrderMap = Object.fromEntries(rokokList.map((r) => [r.nama, r.urutan ?? 0]))
+  const products = [...new Set(allItems.map((it) => it.rokok))].sort((a, b) => (rokokOrderMap[a] ?? 0) - (rokokOrderMap[b] ?? 0))
   const dates    = [...new Set(allItems.map((it) => it.tanggal))].sort()
 
   // Map harga_beli per rokok_id
@@ -221,7 +222,8 @@ function exportToExcelBySales(rows, rokokList, dateRange, onNoData) {
     }
   }
 
-  const sortedRokokIds = [...allRokokIds].sort((a, b) => (rokokIdToName[a] || "").localeCompare(rokokIdToName[b] || "", "id"))
+  const rokokIdOrderMap = Object.fromEntries(rokokList.map(r => [r.id, r.urutan ?? 0]))
+  const sortedRokokIds = [...allRokokIds].sort((a, b) => (rokokIdOrderMap[a] ?? 0) - (rokokIdOrderMap[b] ?? 0))
   if (!sortedRokokIds.length) { onNoData?.(); return }
 
   // 2. Persiapkan Worksheet

@@ -39,7 +39,9 @@ function serialize(k) {
     flagSetoran,
     flagJatuhTempo,
     selisihHari,
-    items: k.items.map((it) => ({
+    items: k.items
+      .sort((a, b) => (a.rokok?.urutan ?? 0) - (b.rokok?.urutan ?? 0))
+      .map((it) => ({
       id:          it.id,
       rokok_id:    it.rokok_id,
       rokok:       it.rokok.nama,

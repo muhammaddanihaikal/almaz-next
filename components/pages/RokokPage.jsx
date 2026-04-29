@@ -128,27 +128,27 @@ export default function RokokPage({ rokokList, distribusi, retur }) {
 
       <Card>
         {isSorting ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-neutral-200 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">
-                  <th className="px-3 py-2.5 w-10"></th>
-                  <th className="px-3 py-2.5">Nama Rokok</th>
-                  <th className="px-3 py-2.5 text-right">Stok</th>
-                  <th className="px-3 py-2.5 text-right">Harga Beli</th>
-                </tr>
-              </thead>
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                <SortableContext items={sortedList.map(it => it.id)} strategy={verticalListSortingStrategy}>
-                  <tbody>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-neutral-200 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">
+                    <th className="px-3 py-2.5 w-10"></th>
+                    <th className="px-3 py-2.5">Nama Rokok</th>
+                    <th className="px-3 py-2.5 text-right">Stok</th>
+                    <th className="px-3 py-2.5 text-right">Harga Beli</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <SortableContext items={sortedList.map(it => it.id)} strategy={verticalListSortingStrategy}>
                     {sortedList.map((r) => (
                       <SortableRow key={r.id} r={r} />
                     ))}
-                  </tbody>
-                </SortableContext>
-              </DndContext>
-            </table>
-          </div>
+                  </SortableContext>
+                </tbody>
+              </table>
+            </div>
+          </DndContext>
         ) : (
           <DataTable
             pageSize={PAGE_SIZE}

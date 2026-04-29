@@ -36,19 +36,25 @@ function serialize(s) {
     flagQty,
     nilaiPenjualan,
     totalSetoran,
-    barangKeluar: s.barangKeluar.map((it) => ({
-      id: it.id, rokok_id: it.rokok_id, rokok: it.rokok.nama, qty: it.qty,
-    })),
-    penjualan: s.penjualan.map((it) => ({
-      id: it.id, rokok_id: it.rokok_id, rokok: it.rokok.nama,
-      kategori: it.kategori, qty: it.qty, harga: it.harga,
-    })),
+    barangKeluar: s.barangKeluar
+      .sort((a, b) => (a.rokok?.urutan ?? 0) - (b.rokok?.urutan ?? 0))
+      .map((it) => ({
+        id: it.id, rokok_id: it.rokok_id, rokok: it.rokok.nama, qty: it.qty,
+      })),
+    penjualan: s.penjualan
+      .sort((a, b) => (a.rokok?.urutan ?? 0) - (b.rokok?.urutan ?? 0))
+      .map((it) => ({
+        id: it.id, rokok_id: it.rokok_id, rokok: it.rokok.nama,
+        kategori: it.kategori, qty: it.qty, harga: it.harga,
+      })),
     setoran: s.setoran.map((it) => ({
       id: it.id, metode: it.metode, jumlah: it.jumlah,
     })),
-    barangKembali: s.barangKembali.map((it) => ({
-      id: it.id, rokok_id: it.rokok_id, rokok: it.rokok.nama, qty: it.qty,
-    })),
+    barangKembali: s.barangKembali
+      .sort((a, b) => (a.rokok?.urutan ?? 0) - (b.rokok?.urutan ?? 0))
+      .map((it) => ({
+        id: it.id, rokok_id: it.rokok_id, rokok: it.rokok.nama, qty: it.qty,
+      })),
     konsinyasi: s.titipJual.map((k) => ({
       id:                  k.id,
       toko_id:             k.toko_id,
@@ -57,11 +63,13 @@ function serialize(s) {
       tanggal_jatuh_tempo: k.tanggal_jatuh_tempo.toISOString().split("T")[0],
       tanggal_selesai:     k.tanggal_selesai ? k.tanggal_selesai.toISOString().split("T")[0] : null,
       status:              k.status,
-      items: k.items.map((it) => ({
-        id: it.id, rokok_id: it.rokok_id, rokok: it.rokok.nama,
-        qty_keluar: it.qty_keluar, qty_terjual: it.qty_terjual,
-        qty_kembali: it.qty_kembali, harga: it.harga,
-      })),
+      items: k.items
+        .sort((a, b) => (a.rokok?.urutan ?? 0) - (b.rokok?.urutan ?? 0))
+        .map((it) => ({
+          id: it.id, rokok_id: it.rokok_id, rokok: it.rokok.nama,
+          qty_keluar: it.qty_keluar, qty_terjual: it.qty_terjual,
+          qty_kembali: it.qty_kembali, harga: it.harga,
+        })),
       setoran: k.setoran.map((it) => ({
         id: it.id, metode: it.metode, jumlah: it.jumlah,
         tanggal: it.tanggal.toISOString().split("T")[0],
