@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 
 export async function getRokokList() {
-  const rows = await prisma.rokok.findMany({ orderBy: { nama: "asc" } })
+  const rows = await prisma.rokok.findMany({ orderBy: { urutan: "asc" } })
   return rows.map((r) => ({
     id: r.id,
     nama: r.nama,
@@ -14,10 +14,16 @@ export async function getRokokList() {
     harga_toko: r.harga_toko,
     harga_perorangan: r.harga_perorangan,
     aktif: r.aktif,
+    urutan: r.urutan,
   }))
 }
 
 export async function addRokok(data) {
+  const maxUrutan = await prisma.rokok.aggregate({
+    _max: { urutan: true },
+  })
+  const nextUrutan = (maxUrutan._max.urutan ?? -1) + 1
+
   await prisma.rokok.create({
     data: {
       nama: data.nama,
@@ -26,6 +32,7 @@ export async function addRokok(data) {
       harga_grosir: Number(data.harga_grosir),
       harga_toko: Number(data.harga_toko),
       harga_perorangan: Number(data.harga_perorangan),
+      urutan: nextUrutan,
     },
   })
   revalidatePath("/rokok")
@@ -62,5 +69,17 @@ export async function tambahStok(id, qty) {
     where: { id },
     data: { stok: { increment: qty } },
   })
+  revalidatePath("/rokok")
+}
+
+export async function updateRokokOrder(items) {
+  await Promise.all(
+    items.map((it) =>
+      prisma.rokok.update({
+        where: { id: it.id },
+        data: { urutan: it.urutan },
+      })
+    )
+  )
   revalidatePath("/rokok")
 }

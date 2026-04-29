@@ -43,6 +43,7 @@ model Rokok {
   harga_toko       Int
   harga_perorangan Int
   aktif            Boolean  @default(true)
+  urutan           Int      @default(0)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

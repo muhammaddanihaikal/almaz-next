@@ -1,13 +1,30 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Plus } from "lucide-react"
+import { Plus, GripVertical, Save, X, MoveVertical } from "lucide-react"
 import { fmtIDR } from "@/lib/utils"
-import { addRokok, updateRokok, deleteRokok, toggleAktifRokok, tambahStok } from "@/actions/rokok"
+import { addRokok, updateRokok, deleteRokok, toggleAktifRokok, tambahStok, updateRokokOrder } from "@/actions/rokok"
 import { Card, PageHeader, PrimaryButton, RowActions, Field, FormActions, Toggle, inputCls, useConfirm } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
+
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core"
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 
 const PAGE_SIZE = 10
 
@@ -17,11 +34,18 @@ export default function RokokPage({ rokokList, distribusi, retur }) {
   const [mode, setMode] = useState(null)
   const [editing, setEditing] = useState(null)
   const [stokTarget, setStokTarget] = useState(null)
+  const [isSorting, setIsSorting] = useState(false)
+  const [sortedList, setSortedList] = useState([])
 
-  const rows = useMemo(
-    () => [...rokokList].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)),
-    [rokokList]
-  )
+  // Initialize sortedList when rokokList changes or isSorting is enabled
+  useEffect(() => {
+    setSortedList(rokokList)
+  }, [rokokList])
+
+  const rows = useMemo(() => {
+    if (isSorting) return sortedList
+    return [...rokokList]
+  }, [rokokList, isSorting, sortedList])
 
   const isUsed = (id) =>
     distribusi.some((d) => d.barangKeluar.some((it) => it.rokok_id === id)) ||
@@ -41,114 +65,187 @@ export default function RokokPage({ rokokList, distribusi, retur }) {
     router.refresh()
   }
 
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
+
+  const handleDragEnd = (event) => {
+    const { active, over } = event
+    if (active.id !== over.id) {
+      setSortedList((items) => {
+        const oldIndex = items.findIndex((it) => it.id === active.id)
+        const newIndex = items.findIndex((it) => it.id === over.id)
+        return arrayMove(items, oldIndex, newIndex)
+      })
+    }
+  }
+
+  const saveOrder = async () => {
+    const items = sortedList.map((it, idx) => ({ id: it.id, urutan: idx }))
+    await updateRokokOrder(items)
+    setIsSorting(false)
+    router.refresh()
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Rokok"
         subtitle={`${rokokList.length} jenis rokok terdaftar di master data.`}
         action={
-          <PrimaryButton onClick={() => { setEditing(null); setMode("add") }} icon={Plus}>
-            Tambah Rokok
-          </PrimaryButton>
+          <div className="flex items-center gap-2">
+            {isSorting ? (
+              <>
+                <button
+                  onClick={() => { setIsSorting(false); setSortedList(rokokList) }}
+                  className="flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-600 transition hover:bg-neutral-50"
+                >
+                  <X className="h-4 w-4" /> Batal
+                </button>
+                <PrimaryButton onClick={saveOrder} icon={Save}>
+                  Simpan Urutan
+                </PrimaryButton>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => setIsSorting(true)}
+                  className="flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-600 transition hover:bg-neutral-50"
+                >
+                  <MoveVertical className="h-4 w-4" /> Atur Urutan
+                </button>
+                <PrimaryButton onClick={() => { setEditing(null); setMode("add") }} icon={Plus}>
+                  Tambah Rokok
+                </PrimaryButton>
+              </>
+            )}
+          </div>
         }
       />
 
       <Card>
-        <DataTable
-          pageSize={PAGE_SIZE}
-          rows={rows}
-          empty="Belum ada rokok."
-          columns={[
-            { key: "no",    label: "No",    render: (_, idx) => idx + 1 },
-            { key: "nama",  label: "Nama Rokok" },
-            {
-              key: "stok",  label: "Stok",  align: "right",
-              render: (r) => (
-                <div className="flex items-center justify-end gap-2">
-                  <span className={`font-semibold tabular-nums ${(r.stok ?? 0) < 50 ? "text-red-600" : (r.stok ?? 0) < 150 ? "text-amber-500" : "text-green-600"}`}>{r.stok ?? 0}</span>
-                  <button
-                    onClick={() => setStokTarget(r)}
-                    title="Tambah stok barang masuk"
-                    className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-emerald-50 text-emerald-600 transition hover:bg-emerald-100"
-                  >
-                    <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
-                  </button>
-                </div>
-              ),
-            },
-            { key: "beli",  label: "Harga Beli", align: "right", render: (r) => fmtIDR(r.harga_beli) },
-            {
-              key: "grosir", label: "Grosir", align: "right",
-              render: (r) => (
+        {isSorting ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-neutral-200 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">
+                  <th className="px-3 py-2.5 w-10"></th>
+                  <th className="px-3 py-2.5">Nama Rokok</th>
+                  <th className="px-3 py-2.5 text-right">Stok</th>
+                  <th className="px-3 py-2.5 text-right">Harga Beli</th>
+                </tr>
+              </thead>
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={sortedList.map(it => it.id)} strategy={verticalListSortingStrategy}>
+                  <tbody>
+                    {sortedList.map((r) => (
+                      <SortableRow key={r.id} r={r} />
+                    ))}
+                  </tbody>
+                </SortableContext>
+              </DndContext>
+            </table>
+          </div>
+        ) : (
+          <DataTable
+            pageSize={PAGE_SIZE}
+            rows={rows}
+            empty="Belum ada rokok."
+            columns={[
+              { key: "no",    label: "No",    render: (_, idx) => idx + 1 },
+              { key: "nama",  label: "Nama Rokok" },
+              {
+                key: "stok",  label: "Stok",  align: "right",
+                render: (r) => (
+                  <div className="flex items-center justify-end gap-2">
+                    <span className={`font-semibold tabular-nums ${(r.stok ?? 0) < 50 ? "text-red-600" : (r.stok ?? 0) < 150 ? "text-amber-500" : "text-green-600"}`}>{r.stok ?? 0}</span>
+                    <button
+                      onClick={() => setStokTarget(r)}
+                      title="Tambah stok barang masuk"
+                      className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-emerald-50 text-emerald-600 transition hover:bg-emerald-100"
+                    >
+                      <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
+                    </button>
+                  </div>
+                ),
+              },
+              { key: "beli",  label: "Harga Beli", align: "right", render: (r) => fmtIDR(r.harga_beli) },
+              {
+                key: "grosir", label: "Grosir", align: "right",
+                render: (r) => (
+                  <div>
+                    <div>{fmtIDR(r.harga_grosir)}</div>
+                    <div className="text-xs text-emerald-600 font-medium">+{fmtIDR(r.harga_grosir - r.harga_beli)}</div>
+                  </div>
+                ),
+              },
+              {
+                key: "toko", label: "Toko", align: "right",
+                render: (r) => (
+                  <div>
+                    <div>{fmtIDR(r.harga_toko)}</div>
+                    <div className="text-xs text-emerald-600 font-medium">+{fmtIDR(r.harga_toko - r.harga_beli)}</div>
+                  </div>
+                ),
+              },
+              {
+                key: "perorangan", label: "Perorangan", align: "right",
+                render: (r) => (
+                  <div>
+                    <div>{fmtIDR(r.harga_perorangan)}</div>
+                    <div className="text-xs text-emerald-600 font-medium">+{fmtIDR(r.harga_perorangan - r.harga_beli)}</div>
+                  </div>
+                ),
+              },
+              {
+                key: "aktif", label: "Aktif", align: "center",
+                render: (r) => <Toggle checked={r.aktif ?? true} onChange={() => handleToggle(r.id)} />,
+              },
+              {
+                key: "actions", label: "", align: "right",
+                render: (r) => (
+                  <RowActions
+                    onEdit={() => { setEditing(r); setMode("edit") }}
+                    onDelete={() => handleDelete(r)}
+                    deleteDisabled={isUsed(r.id)}
+                    deleteTitle="Rokok sudah digunakan di data distribusi/retur"
+                  />
+                ),
+              },
+            ]}
+            mobileRender={(r) => (
+              <div className="flex items-center justify-between gap-2">
                 <div>
-                  <div>{fmtIDR(r.harga_grosir)}</div>
-                  <div className="text-xs text-emerald-600 font-medium">+{fmtIDR(r.harga_grosir - r.harga_beli)}</div>
+                  <p className="font-medium text-neutral-900">{r.nama}</p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <p className="text-xs text-neutral-500">Stok: {r.stok ?? 0}</p>
+                    <button
+                      onClick={() => setStokTarget(r)}
+                      title="Tambah stok barang masuk"
+                      className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-emerald-50 text-emerald-600 transition hover:bg-emerald-100"
+                    >
+                      <Plus className="h-3 w-3" strokeWidth={2.5} />
+                    </button>
+                    <span className="text-xs text-neutral-400">·</span>
+                    <p className="text-xs text-neutral-500">Beli: {fmtIDR(r.harga_beli)}</p>
+                  </div>
                 </div>
-              ),
-            },
-            {
-              key: "toko", label: "Toko", align: "right",
-              render: (r) => (
-                <div>
-                  <div>{fmtIDR(r.harga_toko)}</div>
-                  <div className="text-xs text-emerald-600 font-medium">+{fmtIDR(r.harga_toko - r.harga_beli)}</div>
-                </div>
-              ),
-            },
-            {
-              key: "perorangan", label: "Perorangan", align: "right",
-              render: (r) => (
-                <div>
-                  <div>{fmtIDR(r.harga_perorangan)}</div>
-                  <div className="text-xs text-emerald-600 font-medium">+{fmtIDR(r.harga_perorangan - r.harga_beli)}</div>
-                </div>
-              ),
-            },
-            {
-              key: "aktif", label: "Aktif", align: "center",
-              render: (r) => <Toggle checked={r.aktif ?? true} onChange={() => handleToggle(r.id)} />,
-            },
-            {
-              key: "actions", label: "", align: "right",
-              render: (r) => (
-                <RowActions
-                  onEdit={() => { setEditing(r); setMode("edit") }}
-                  onDelete={() => handleDelete(r)}
-                  deleteDisabled={isUsed(r.id)}
-                  deleteTitle="Rokok sudah digunakan di data distribusi/retur"
-                />
-              ),
-            },
-          ]}
-          mobileRender={(r) => (
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <p className="font-medium text-neutral-900">{r.nama}</p>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <p className="text-xs text-neutral-500">Stok: {r.stok ?? 0}</p>
-                  <button
-                    onClick={() => setStokTarget(r)}
-                    title="Tambah stok barang masuk"
-                    className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-emerald-50 text-emerald-600 transition hover:bg-emerald-100"
-                  >
-                    <Plus className="h-3 w-3" strokeWidth={2.5} />
-                  </button>
-                  <span className="text-xs text-neutral-400">·</span>
-                  <p className="text-xs text-neutral-500">Beli: {fmtIDR(r.harga_beli)}</p>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Toggle checked={r.aktif ?? true} onChange={() => handleToggle(r.id)} />
+                  <RowActions
+                    onEdit={() => { setEditing(r); setMode("edit") }}
+                    onDelete={() => handleDelete(r)}
+                    deleteDisabled={isUsed(r.id)}
+                    deleteTitle="Rokok sudah digunakan di data distribusi/retur"
+                  />
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <Toggle checked={r.aktif ?? true} onChange={() => handleToggle(r.id)} />
-                <RowActions
-                  onEdit={() => { setEditing(r); setMode("edit") }}
-                  onDelete={() => handleDelete(r)}
-                  deleteDisabled={isUsed(r.id)}
-                  deleteTitle="Rokok sudah digunakan di data distribusi/retur"
-                />
-              </div>
-            </div>
-          )}
-        />
+            )}
+          />
+        )}
       </Card>
 
       {/* Modal Tambah/Edit Rokok */}
@@ -188,6 +285,34 @@ export default function RokokPage({ rokokList, distribusi, retur }) {
       )}
       {ConfirmModal}
     </div>
+  )
+}
+
+function SortableRow({ r }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: r.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : "auto",
+    position: "relative",
+  }
+
+  return (
+    <tr
+      ref={setNodeRef}
+      style={style}
+      className={`border-b border-neutral-100 last:border-0 hover:bg-neutral-50/60 ${isDragging ? "bg-white shadow-lg" : ""}`}
+    >
+      <td className="px-3 py-3">
+        <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-neutral-400 hover:text-neutral-600 transition p-1">
+          <GripVertical className="h-5 w-5" />
+        </button>
+      </td>
+      <td className="px-3 py-3 text-neutral-800 font-medium">{r.nama}</td>
+      <td className="px-3 py-3 text-right tabular-nums text-neutral-600">{r.stok ?? 0}</td>
+      <td className="px-3 py-3 text-right tabular-nums text-neutral-600">{fmtIDR(r.harga_beli)}</td>
+    </tr>
   )
 }
 
