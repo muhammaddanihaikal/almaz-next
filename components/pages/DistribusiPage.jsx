@@ -10,7 +10,7 @@ import { addToko } from "@/actions/toko"
 import SettlementForm from "@/components/SettlementForm"
 import {
   Card, PageHeader, DateFilter, PrimaryButton, Field, FormActions,
-  SearchableSelect, SelectInput, inputCls, MoneyInput, RowActions, IconButton, useConfirm,
+  MultiSearchableSelect, SearchableSelect, SelectInput, inputCls, MoneyInput, RowActions, IconButton, useConfirm,
 } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
@@ -194,13 +194,33 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
   const [editLaporan,  setEditLaporan]  = useState(null)
   const [dateRange,   setDateRange]   = useState(defaultDateRange("bulan_ini"))
   const [salesFilter, setSalesFilter] = useState("")
-  const [rokokFilter, setRokokFilter] = useState("")
+  const [rokokFilter, setRokokFilter] = useState([])
   const [statusFilter, setStatusFilter] = useState("")
 
   const rows = useMemo(() => {
+    // 1. Filter by Date
     let filtered = filterByDateRange(sesiList, dateRange)
-    if (salesFilter) filtered = filtered.filter((r) => r.sales_id === salesFilter)
-    if (rokokFilter) filtered = filtered.filter((r) => r.barangKeluar.some((it) => it.rokok_id === rokokFilter))
+
+    // 2. Filter by Sales
+    if (salesFilter) {
+      filtered = filtered.filter((r) => r.sales_id === salesFilter)
+    }
+
+    // 3. Filter by Products (Multi-select)
+    const activeProductIds = Array.isArray(rokokFilter) 
+      ? rokokFilter.filter(id => id && id !== "") 
+      : []
+
+    if (activeProductIds.length > 0) {
+      filtered = filtered.filter((r) => {
+        // Logika "DAN" (AND): Semua produk yang dipilih HARUS ada di sesi ini
+        return activeProductIds.every((id) => 
+          r.barangKeluar?.some((it) => String(it.rokok_id) === id)
+        )
+      })
+    }
+
+    // 4. Filter by Status
     if (statusFilter) {
       if (statusFilter === "titip_jual_aktif") {
         filtered = filtered.filter((r) => r.konsinyasi?.some((k) => k.status === "aktif"))
@@ -259,19 +279,6 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <label className="text-sm font-medium text-neutral-600 shrink-0">Produk:</label>
-            <div className="w-44">
-              <SearchableSelect
-                value={rokokFilter}
-                onChange={(e) => setRokokFilter(e.target.value)}
-                placeholder="Semua Produk"
-                options={[{ value: "", label: "Semua Produk" }, ...rokokList.map((r) => ({ value: r.id, label: r.nama }))]}
-              />
-            </div>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-3">
             <label className="text-sm font-medium text-neutral-600 shrink-0">Status:</label>
             <div className="w-40">
               <SelectInput value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
@@ -280,6 +287,17 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
                 <option value="selesai">Selesai</option>
                 <option value="titip_jual_aktif">Titip Jual Aktif</option>
               </SelectInput>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <label className="text-sm font-medium text-neutral-600 shrink-0">Produk:</label>
+            <div className="w-64">
+              <MultiSearchableSelect
+                value={rokokFilter}
+                onChange={(e) => setRokokFilter(e.target.value)}
+                placeholder="Semua Produk"
+                options={[{ value: "", label: "Semua Produk" }, ...rokokList.map((r) => ({ value: r.id, label: r.nama }))]}
+              />
             </div>
           </div>
         </div>

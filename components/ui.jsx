@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
-import { Calendar, ChevronDown, Download, Eye, Pencil, Trash2, ChevronRight, CalendarDays } from "lucide-react"
+import { Calendar, ChevronDown, Download, Eye, Pencil, Trash2, ChevronRight, CalendarDays, X } from "lucide-react"
 import { getDateRanges } from "@/lib/utils"
 
 export const inputCls =
@@ -86,6 +86,106 @@ export function SearchableSelect({ value, onChange, options, placeholder, disabl
                   onClick={() => { onChange({ target: { value: opt.value } }); setIsOpen(false) }}
                 >
                   {opt.label}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function MultiSearchableSelect({ value = [], onChange, options, placeholder, disabled }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [search, setSearch] = useState("")
+  const wrapperRef = useRef(null)
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) setIsOpen(false)
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
+
+  const filteredOptions = options.filter((opt) => opt.label.toLowerCase().includes(search.toLowerCase()))
+  const selectedOptions = options.filter((opt) => opt.value !== "" && value.includes(opt.value))
+
+  const toggle = (val) => {
+    if (val === "") {
+      onChange({ target: { value: [] } })
+      setIsOpen(false)
+    } else {
+      const next = value.includes(val) ? value.filter((v) => v !== val) : [...value, val]
+      onChange({ target: { value: next } })
+    }
+  }
+
+  const clear = (e) => {
+    e.stopPropagation()
+    onChange({ target: { value: [] } })
+  }
+
+  return (
+    <div ref={wrapperRef} className="relative">
+      <div
+        className={`${inputCls} flex h-auto min-h-[38px] justify-between items-center pr-2 py-1.5 ${value.length === 0 && placeholder ? "text-neutral-500" : ""} ${disabled ? "cursor-not-allowed bg-neutral-100 opacity-70" : "cursor-pointer"}`}
+        onClick={() => { if (disabled) return; setIsOpen(!isOpen); setSearch("") }}
+      >
+        <div className="flex flex-wrap gap-1 max-w-[calc(100%-40px)]">
+          {selectedOptions.length === 0 ? (
+            <span className="truncate">{placeholder || "Pilih..."}</span>
+          ) : (
+            selectedOptions.map((opt) => (
+              <span key={opt.value} className="inline-flex items-center rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-neutral-700">
+                {opt.label}
+              </span>
+            ))
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          {value.length > 0 && (
+            <button
+              onClick={clear}
+              className="rounded-full p-0.5 hover:bg-neutral-100 text-neutral-400 hover:text-neutral-600 transition"
+            >
+              <X className="h-3 w-3" strokeWidth={2.5} />
+            </button>
+          )}
+          <ChevronDown className="h-4 w-4 shrink-0 text-neutral-400" strokeWidth={2} />
+        </div>
+      </div>
+      {isOpen && (
+        <div className="absolute z-50 mt-1 w-full rounded-lg border border-neutral-200 bg-white py-1 shadow-lg">
+          <div className="px-2 pb-2 pt-1 sticky top-0 bg-white border-b border-neutral-100">
+            <input
+              type="text"
+              autoFocus
+              className="w-full rounded-md border border-neutral-200 px-3 py-1.5 text-sm outline-none transition focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
+              placeholder="Cari..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+          <div className="max-h-60 overflow-y-auto pt-1">
+            {filteredOptions.length === 0 ? (
+              <div className="px-3 py-2 text-sm text-neutral-500">Tidak ditemukan</div>
+            ) : (
+              filteredOptions.map((opt) => (
+                <div
+                  key={opt.value}
+                  className={`flex items-center gap-2 cursor-pointer px-3 py-2 text-sm transition-colors hover:bg-neutral-100 ${value.includes(opt.value) ? "bg-neutral-50 font-medium text-neutral-900" : "text-neutral-700"}`}
+                  onClick={(e) => { e.stopPropagation(); toggle(opt.value) }}
+                >
+                  <input
+                    type="checkbox"
+                    readOnly
+                    checked={value.includes(opt.value) || (opt.value === "" && value.length === 0)}
+                    className="h-3.5 w-3.5 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-900"
+                  />
+                  <span>{opt.label}</span>
                 </div>
               ))
             )}
