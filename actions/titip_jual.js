@@ -244,3 +244,21 @@ export async function revertSettlement(id) {
   revalidatePath("/distribusi")
   revalidatePath("/")
 }
+export async function getTitipJualNotificationCounts() {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  
+  const tigaHariLagi = new Date(today)
+  tigaHariLagi.setDate(today.getDate() + 3)
+
+  const [red, yellow] = await Promise.all([
+    prisma.titipJual.count({
+      where: { status: "aktif", tanggal_jatuh_tempo: { lte: today } }
+    }),
+    prisma.titipJual.count({
+      where: { status: "aktif", tanggal_jatuh_tempo: { gt: today, lte: tigaHariLagi } }
+    })
+  ])
+
+  return { red, yellow }
+}

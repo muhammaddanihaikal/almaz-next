@@ -13,7 +13,7 @@ import {
 
 const ROLE_LABELS = { superadmin: "Super Admin", admin: "Admin", staff: "Staff" }
 
-function buildMenus(role) {
+function buildMenus(role, titipJualCounts) {
   const menus = [
     { id: "dashboard", href: "/", label: "Dashboard", icon: LayoutDashboard },
     {
@@ -22,7 +22,7 @@ function buildMenus(role) {
       icon: Folder,
       items: [
         { id: "distribusi",  href: "/distribusi",  label: "Distribusi",  icon: Truck           },
-        { id: "titip-jual",  href: "/titip-jual",  label: "Titip Jual",  icon: PackageCheck    },
+        { id: "titip-jual",  href: "/titip-jual",  label: "Titip Jual",  icon: PackageCheck, badges: titipJualCounts },
         { id: "pengeluaran", href: "/pengeluaran", label: "Pengeluaran", icon: ArrowDownCircle },
       ],
     },
@@ -57,7 +57,7 @@ function buildMenus(role) {
   return menus
 }
 
-export default function Sidebar({ role, userName }) {
+export default function Sidebar({ role, userName, titipJualCounts }) {
   const pathname    = usePathname()
   const [mobileOpen, setMobileOpen]       = useState(false)
   const [confirmLogout, setConfirmLogout] = useState(false)
@@ -73,7 +73,7 @@ export default function Sidebar({ role, userName }) {
     "group-admin":       true,
   })
 
-  const MENUS = buildMenus(role)
+  const MENUS = buildMenus(role, titipJualCounts)
 
   const isActive    = (href) => (href === "/" ? pathname === "/" : pathname.startsWith(href))
   const toggleGroup = (id) => setOpenGroups((prev) => ({ ...prev, [id]: !prev[id] }))
@@ -90,8 +90,24 @@ export default function Sidebar({ role, userName }) {
           (active ? "bg-neutral-900 text-white" : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900")
         }
       >
-        <item.icon className={`h-4 w-4 shrink-0 ${active ? "text-white" : "text-neutral-400"}`} strokeWidth={2} />
-        <span>{item.label}</span>
+        <div className="flex flex-1 items-center gap-3">
+          <item.icon className={`h-4 w-4 shrink-0 ${active ? "text-white" : "text-neutral-400"}`} strokeWidth={2} />
+          <span>{item.label}</span>
+        </div>
+        {item.badges && (item.badges.red > 0 || item.badges.yellow > 0) && (
+          <div className="flex gap-1">
+            {item.badges.red > 0 && (
+              <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-100 px-1 text-[10px] font-bold text-red-700">
+                {item.badges.red}
+              </span>
+            )}
+            {item.badges.yellow > 0 && (
+              <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-amber-100 px-1 text-[10px] font-bold text-amber-700">
+                {item.badges.yellow}
+              </span>
+            )}
+          </div>
+        )}
       </Link>
     )
   }
