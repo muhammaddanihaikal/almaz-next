@@ -89,13 +89,18 @@ export async function tambahStok(id, qty) {
 }
 
 export async function updateRokokOrder(items) {
-  await Promise.all(
-    items.map((it) =>
-      prisma.rokok.update({
-        where: { id: it.id },
-        data: { urutan: it.urutan },
-      })
+  try {
+    await Promise.all(
+      items.map((it) =>
+        prisma.rokok.update({
+          where: { id: it.id },
+          data: { urutan: it.urutan },
+        })
+      )
     )
-  )
-  revalidatePath("/rokok")
+    revalidatePath("/rokok")
+  } catch (error) {
+    console.error("Gagal menyimpan urutan rokok:", error)
+    throw new Error("Gagal menyimpan urutan. Pastikan database sudah diperbarui.")
+  }
 }
