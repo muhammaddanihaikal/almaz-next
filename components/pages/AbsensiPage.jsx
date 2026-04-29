@@ -206,52 +206,63 @@ export default function AbsensiPage({ absensiList, salesList }) {
 }
 
 function AbsensiForm({ tanggal: initialTanggal, absensiList, salesList, onSubmit, onCancel }) {
+  const isEdit = !!initialTanggal
   const today = new Date().toISOString().slice(0, 10)
   const [tanggal, setTanggal] = useState(initialTanggal || today)
 
-  const existingForDate = useMemo(
-    () => absensiList.filter((a) => a.tanggal === tanggal),
-    [absensiList, tanggal]
-  )
+  // Logika Daftar Sales:
+  // 1. Jika Mode Edit: Tampilkan sales yang memiliki record pada tanggal tersebut (agar data lama tidak hilang)
+  // 2. Jika Mode Input (Add): HANYA tampilkan sales yang statusnya "aktif"
+  const displaySales = useMemo(() => {
+    if (isEdit) {
+      const existingIds = absensiList.filter((a) => a.tanggal === initialTanggal).map((a) => a.sales_id)
+      return salesList.filter((s) => existingIds.includes(s.id))
+    }
+    return salesList.filter((s) => s.aktif !== false)
+  }, [salesList, absensiList, initialTanggal, isEdit])
 
   const [statuses, setStatuses] = useState(() => {
     const map = {}
-    salesList.forEach((s) => {
-      const existing = existingForDate.find((a) => a.sales_id === s.id)
-      map[s.id] = existing?.status || "hadir"
+    displaySales.forEach((s) => {
+      if (isEdit) {
+        // Mode Edit: Ikuti data yang sudah ada
+        const existing = absensiList.find((a) => a.tanggal === initialTanggal && a.sales_id === s.id)
+        map[s.id] = existing?.status || "hadir"
+      } else {
+        // Mode Input: Selalu default ke "hadir"
+        map[s.id] = "hadir"
+      }
     })
     return map
   })
 
   const [reasons, setReasons] = useState(() => {
     const map = {}
-    salesList.forEach((s) => {
-      const existing = existingForDate.find((a) => a.sales_id === s.id)
-      map[s.id] = existing?.reason || ""
+    displaySales.forEach((s) => {
+      if (isEdit) {
+        const existing = absensiList.find((a) => a.tanggal === initialTanggal && a.sales_id === s.id)
+        map[s.id] = existing?.reason || ""
+      } else {
+        map[s.id] = ""
+      }
     })
     return map
   })
 
   const handleTanggalChange = (newTanggal) => {
+    if (isEdit) return // Tanggal tidak bisa diubah di mode edit (sesuai props disabled)
     setTanggal(newTanggal)
-    const existing = absensiList.filter((a) => a.tanggal === newTanggal)
-    const statusMap = {}
-    const reasonMap = {}
-    salesList.forEach((s) => {
-      const found = existing.find((a) => a.sales_id === s.id)
-      statusMap[s.id] = found?.status || "hadir"
-      reasonMap[s.id] = found?.reason || ""
-    })
-    setStatuses(statusMap)
-    setReasons(reasonMap)
+    
+    // Di mode Input (Add), kita tetap biarkan default "hadir" 
+    // meskipun user pindah tanggal, sesuai permintaan user.
   }
 
-  const valid = tanggal && salesList.length > 0
+  const valid = tanggal && displaySales.length > 0
 
   const submit = (e) => {
     e.preventDefault()
     if (!valid) return
-    const records = salesList.map((s) => {
+    const records = displaySales.map((s) => {
       const rec = { sales_id: s.id, status: statuses[s.id] || "hadir" }
       if (statuses[s.id] !== "hadir" && reasons[s.id]) rec.reason = reasons[s.id]
       return rec
@@ -259,10 +270,12 @@ function AbsensiForm({ tanggal: initialTanggal, absensiList, salesList, onSubmit
     onSubmit(tanggal, records)
   }
 
-  if (salesList.length === 0) {
+  if (displaySales.length === 0) {
     return (
       <div className="space-y-4">
-        <p className="text-sm text-neutral-500">Belum ada sales terdaftar. Tambahkan sales terlebih dahulu di menu Sales.</p>
+        <p className="text-sm text-neutral-500">
+          {isEdit ? "Data sales untuk tanggal ini tidak ditemukan." : "Belum ada sales aktif yang terdaftar."}
+        </p>
         <div className="flex justify-end">
           <button type="button" onClick={onCancel} className="rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50">Tutup</button>
         </div>
@@ -277,7 +290,7 @@ function AbsensiForm({ tanggal: initialTanggal, absensiList, salesList, onSubmit
       </Field>
       <div className="space-y-2">
         <span className="text-xs font-semibold uppercase tracking-wider text-neutral-500">Status Kehadiran</span>
-        {salesList.map((s) => {
+        {displaySales.map((s) => {
           const status = statuses[s.id] || "hadir"
           return (
             <div key={s.id} className="space-y-2 rounded-lg border border-neutral-100 bg-neutral-50 px-3 py-2.5">

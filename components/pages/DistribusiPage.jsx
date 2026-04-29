@@ -111,8 +111,12 @@ function exportToExcel(rows, rokokList, dateRange, onNoData) {
   const sSub   = { font: { bold: true }, fill: { fgColor: { rgb: "E5E7EB" } }, alignment: { horizontal: "center", vertical: "center" }, border }
   const sData  = { alignment: { horizontal: "center" }, border }
   const sNum   = { alignment: { horizontal: "right" }, border }
+  const sMoney = { alignment: { horizontal: "left" }, border }
   const sTotal = { font: { bold: true }, fill: { fgColor: { rgb: "1F2937" } }, alignment: { horizontal: "center" }, border, font: { bold: true, color: { rgb: "FFFFFF" } } }
   const sTotalNum = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, alignment: { horizontal: "right" }, border }
+  const sTotalMoney = { ...sTotalNum, alignment: { horizontal: "left" } }
+
+  const fmtExcelMoney = (v) => "Rp. " + (v || 0).toLocaleString("id-ID")
 
   const wsData = [
     // Baris 1: judul
@@ -143,8 +147,8 @@ function exportToExcel(rows, rokokList, dateRange, onNoData) {
         { v: i + 1,       t: "n", s: sData },
         { v: fmtD(date),          s: sData },
         ...products.map((p) => ({ v: d.byProduct[p] || 0, t: "n", s: sData })),
-        { v: d.penjualan, t: "n", s: sNum,  z: "#,##0" },
-        { v: d.profit,    t: "n", s: sNum,  z: "#,##0" },
+        { v: fmtExcelMoney(d.penjualan), t: "s", s: sMoney },
+        { v: fmtExcelMoney(d.profit),    t: "s", s: sMoney },
       ]
     }),
     // Baris TOTAL
@@ -152,8 +156,8 @@ function exportToExcel(rows, rokokList, dateRange, onNoData) {
       { v: "",        s: sTotal },
       { v: "TOTAL",   s: sTotal },
       ...products.map((p) => ({ v: totalByProduct[p], t: "n", s: sTotal })),
-      { v: totalPenjualan, t: "n", s: sTotalNum, z: "#,##0" },
-      { v: totalProfit,    t: "n", s: sTotalNum, z: "#,##0" },
+      { v: fmtExcelMoney(totalPenjualan), t: "s", s: sTotalMoney },
+      { v: fmtExcelMoney(totalProfit),    t: "s", s: sTotalMoney },
     ],
   ]
 
@@ -233,9 +237,16 @@ function exportToExcelBySales(rows, rokokList, dateRange, onNoData) {
   const sH     = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, alignment: { horizontal: "center", vertical: "center" }, border }
   const sData  = { border, alignment: { vertical: "center" } }
   const sCenter = { ...sData, alignment: { horizontal: "center", vertical: "center" } }
-  const sNum    = { ...sData, alignment: { horizontal: "right", vertical: "center" }, z: "#,##0" }
+  const sNum    = { ...sData, alignment: { horizontal: "center", vertical: "center" }, z: "#,##0" }
+  const sNumLeft = { ...sData, alignment: { horizontal: "left", vertical: "center" }, z: "#,##0" }
+  const sMoney  = { ...sData, alignment: { horizontal: "left", vertical: "center" } }
   const sTotal  = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, border }
   const sTotalNum = { ...sTotal, alignment: { horizontal: "right" }, z: "#,##0" }
+  const sTotalNumCenter = { ...sTotal, alignment: { horizontal: "center" }, z: "#,##0" }
+  const sTotalNumLeft = { ...sTotal, alignment: { horizontal: "left" }, z: "#,##0" }
+  const sTotalMoney = { ...sTotal, alignment: { horizontal: "left" } }
+
+  const fmtExcelMoney = (v) => "Rp. " + (v || 0).toLocaleString("id-ID")
 
   const wsData = [
     [{ v: title, s: { font: { bold: true, sz: 12 } } }, ...Array(totalCols-1).fill("")],
@@ -264,10 +275,10 @@ function exportToExcelBySales(rows, rokokList, dateRange, onNoData) {
       return [
         { v: i + 1,           s: sCenter },
         { v: rokokIdToName[rid], s: sData },
-        { v: harga,           s: sNum },
+        { v: fmtExcelMoney(harga), t: "s", s: sMoney },
         ...activeSales.map(sname => ({ v: rowData[sname] || 0, s: sNum })),
         { v: totalQty,        s: sNum },
-        { v: totalQty * harga, s: sNum },
+        { v: fmtExcelMoney(totalQty * harga), t: "s", s: sMoney },
       ]
     }),
     [
@@ -275,22 +286,23 @@ function exportToExcelBySales(rows, rokokList, dateRange, onNoData) {
       { v: "TOTAL KESELURUHAN", s: sTotal },
       { v: "", s: sTotal },
       ...activeSales.map(sname => ({ 
-        v: sortedRokokIds.reduce((sum, rid) => sum + (dataMap[rid][sname] || 0), 0), 
-        s: sTotalNum 
+        v: sortedRokokIds.reduce((sum, rid) => sum + (dataMap[rid]?.[sname] || 0), 0), 
+        s: sTotalNumCenter 
       })),
       { v: sortedRokokIds.reduce((sum, rid) => {
           const rowData = dataMap[rid] || {}
           return sum + activeSales.reduce((s, sn) => s + (rowData[sn] || 0), 0)
         }, 0), 
-        s: sTotalNum 
+        s: sTotalNumCenter 
       },
-      { v: sortedRokokIds.reduce((sum, rid) => {
+      { v: fmtExcelMoney(sortedRokokIds.reduce((sum, rid) => {
           const rowData = dataMap[rid] || {}
           const harga = hargaBeliMap[rid] || 0
           const totalQty = activeSales.reduce((s, sn) => s + (rowData[sn] || 0), 0)
           return sum + (totalQty * harga)
-        }, 0), 
-        s: sTotalNum 
+        }, 0)), 
+        t: "s",
+        s: sTotalMoney 
       },
     ]
   ]
@@ -336,7 +348,7 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
   const router  = useRouter()
   const { confirm, ConfirmModal } = useConfirm()
 
-  const [mode,      setMode]      = useState("list")
+  const [mode,      setMode]      = useState(null)
   const [editing,   setEditing]   = useState(null)
   const [detail,    setDetail]    = useState(null)
   const [laporanSesi, setLaporanSesi] = useState(null)
