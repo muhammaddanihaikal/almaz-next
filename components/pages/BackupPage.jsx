@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { Download, Database, CheckCircle, AlertCircle } from "lucide-react"
-import { Card, PageHeader } from "@/components/ui"
+import { Card, PageHeader, Button } from "@/components/ui"
 
 export default function BackupPage() {
   const [loading, setLoading]   = useState(false)
@@ -25,7 +25,6 @@ export default function BackupPage() {
       }
 
       const reader = response.body.getReader()
-      const decoder = new TextEncoder().encode() // not used, we need TextDecoder
       const textDecoder = new TextDecoder()
       
       let done = false
@@ -133,14 +132,15 @@ export default function BackupPage() {
             </div>
           )}
 
-          <button
+          <Button
             onClick={handleBackup}
-            disabled={loading}
-            className="inline-flex items-center gap-2 rounded-lg bg-neutral-900 px-6 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:bg-neutral-300"
+            loading={loading}
+            icon={Download}
+            size="lg"
+            className="w-full max-w-xs"
           >
-            <Download className="h-4 w-4" strokeWidth={2} />
-            {loading ? "Memproses..." : "Download Backup .sql"}
-          </button>
+            Download Backup .sql
+          </Button>
         </div>
       </Card>
     </div>

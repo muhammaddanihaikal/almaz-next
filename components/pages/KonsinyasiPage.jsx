@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { AlertCircle, Clock, Search, CheckCircle, ChevronDown } from "lucide-react"
 import { fmtIDR, fmtTanggal, defaultDateRange } from "@/lib/utils"
 import { settleTitipJual, editSettlement, revertSettlement, editTitipJualDetail, deleteTitipJual } from "@/actions/titip_jual"
-import { Card, PageHeader, SelectInput, Field, FormActions, inputCls, useConfirm, DateFilter } from "@/components/ui"
+import { Card, PageHeader, SelectInput, Field, FormActions, inputCls, useConfirm, DateFilter, Button, IconButton } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
 import SettlementForm from "@/components/SettlementForm"
@@ -32,17 +32,18 @@ function Badge({ label, colorClass }) {
 
 function TabButton({ active, onClick, children }) {
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
       onClick={onClick}
-      className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+      className={`px-5 py-2.5 h-auto rounded-none text-sm font-medium border-b-2 transition-colors ${
         active
-          ? "border-neutral-900 text-neutral-900"
-          : "border-transparent text-neutral-500 hover:text-neutral-700"
+          ? "border-neutral-900 text-neutral-900 bg-transparent"
+          : "border-transparent text-neutral-500 hover:text-neutral-700 bg-transparent"
       }`}
     >
       {children}
-    </button>
+    </Button>
   )
 }
 
@@ -104,10 +105,11 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
 
       {jatuhTempoHariIni.length > 0 && (
         <div className="rounded-xl border border-red-200 bg-white">
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => setExpandedHariIni(!expandedHariIni)}
-            className="w-full flex items-center justify-between p-4 hover:bg-red-50 transition-colors"
+            className="w-full h-auto flex items-center justify-between p-4 hover:bg-red-50 transition-colors rounded-none"
           >
             <div className="flex items-center gap-3">
               <AlertCircle className="h-5 w-5 text-red-600" />
@@ -117,7 +119,7 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
               <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-red-600 px-2 text-xs font-semibold text-white">{jatuhTempoHariIni.length}</span>
               <ChevronDown className={`h-5 w-5 text-neutral-400 transition-transform ${expandedHariIni ? "rotate-180" : ""}`} />
             </div>
-          </button>
+          </Button>
 
           {expandedHariIni && (
             <div className="border-t border-red-200 p-4 space-y-1">
@@ -134,10 +136,11 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
 
       {jatuhTempoSegera.length > 0 && (
         <div className="rounded-xl border border-amber-200 bg-white">
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => setExpandedSegera(!expandedSegera)}
-            className="w-full flex items-center justify-between p-4 hover:bg-amber-50 transition-colors"
+            className="w-full h-auto flex items-center justify-between p-4 hover:bg-amber-50 transition-colors rounded-none"
           >
             <div className="flex items-center gap-3">
               <Clock className="h-5 w-5 text-amber-600" />
@@ -147,7 +150,7 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
               <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-amber-600 px-2 text-xs font-semibold text-white">{jatuhTempoSegera.length}</span>
               <ChevronDown className={`h-5 w-5 text-neutral-400 transition-transform ${expandedSegera ? "rotate-180" : ""}`} />
             </div>
-          </button>
+          </Button>
 
           {expandedSegera && (
             <div className="border-t border-amber-200 p-4 space-y-1">
@@ -267,58 +270,69 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
                 <div className="flex items-center justify-end gap-1.5">
                   {r.status === "aktif" && (
                     <>
-                      <button
+                      <Button
+                        size="sm"
+                        variant="ghost"
                         onClick={() => setSettling(r)}
-                        className="rounded-md border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100 whitespace-nowrap"
+                        className="border border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
                       >
                         Selesaikan
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
                         onClick={() => setEditingDetail(r)}
-                        className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 whitespace-nowrap"
+                        className="border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
                       >
                         Edit
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
                         onClick={async () => {
                           const ok = await confirm(`Hapus titip jual "${r.nama_toko}"? Stok akan dikembalikan.`, { title: "Hapus Titip Jual", variant: "danger", confirmLabel: "Ya, Hapus" })
                           if (!ok) return
                           await deleteTitipJual(r.id)
                           router.refresh()
                         }}
-                        className="rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-100 whitespace-nowrap"
+                        className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
                       >
                         Hapus
-                      </button>
+                      </Button>
                     </>
                   )}
                   {r.status === "selesai" && (
                     <>
-                      <button
+                      <Button
+                        size="sm"
+                        variant="ghost"
                         onClick={() => setEditingSettlement(r)}
-                        className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 whitespace-nowrap"
+                        className="border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
                       >
                         Edit
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
                         onClick={async () => {
                           const ok = await confirm(`Batalkan penyelesaian titip jual "${r.nama_toko}"? Status akan kembali ke Aktif.`, { title: "Batalkan Penyelesaian", variant: "danger", confirmLabel: "Ya, Batalkan" })
                           if (!ok) return
                           await revertSettlement(r.id)
                           router.refresh()
                         }}
-                        className="rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-100 whitespace-nowrap"
+                        className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
                       >
                         Batalkan
-                      </button>
+                      </Button>
                     </>
                   )}
-                  <button
+                  <Button
+                    size="sm"
+                    variant="secondary"
                     onClick={() => setDetail(r)}
-                    className="rounded-md border border-neutral-200 bg-white px-2.5 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
                   >
                     Detail
-                  </button>
+                  </Button>
                 </div>
               ),
             },
@@ -413,7 +427,7 @@ function KonsinyasiDetailForm({ record, onSubmit, onCancel }) {
       <Field label="Catatan (opsional)">
         <input type="text" value={catatan} onChange={(e) => setCatatan(e.target.value)} placeholder="Opsional" className={inputCls} />
       </Field>
-      <FormActions onCancel={onCancel} disabled={!valid || loading} submitLabel={loading ? "Menyimpan..." : "Simpan Perubahan"} />
+      <FormActions onCancel={onCancel} disabled={!valid || loading} loading={loading} submitLabel="Simpan Perubahan" />
     </form>
   )
 }

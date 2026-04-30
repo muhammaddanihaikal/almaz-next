@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Plus, Trash2 } from "lucide-react"
 import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc, downloadExcel } from "@/lib/utils"
 import { addPenjualan, updatePenjualan, deletePenjualan } from "@/actions/penjualan"
-import { Card, PageHeader, DateFilter, DownloadButton, PrimaryButton, Field, FormActions, SelectInput, SearchableSelect, inputCls, RowActions, IconButton, useConfirm } from "@/components/ui"
+import { Card, PageHeader, DateFilter, DownloadButton, PrimaryButton, Field, FormActions, SelectInput, SearchableSelect, inputCls, RowActions, IconButton, useConfirm, Button } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
 
@@ -400,6 +400,7 @@ function PenjualanForm({ initial, rokokList, salesList, tokoList, onSubmit, onCa
   const [tokoId,       setTokoId]       = useState(initial?.toko_id || "")
   const [setoranTipe,  setSetoranTipe]  = useState(initial?.setoran_tipe || "")
   const [setoranTotal, setSetoranTotal] = useState(initial?.setoran_total ?? "")
+  const [loading,      setLoading]      = useState(false)
   const [items, setItems] = useState(() =>
     initial?.keluarItems?.length
       ? mergeItems(initial.keluarItems, initial.masukItems)
@@ -443,38 +444,43 @@ function PenjualanForm({ initial, rokokList, salesList, tokoList, onSubmit, onCa
 
   const valid = tanggal && salesId && validItems.length > 0
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault()
-    if (!valid) return
-    const rows = items.filter((it) => it.rokok_id && Number(it.keluar_qty) > 0)
-    const validSamples = sampleItems.filter((it) => it.rokok_id && (Number(it.keluar_qty) > 0 || Number(it.masuk_qty) > 0))
-    onSubmit({
-      tanggal,
-      sales_id:  salesId,
-      toko_id:   tokoId || null,
-      keluarItems: rows.map((it) => ({
-        rokok_id: it.rokok_id,
-        qty:      Number(it.keluar_qty),
-      })),
-      masukItems: rows
-        .filter((it) => Number(it.masuk_qty) > 0)
-        .map((it) => {
-          const r = rokokList.find((r) => r.id === it.rokok_id)
-          return {
-            rokok_id:   it.rokok_id,
-            qty:        Number(it.masuk_qty),
-            harga:      priceProp && r ? (r[priceProp] || 0) : 0,
-            pembayaran: it.pembayaran || "Cash",
-          }
-        }),
-      sampleItems: validSamples.map((it) => ({
-        rokok_id:   it.rokok_id,
-        qty_keluar: Number(it.keluar_qty) || 0,
-        qty_masuk:  Number(it.masuk_qty)  || 0,
-      })),
-      setoran_tipe:  hasMasuk ? (setoranTipe || null) : null,
-      setoran_total: hasMasuk && setoranTotal !== "" ? Number(setoranTotal) : null,
-    })
+    if (!valid || loading) return
+    setLoading(true)
+    try {
+      const rows = items.filter((it) => it.rokok_id && Number(it.keluar_qty) > 0)
+      const validSamples = sampleItems.filter((it) => it.rokok_id && (Number(it.keluar_qty) > 0 || Number(it.masuk_qty) > 0))
+      await onSubmit({
+        tanggal,
+        sales_id:  salesId,
+        toko_id:   tokoId || null,
+        keluarItems: rows.map((it) => ({
+          rokok_id: it.rokok_id,
+          qty:      Number(it.keluar_qty),
+        })),
+        masukItems: rows
+          .filter((it) => Number(it.masuk_qty) > 0)
+          .map((it) => {
+            const r = rokokList.find((r) => r.id === it.rokok_id)
+            return {
+              rokok_id:   it.rokok_id,
+              qty:        Number(it.masuk_qty),
+              harga:      priceProp && r ? (r[priceProp] || 0) : 0,
+              pembayaran: it.pembayaran || "Cash",
+            }
+          }),
+        sampleItems: validSamples.map((it) => ({
+          rokok_id:   it.rokok_id,
+          qty_keluar: Number(it.keluar_qty) || 0,
+          qty_masuk:  Number(it.masuk_qty)  || 0,
+        })),
+        setoran_tipe:  hasMasuk ? (setoranTipe || null) : null,
+        setoran_total: hasMasuk && setoranTotal !== "" ? Number(setoranTotal) : null,
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -654,7 +660,7 @@ function PenjualanForm({ initial, rokokList, salesList, tokoList, onSubmit, onCa
         </div>
       )}
 
-      <FormActions onCancel={onCancel} disabled={!valid} submitLabel={initial ? "Simpan Perubahan" : "Simpan Penjualan"} />
+      <FormActions onCancel={onCancel} disabled={!valid} loading={loading} submitLabel={initial ? "Simpan Perubahan" : "Simpan Penjualan"} />
     </form>
   )
 }
@@ -671,16 +677,16 @@ function SectionDivider({ label, optional }) {
 
 function AddRowButton({ onClick, label = "+ Tambah Baris", amber = false }) {
   return (
-    <button
-      type="button"
+    <Button
+      variant="secondary"
       onClick={onClick}
-      className={`w-full rounded-lg border border-dashed px-4 py-2.5 text-sm font-medium transition ${
+      className={`w-full border-dashed ${
         amber
-          ? "border-amber-300 text-amber-600 hover:border-amber-400 hover:bg-amber-50 hover:text-amber-700"
-          : "border-neutral-300 text-neutral-500 hover:border-neutral-400 hover:bg-neutral-50 hover:text-neutral-700"
+          ? "border-amber-300 text-amber-600 hover:border-amber-400 hover:bg-amber-50"
+          : ""
       }`}
     >
       {label}
-    </button>
+    </Button>
   )
 }

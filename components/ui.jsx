@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
-import { Calendar, ChevronDown, Download, Eye, Pencil, Trash2, ChevronRight, CalendarDays, X } from "lucide-react"
+import { Calendar, ChevronDown, Download, Eye, Pencil, Trash2, ChevronRight, CalendarDays, X, Loader2 } from "lucide-react"
 import { getDateRanges } from "@/lib/utils"
 
 export const inputCls =
@@ -205,15 +205,15 @@ export function Field({ label, children }) {
   )
 }
 
-export function FormActions({ onCancel, disabled, submitLabel }) {
+export function FormActions({ onCancel, disabled, submitLabel, loading }) {
   return (
     <div className="flex items-center justify-end gap-2 pt-2">
-      <button type="button" onClick={onCancel} className="rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50">
+      <Button variant="secondary" onClick={onCancel} disabled={disabled || loading}>
         Batal
-      </button>
-      <button type="submit" disabled={disabled} className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:bg-neutral-300">
+      </Button>
+      <Button type="submit" disabled={disabled} loading={loading}>
         {submitLabel}
-      </button>
+      </Button>
     </div>
   )
 }
@@ -230,10 +230,80 @@ export function PageHeader({ title, subtitle, action }) {
   )
 }
 
-export function PrimaryButton({ onClick, icon: Icon, children, type = "button" }) {
+export function PrimaryButton({ onClick, icon: Icon, children, type = "button", loading: manualLoading, disabled, className = "" }) {
+  const [internalLoading, setInternalLoading] = useState(false)
+  const loading = manualLoading || internalLoading
+  
+  const handleClick = async (e) => {
+    if (onClick) {
+      const result = onClick(e)
+      if (result instanceof Promise) {
+        setInternalLoading(true)
+        try { await result } finally { setInternalLoading(false) }
+      }
+    }
+  }
+
+  const isDisabled = disabled || loading
   return (
-    <button type={type} onClick={onClick} className="inline-flex h-[38px] items-center gap-2 rounded-lg bg-neutral-900 px-4 text-sm font-medium text-white transition hover:bg-neutral-700">
-      {Icon && <Icon className="h-4 w-4" strokeWidth={2.5} />}
+    <button 
+      type={type} 
+      onClick={handleClick} 
+      disabled={isDisabled}
+      className={`inline-flex h-[38px] items-center justify-center gap-2 rounded-lg bg-neutral-900 px-4 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:cursor-not-allowed disabled:bg-neutral-300 ${className}`}
+    >
+      {loading ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : Icon && (
+        <Icon className="h-4 w-4" strokeWidth={2.5} />
+      )}
+      {children}
+    </button>
+  )
+}
+
+export function Button({ onClick, children, variant = "primary", size = "md", loading: manualLoading, disabled, icon: Icon, type = "button", className = "" }) {
+  const [internalLoading, setInternalLoading] = useState(false)
+  const loading = manualLoading || internalLoading
+
+  const handleClick = async (e) => {
+    if (onClick) {
+      const result = onClick(e)
+      if (result instanceof Promise) {
+        setInternalLoading(true)
+        try { await result } finally { setInternalLoading(false) }
+      }
+    }
+  }
+
+  const isDisabled = disabled || loading
+  
+  const variants = {
+    primary: "bg-neutral-900 text-white hover:bg-neutral-700 disabled:bg-neutral-300",
+    secondary: "bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50",
+    danger: "bg-red-600 text-white hover:bg-red-700 disabled:bg-red-300",
+    success: "bg-green-600 text-white hover:bg-green-700 disabled:bg-green-300",
+    ghost: "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 disabled:opacity-50"
+  }
+
+  const sizes = {
+    sm: "h-8 px-3 text-xs",
+    md: "h-[38px] px-4 text-sm",
+    lg: "h-11 px-6 text-base"
+  }
+
+  return (
+    <button
+      type={type}
+      onClick={handleClick}
+      disabled={isDisabled}
+      className={`inline-flex items-center justify-center gap-2 rounded-lg font-medium transition whitespace-nowrap ${variants[variant]} ${sizes[size]} ${className}`}
+    >
+      {loading ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : Icon && (
+        <Icon className="h-4 w-4" strokeWidth={2} />
+      )}
       {children}
     </button>
   )
@@ -283,25 +353,60 @@ export function DateFilter({ value, onChange }) {
   )
 }
 
-export function DownloadButton({ onClick, disabled }) {
+export function DownloadButton({ onClick, disabled, loading }) {
   return (
-    <button type="button" onClick={onClick} disabled={disabled} title="Download data sebagai Excel" className="inline-flex h-[38px] items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50">
-      <Download className="h-4 w-4" strokeWidth={2} />
+    <button 
+      type="button" 
+      onClick={onClick} 
+      disabled={disabled || loading} 
+      title="Download data sebagai Excel" 
+      className="inline-flex h-[38px] items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-700 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {loading ? (
+        <Loader2 className="h-4 w-4 animate-spin text-neutral-400" />
+      ) : (
+        <Download className="h-4 w-4" strokeWidth={2} />
+      )}
       Download Excel
     </button>
   )
 }
 
-export function IconButton({ onClick, icon: Icon, label, variant, disabled }) {
-  const base = "inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent transition"
-  const look = disabled
-    ? "cursor-not-allowed text-neutral-300"
+export function IconButton({ onClick, icon: Icon, label, variant, disabled, loading: manualLoading }) {
+  const [internalLoading, setInternalLoading] = useState(false)
+  const loading = manualLoading || internalLoading
+
+  const handleClick = async (e) => {
+    if (onClick) {
+      const result = onClick(e)
+      if (result instanceof Promise) {
+        setInternalLoading(true)
+        try { await result } finally { setInternalLoading(false) }
+      }
+    }
+  }
+
+  const base = "inline-flex h-8 w-8 items-center justify-center rounded-md border border-transparent transition disabled:cursor-not-allowed"
+  const look = disabled || loading
+    ? "text-neutral-300"
     : variant === "danger"
     ? "text-neutral-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
     : "text-neutral-500 hover:border-neutral-200 hover:bg-neutral-100 hover:text-neutral-900"
+    
   return (
-    <button type="button" onClick={disabled ? undefined : onClick} title={label} aria-label={label} disabled={disabled} className={base + " " + look}>
-      <Icon className="h-4 w-4" strokeWidth={2} />
+    <button 
+      type="button" 
+      onClick={disabled || loading ? undefined : handleClick} 
+      title={label} 
+      aria-label={label} 
+      disabled={disabled || loading} 
+      className={base + " " + look}
+    >
+      {loading ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : (
+        <Icon className="h-4 w-4" strokeWidth={2} />
+      )}
     </button>
   )
 }
@@ -318,10 +423,33 @@ export function RowActions({ onDetail, onEdit, onDelete, deleteDisabled, deleteT
   )
 }
 
-export function Toggle({ checked, onChange }) {
+export function Toggle({ checked, onChange, loading: manualLoading }) {
+  const [internalLoading, setInternalLoading] = useState(false)
+  const loading = manualLoading || internalLoading
+
+  const handleClick = async () => {
+    if (onChange) {
+      const result = onChange(!checked)
+      if (result instanceof Promise) {
+        setInternalLoading(true)
+        try { await result } finally { setInternalLoading(false) }
+      }
+    }
+  }
+
   return (
-    <button type="button" role="switch" aria-checked={checked} onClick={() => onChange(!checked)} className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus:outline-none ${checked ? "bg-neutral-900" : "bg-neutral-300"}`}>
-      <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${checked ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={loading ? undefined : handleClick}
+      disabled={loading}
+      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus:outline-none ${checked ? "bg-neutral-900" : "bg-neutral-300"} ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
+    >
+      <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-all ${loading ? "scale-0" : checked ? "translate-x-[18px]" : "translate-x-0.5"}`} />
+      {loading && (
+        <Loader2 className="absolute left-1/2 h-3 w-3 -translate-x-1/2 animate-spin text-white" />
+      )}
     </button>
   )
 }
@@ -386,24 +514,20 @@ export function useConfirm() {
         <p className="text-sm text-neutral-600 leading-relaxed">{dialog.message}</p>
         <div className="flex justify-end gap-2.5 pt-1">
           {!dialog.options?.hideCancel && (
-            <button
+            <Button
+              variant="secondary"
               onClick={() => handleClose(false)}
-              className="rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 transition-colors"
             >
               Batal
-            </button>
+            </Button>
           )}
-          <button
+          <Button
             autoFocus
+            variant={dialog.options?.variant === "danger" ? "danger" : "primary"}
             onClick={() => handleClose(true)}
-            className={`rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors ${
-              dialog.options?.variant === "danger"
-                ? "bg-red-600 hover:bg-red-700"
-                : "bg-neutral-900 hover:bg-neutral-700"
-            }`}
           >
             {dialog.options?.confirmLabel ?? (dialog.options?.hideCancel ? "OK" : "Ya, Lanjutkan")}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

@@ -134,13 +134,19 @@ function PengeluaranForm({ initial, onSubmit, onCancel }) {
   const [tanggal,    setTanggal]    = useState(initial?.tanggal || today)
   const [keterangan, setKeterangan] = useState(initial?.keterangan || "")
   const [jumlah,     setJumlah]     = useState(initial?.jumlah || "")
+  const [loading,    setLoading]    = useState(false)
 
   const valid = tanggal && keterangan.trim().length > 0 && Number(jumlah) > 0
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault()
-    if (!valid) return
-    onSubmit({ tanggal, keterangan: keterangan.trim(), jumlah: Number(jumlah) })
+    if (!valid || loading) return
+    setLoading(true)
+    try {
+      await onSubmit({ tanggal, keterangan: keterangan.trim(), jumlah: Number(jumlah) })
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -154,7 +160,7 @@ function PengeluaranForm({ initial, onSubmit, onCancel }) {
       <Field label="Keterangan">
         <input type="text" value={keterangan} onChange={(e) => setKeterangan(e.target.value)} placeholder="Misal: Bensin, Makan siang, Servis motor..." className={inputCls} required />
       </Field>
-      <FormActions onCancel={onCancel} disabled={!valid} submitLabel={initial ? "Simpan Perubahan" : "Tambah Pengeluaran"} />
+      <FormActions onCancel={onCancel} disabled={!valid} loading={loading} submitLabel={initial ? "Simpan Perubahan" : "Tambah Pengeluaran"} />
     </form>
   )
 }

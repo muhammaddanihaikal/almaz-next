@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { AlertCircle, CheckCircle, Trash2 } from "lucide-react"
 import { fmtIDR, fmtTanggal } from "@/lib/utils"
-import { SelectInput, inputCls, IconButton, MoneyInput, Field } from "@/components/ui"
+import { SelectInput, inputCls, IconButton, MoneyInput, Field, Button } from "@/components/ui"
 
 const KATEGORI_COLOR = {
   grosir: "bg-violet-100 text-violet-700",
@@ -197,9 +197,14 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
             </div>
           ))}
           {setoran.length < 2 && !setoranAuto && (
-            <button type="button" onClick={() => setSetoran([...setoran, { metode: "transfer", jumlah: "" }])} className="text-xs text-blue-600 hover:underline">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSetoran([...setoran, { metode: "transfer", jumlah: "" }])}
+              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+            >
               + Tambah metode setoran
-            </button>
+            </Button>
           )}
         </div>
 
@@ -218,17 +223,16 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
 
       {/* Actions */}
       <div className="flex justify-end gap-3 pt-2 border-t border-neutral-200">
-        <button type="button" onClick={onCancel} className="rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50">
+        <Button variant="secondary" onClick={onCancel} disabled={loading}>
           Batal
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
           onClick={handleSubmit}
-          disabled={loading || hasError || !hasTerjual || !hasSetoran}
-          className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled={hasError || !hasTerjual || !hasSetoran}
+          loading={loading}
         >
-          {loading ? "Menyimpan..." : "Selesaikan Titip Jual"}
-        </button>
+          Selesaikan Titip Jual
+        </Button>
       </div>
     </div>
   )

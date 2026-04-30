@@ -259,15 +259,21 @@ function AbsensiForm({ tanggal: initialTanggal, absensiList, salesList, onSubmit
 
   const valid = tanggal && displaySales.length > 0
 
-  const submit = (e) => {
+  const [loading, setLoading] = useState(false)
+  const submit = async (e) => {
     e.preventDefault()
-    if (!valid) return
-    const records = displaySales.map((s) => {
-      const rec = { sales_id: s.id, status: statuses[s.id] || "hadir" }
-      if (statuses[s.id] !== "hadir" && reasons[s.id]) rec.reason = reasons[s.id]
-      return rec
-    })
-    onSubmit(tanggal, records)
+    if (!valid || loading) return
+    setLoading(true)
+    try {
+      const records = displaySales.map((s) => {
+        const rec = { sales_id: s.id, status: statuses[s.id] || "hadir" }
+        if (statuses[s.id] !== "hadir" && reasons[s.id]) rec.reason = reasons[s.id]
+        return rec
+      })
+      await onSubmit(tanggal, records)
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (displaySales.length === 0) {
@@ -277,7 +283,7 @@ function AbsensiForm({ tanggal: initialTanggal, absensiList, salesList, onSubmit
           {isEdit ? "Data sales untuk tanggal ini tidak ditemukan." : "Belum ada sales aktif yang terdaftar."}
         </p>
         <div className="flex justify-end">
-          <button type="button" onClick={onCancel} className="rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50">Tutup</button>
+          <Button type="button" onClick={onCancel} variant="secondary">Tutup</Button>
         </div>
       </div>
     )
@@ -318,7 +324,7 @@ function AbsensiForm({ tanggal: initialTanggal, absensiList, salesList, onSubmit
           )
         })}
       </div>
-      <FormActions onCancel={onCancel} disabled={!valid} submitLabel={initialTanggal ? "Simpan Perubahan" : "Simpan Absensi"} />
+      <FormActions onCancel={onCancel} disabled={!valid} loading={loading} submitLabel={initialTanggal ? "Simpan Perubahan" : "Simpan Absensi"} />
     </form>
   )
 }

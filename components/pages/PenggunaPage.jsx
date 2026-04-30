@@ -204,7 +204,8 @@ export default function PenggunaPage({ users, currentUserId, currentUserRole }) 
             <FormActions
               onCancel={close}
               disabled={loading}
-              submitLabel={loading ? "Menyimpan..." : mode === "add" ? "Tambah" : "Simpan"}
+              loading={loading}
+              submitLabel={mode === "add" ? "Tambah" : "Simpan"}
             />
           </form>
         </Modal>

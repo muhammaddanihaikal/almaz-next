@@ -10,7 +10,7 @@ import { addToko } from "@/actions/toko"
 import SettlementForm from "@/components/SettlementForm"
 import {
   Card, PageHeader, DateFilter, PrimaryButton, Field, FormActions,
-  MultiSearchableSelect, SearchableSelect, SelectInput, inputCls, MoneyInput, RowActions, IconButton, useConfirm,
+  MultiSearchableSelect, SearchableSelect, SelectInput, inputCls, MoneyInput, RowActions, IconButton, useConfirm, Button
 } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
@@ -412,49 +412,52 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
         action={
           <div className="flex items-center gap-2">
             <div className="relative">
-              <button
+              <Button
+                variant="secondary"
                 onClick={() => setShowExportMenu(!showExportMenu)}
-                className="flex items-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 transition-colors"
+                icon={Download}
+                iconRight={ChevronDown}
+                iconRightClassName={`transition-transform ${showExportMenu ? "rotate-180" : ""}`}
               >
-                <Download className="h-4 w-4" />
                 Export Excel
-                <ChevronDown className={`h-3 w-3 transition-transform ${showExportMenu ? "rotate-180" : ""}`} />
-              </button>
+              </Button>
               
               {showExportMenu && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowExportMenu(false)} />
                   <div className="absolute right-0 z-20 mt-1.5 w-56 origin-top-right rounded-xl border border-neutral-200 bg-white p-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
-                    <button
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start gap-2 h-auto py-2"
                       onClick={() => {
                         setShowExportMenu(false)
                         exportToExcel(rows, rokokList, dateRange, () => confirm("Tidak ada data untuk diekspor.", { title: "Export Excel", hideCancel: true }))
                       }}
-                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50 transition-colors"
                     >
                       <div className="flex h-7 w-7 items-center justify-center rounded-md bg-blue-50 text-blue-600">
                         <Download className="h-4 w-4" />
                       </div>
-                      <div>
+                      <div className="text-left">
                         <p className="font-medium">Rekap Harian</p>
                         <p className="text-[10px] text-neutral-500 text-nowrap text-ellipsis overflow-hidden">Ringkasan per tanggal</p>
                       </div>
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start gap-2 h-auto py-2"
                       onClick={() => {
                         setShowExportMenu(false)
                         exportToExcelBySales(rows, rokokList, dateRange, () => confirm("Tidak ada data untuk diekspor.", { title: "Export Excel", hideCancel: true }))
                       }}
-                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50 transition-colors"
                     >
                       <div className="flex h-7 w-7 items-center justify-center rounded-md bg-green-50 text-green-600">
                         <Download className="h-4 w-4" />
                       </div>
-                      <div>
+                      <div className="text-left">
                         <p className="font-medium">Rincian per Sales</p>
                         <p className="text-[10px] text-neutral-500 text-nowrap text-ellipsis overflow-hidden">Detail per produk & motoris</p>
                       </div>
-                    </button>
+                    </Button>
                   </div>
                 </>
               )}
@@ -552,20 +555,23 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
               render: (r) => (
                 <div className="flex items-center justify-end gap-1">
                   {r.status === "aktif" && (
-                    <button
+                    <Button
+                      size="sm"
+                      variant="secondary"
                       onClick={() => setLaporanSesi(r)}
-                      className="rounded-md border border-neutral-200 bg-white px-2.5 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50"
                     >
                       Input Laporan
-                    </button>
+                    </Button>
                   )}
                   {r.status === "selesai" && (
-                    <button
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
                       onClick={() => setEditLaporan(r)}
-                      className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"
                     >
                       Edit Laporan
-                    </button>
+                    </Button>
                   )}
                   <RowActions
                     onDetail={() => setDetail(r)}
@@ -822,9 +828,11 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, onSubmit, onCan
   const hasStokError = validItems.some((it) => Number(it.qty) > it.stok)
   const valid = tanggal && salesId && validItems.length >= 1 && !hasStokError
 
+  const [loading, setLoading] = useState(false)
   const submit = async (e) => {
     e.preventDefault()
-    if (!valid) return
+    if (!valid || loading) return
+    setLoading(true)
     try {
       setError("")
       await onSubmit({ tanggal, sales_id: salesId, catatan, barangKeluar: validItems.map((it) => ({ rokok_id: it.rokok_id, qty: Number(it.qty) })) })
@@ -834,6 +842,8 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, onSubmit, onCan
       } else {
         setError(err.message || "Terjadi kesalahan")
       }
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -917,7 +927,7 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, onSubmit, onCan
         </div>
       )}
 
-      <FormActions onCancel={onCancel} disabled={!valid} submitLabel={initial ? "Simpan Perubahan" : "Buat Sesi"} />
+      <FormActions onCancel={onCancel} disabled={!valid} loading={loading} submitLabel={initial ? "Simpan Perubahan" : "Buat Sesi"} />
     </form>
   )
 }
@@ -950,6 +960,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
   const [revertedFromSelesaiIds,  setRevertedFromSelesaiIds]  = useState(new Set())
   const [editingKonsinyasiDetail, setEditingKonsinyasiDetail] = useState(null)
   const [detailKonsinyasi,        setDetailKonsinyasi]        = useState(null)
+  const [loading, setLoading] = useState(false)
   const [showPerorangan,    setShowPerorangan]    = useState(false)
   const [setoranAuto,       setSetoranAuto]       = useState(false)
 
@@ -962,38 +973,43 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
   const flagSetoran  = nilaiPenjualan > 0 && totalSetoran !== nilaiPenjualan
   const setoranEmpty = nilaiPenjualan > 0 && totalSetoran === 0
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault()
-    if (setoranEmpty) return
-    const validPenjualan  = penjualan.filter((it) => it.rokok_id && Number(it.qty) > 0)
-    const validSetoran    = setoran.filter((it) => Number(it.jumlah) > 0)
-    const validKonsinyasi = konsinyasiBaru.filter((k) => k.toko_id && k.kategori && k.tanggal_jatuh_tempo && k.items.some((it) => it.rokok_id && Number(it.qty) > 0))
+    if (setoranEmpty || loading) return
+    setLoading(true)
+    try {
+      const validPenjualan  = penjualan.filter((it) => it.rokok_id && Number(it.qty) > 0)
+      const validSetoran    = setoran.filter((it) => Number(it.jumlah) > 0)
+      const validKonsinyasi = konsinyasiBaru.filter((k) => k.toko_id && k.kategori && k.tanggal_jatuh_tempo && k.items.some((it) => it.rokok_id && Number(it.qty) > 0))
 
-    const barangKembaliAuto = {}
-    for (const keluar of sesi.barangKeluar) {
-      barangKembaliAuto[keluar.rokok_id] = keluar.qty
-    }
-    for (const pj of validPenjualan) {
-      barangKembaliAuto[pj.rokok_id] = (barangKembaliAuto[pj.rokok_id] || 0) - pj.qty
-    }
-    for (const k of konsinyasiBaru) {
-      for (const it of k.items.filter((i) => i.rokok_id && Number(i.qty) > 0)) {
-        barangKembaliAuto[it.rokok_id] = (barangKembaliAuto[it.rokok_id] || 0) - Number(it.qty)
+      const barangKembaliAuto = {}
+      for (const keluar of sesi.barangKeluar) {
+        barangKembaliAuto[keluar.rokok_id] = keluar.qty
       }
-    }
-    for (const it of savedKonsinyasiItems) {
-      barangKembaliAuto[it.rokok_id] = (barangKembaliAuto[it.rokok_id] || 0) - it.qty
-    }
-    const validKembali = Object.entries(barangKembaliAuto)
-      .filter(([_, qty]) => qty > 0)
-      .map(([rokok_id, qty]) => ({ rokok_id, qty }))
+      for (const pj of validPenjualan) {
+        barangKembaliAuto[pj.rokok_id] = (barangKembaliAuto[pj.rokok_id] || 0) - pj.qty
+      }
+      for (const k of konsinyasiBaru) {
+        for (const it of k.items.filter((i) => i.rokok_id && Number(i.qty) > 0)) {
+          barangKembaliAuto[it.rokok_id] = (barangKembaliAuto[it.rokok_id] || 0) - Number(it.qty)
+        }
+      }
+      for (const it of savedKonsinyasiItems) {
+        barangKembaliAuto[it.rokok_id] = (barangKembaliAuto[it.rokok_id] || 0) - it.qty
+      }
+      const validKembali = Object.entries(barangKembaliAuto)
+        .filter(([_, qty]) => qty > 0)
+        .map(([rokok_id, qty]) => ({ rokok_id, qty }))
 
-    onSubmit({
-      penjualan:      validPenjualan.map((it) => ({ rokok_id: it.rokok_id, kategori: it.kategori, qty: Number(it.qty) })),
-      setoran:        validSetoran.map((it) => ({ metode: it.metode, jumlah: Number(it.jumlah) })),
-      barangKembali:  validKembali,
-      konsinyasiBaru: validKonsinyasi,
-    })
+      await onSubmit({
+        penjualan:      validPenjualan.map((it) => ({ rokok_id: it.rokok_id, kategori: it.kategori, qty: Number(it.qty) })),
+        setoran:        validSetoran.map((it) => ({ metode: it.metode, jumlah: Number(it.jumlah) })),
+        barangKembali:  validKembali,
+        konsinyasiBaru: validKonsinyasi,
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleSaveAndSettle = async (kData, idx) => {
@@ -1165,9 +1181,14 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
               </div>
             ))}
             {setoran.length < 2 && !setoranAuto && (
-              <button type="button" onClick={() => setSetoran([...setoran, { metode: "transfer", jumlah: "" }])} className="text-xs text-blue-600 hover:underline mt-1">
-                + Tambah metode setoran
-              </button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSetoran([...setoran, { metode: "transfer", jumlah: "" }])}
+              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+            >
+              + Tambah metode setoran
+            </Button>
             )}
             {setoranEmpty && (
               <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 mt-2">
@@ -1207,13 +1228,13 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
                 extraUsedTokoIds={savedTokoIds}
               />
             ))}
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              className="w-full border-dashed"
               onClick={() => setKonsinyasiBaru([...konsinyasiBaru, { toko_id: "", kategori: "toko", tanggal_jatuh_tempo: "", catatan: "", items: [{ rokok_id: "", qty: "" }] }])}
-              className="w-full rounded-lg border border-dashed border-neutral-300 px-4 py-2.5 text-sm font-medium text-neutral-500 hover:border-neutral-400 hover:bg-neutral-50"
             >
               + Tambah Titip Jual
-            </button>
+            </Button>
           </SectionCard>
 
           {/* Penyelesaian Titip Jual */}
@@ -1230,9 +1251,9 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
                         <p className="text-xs text-green-600">Nilai terjual: {fmtIDR(nilaiTerjual)}{k.tanggal_selesai ? ` · Selesai: ${fmtTanggal(k.tanggal_selesai)}` : ""}</p>
                       </div>
                       <div className="flex items-center gap-1.5">
-                        <button type="button" onClick={() => setDetailKonsinyasi(k)} className="rounded-md border border-neutral-200 bg-white px-2.5 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50 whitespace-nowrap">Detail</button>
-                        <button type="button" onClick={() => setEditingSettlement({ konsinyasi: k, initialSetoran: k.setoran })} className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 whitespace-nowrap">Edit</button>
-                        <button type="button" onClick={() => handleRevertPreexistingSettlement(k)} className="rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-100 whitespace-nowrap">Batalkan</button>
+                        <Button size="sm" variant="secondary" onClick={() => setDetailKonsinyasi(k)}>Detail</Button>
+                        <Button size="sm" variant="ghost" className="border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100" onClick={() => setEditingSettlement({ konsinyasi: k, initialSetoran: k.setoran })}>Edit</Button>
+                        <Button size="sm" variant="ghost" className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100" onClick={() => handleRevertPreexistingSettlement(k)}>Batalkan</Button>
                       </div>
                     </div>
                   )
@@ -1244,10 +1265,10 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
                       <p className="text-xs text-neutral-400">Jatuh Tempo: {fmtTanggal(k.tanggal_jatuh_tempo)}</p>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <button type="button" onClick={() => setDetailKonsinyasi(k)} className="rounded-md border border-neutral-200 bg-white px-2.5 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50 whitespace-nowrap">Detail</button>
-                      <button type="button" onClick={() => setEditingKonsinyasiDetail(k)} className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 whitespace-nowrap">Edit</button>
-                      <button type="button" onClick={() => handleHapusKonsinyasi(k)} className="rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-100 whitespace-nowrap">Hapus</button>
-                      <button type="button" onClick={() => setSettlingKonsinyasi(k)} className="rounded-md border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100 whitespace-nowrap">Selesaikan</button>
+                      <Button size="sm" variant="secondary" onClick={() => setDetailKonsinyasi(k)}>Detail</Button>
+                      <Button size="sm" variant="ghost" className="border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100" onClick={() => setEditingKonsinyasiDetail(k)}>Edit</Button>
+                      <Button size="sm" variant="ghost" className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100" onClick={() => handleHapusKonsinyasi(k)}>Hapus</Button>
+                      <Button size="sm" variant="ghost" className="border border-green-200 bg-green-50 text-green-700 hover:bg-green-100" onClick={() => setSettlingKonsinyasi(k)}>Selesaikan</Button>
                     </div>
                   </div>
                 ))}
@@ -1263,9 +1284,11 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
                         <p className="text-xs text-green-600">Nilai terjual: {fmtIDR(nilaiTerjual)}{record.submittedData.tanggal ? ` · Selesai: ${fmtTanggal(record.submittedData.tanggal)}` : ""}</p>
                       </div>
                       <div className="flex items-center gap-1.5">
-                        <button type="button" onClick={() => setDetailKonsinyasi(record.konsinyasi)} className="rounded-md border border-neutral-200 bg-white px-2.5 py-1 text-xs font-medium text-neutral-700 hover:bg-neutral-50 whitespace-nowrap">Detail</button>
-                        <button
-                          type="button"
+                        <Button size="sm" variant="secondary" onClick={() => setDetailKonsinyasi(record.konsinyasi)}>Detail</Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
                           onClick={() => setEditingSettlement({
                             konsinyasi: {
                               ...record.konsinyasi,
@@ -1276,17 +1299,17 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
                             },
                             initialSetoran: record.submittedData.setoran,
                           })}
-                          className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 whitespace-nowrap"
                         >
                           Edit
-                        </button>
-                        <button
-                          type="button"
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
                           onClick={() => handleRevertSettlement(record)}
-                          className="rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-100 whitespace-nowrap"
                         >
                           Batalkan
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   )
@@ -1347,7 +1370,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
       )}
 
       {LaporanConfirmModal}
-      <FormActions onCancel={onCancel} disabled={setoranEmpty} submitLabel={isEdit ? "Simpan Perubahan" : "Submit Laporan"} />
+      <FormActions onCancel={onCancel} disabled={setoranEmpty} loading={loading} submitLabel={isEdit ? "Simpan Perubahan" : "Submit Laporan"} />
     </form>
   )
 }
@@ -1488,7 +1511,7 @@ function KonsinyasiDetailEditForm({ record, onSubmit, onCancel }) {
       <Field label="Catatan (opsional)">
         <input type="text" value={catatan} onChange={(e) => setCatatan(e.target.value)} placeholder="Opsional" className={inputCls} />
       </Field>
-      <FormActions onCancel={onCancel} disabled={!valid || loading} submitLabel={loading ? "Menyimpan..." : "Simpan Perubahan"} />
+      <FormActions onCancel={onCancel} disabled={!valid || loading} loading={loading} submitLabel={initial ? "Simpan Perubahan" : "Simpan Perubahan"} />
     </form>
   )
 }
@@ -1625,10 +1648,14 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
   return (
     <div className="rounded-lg border border-neutral-200 bg-white p-3 space-y-3">
       <div className="flex items-center justify-between">
-        <button type="button" onClick={() => setOpen(!open)} className="flex items-center gap-2 text-sm font-medium text-neutral-700">
-          {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        <Button
+          variant="ghost"
+          className="gap-2 text-sm font-medium text-neutral-700 h-auto p-0 hover:bg-transparent"
+          onClick={() => setOpen(!open)}
+          icon={open ? ChevronUp : ChevronDown}
+        >
           {selectedToko?.nama || "Titip Jual Baru"}
-        </button>
+        </Button>
         <IconButton icon={Trash2} onClick={onRemove} variant="danger" label="Hapus" />
       </div>
       {open && (
@@ -1637,9 +1664,14 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
             <div>
               <div className="mb-1.5 flex items-center justify-between">
                 <span className="text-xs font-medium text-neutral-600">Toko</span>
-                <button type="button" onClick={() => setShowAddToko(true)} className="text-xs text-blue-500 hover:text-blue-700 hover:underline">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-auto p-0 text-blue-500 hover:text-blue-700 hover:bg-transparent"
+                  onClick={() => setShowAddToko(true)}
+                >
                   + toko baru
-                </button>
+                </Button>
               </div>
               <SearchableSelect
                 value={data.toko_id}
@@ -1681,12 +1713,14 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
                   <input type="text" value={newTokoAlamat} onChange={(e) => setNewTokoAlamat(e.target.value)} placeholder="Alamat toko" className={inputCls} />
                 </Field>
                 <div className="flex justify-end gap-3">
-                  <button type="button" onClick={() => setShowAddToko(false)} className="rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50">
+                <div className="flex justify-end gap-3">
+                  <Button variant="secondary" onClick={() => setShowAddToko(false)}>
                     Batal
-                  </button>
-                  <button type="button" onClick={handleSaveToko} disabled={!newTokoNama.trim() || savingToko} className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-50">
-                    {savingToko ? "Menyimpan..." : "Simpan Toko"}
-                  </button>
+                  </Button>
+                  <Button onClick={handleSaveToko} disabled={!newTokoNama.trim()} loading={savingToko}>
+                    Simpan Toko
+                  </Button>
+                </div>
                 </div>
               </div>
             </Modal>
@@ -1747,19 +1781,24 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
               </div>
             )
           })}
-          <button type="button" onClick={() => onChange({ ...data, items: [...data.items, { rokok_id: "", qty: "" }] })} className="text-xs text-blue-600 hover:underline">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+            onClick={() => onChange({ ...data, items: [...data.items, { rokok_id: "", qty: "" }] })}
+          >
             + Tambah rokok
-          </button>
+          </Button>
 
           <div className="pt-1 border-t border-neutral-100">
-            <button
-              type="button"
+            <Button
               onClick={handleSaveAndSettle}
-              disabled={!canSaveAndSettle || saving}
-              className="w-full rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-100 disabled:opacity-40 disabled:cursor-not-allowed"
+              disabled={!canSaveAndSettle}
+              loading={saving}
+              className="w-full border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
             >
-              {saving ? "Menyimpan..." : "Simpan & Tambah ke Penyelesaian"}
-            </button>
+              Simpan & Tambah ke Penyelesaian
+            </Button>
           </div>
         </div>
       )}

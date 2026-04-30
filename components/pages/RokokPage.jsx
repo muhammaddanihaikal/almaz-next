@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Plus, GripVertical, Save, X, MoveVertical, Loader2 } from "lucide-react"
 import { fmtIDR } from "@/lib/utils"
 import { addRokok, updateRokok, deleteRokok, toggleAktifRokok, tambahStok, updateRokokOrder } from "@/actions/rokok"
-import { Card, PageHeader, PrimaryButton, RowActions, Field, FormActions, Toggle, inputCls, useConfirm } from "@/components/ui"
+import { Card, PageHeader, PrimaryButton, RowActions, Field, FormActions, Toggle, inputCls, useConfirm, Button } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
 
@@ -113,34 +113,30 @@ export default function RokokPage({ rokokList, usedIds }) {
           <div className="flex items-center gap-2">
             {isSorting ? (
               <>
-                <button
+                <Button
+                  variant="secondary"
                   onClick={() => { setIsSorting(false); setSortedList(rokokList) }}
-                  className="flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-600 transition hover:bg-neutral-50"
+                  icon={X}
                 >
-                  <X className="h-4 w-4" /> Batal
-                </button>
+                  Batal
+                </Button>
                 <PrimaryButton 
                   onClick={saveOrder} 
-                  disabled={isSaving || isPending}
-                  icon={isSaving || isPending ? null : Save}
+                  loading={isSaving || isPending}
+                  icon={Save}
                 >
-                  {isSaving || isPending ? (
-                    <span className="flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" /> Menyimpan...
-                    </span>
-                  ) : (
-                    "Simpan Urutan"
-                  )}
+                  Simpan Urutan
                 </PrimaryButton>
               </>
             ) : (
               <>
-                <button
+                <Button
+                  variant="secondary"
                   onClick={() => setIsSorting(true)}
-                  className="flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-600 transition hover:bg-neutral-50"
+                  icon={MoveVertical}
                 >
-                  <MoveVertical className="h-4 w-4" /> Atur Urutan
-                </button>
+                  Atur Urutan
+                </Button>
                 <PrimaryButton onClick={() => { setEditing(null); setMode("add") }} icon={Plus}>
                   Tambah Rokok
                 </PrimaryButton>
@@ -192,13 +188,14 @@ export default function RokokPage({ rokokList, usedIds }) {
                 render: (r) => (
                   <div className="flex items-center justify-end gap-2">
                     <span className={`font-semibold tabular-nums ${(r.stok ?? 0) < 50 ? "text-red-600" : (r.stok ?? 0) < 150 ? "text-amber-500" : "text-green-600"}`}>{r.stok ?? 0}</span>
-                    <button
+                    <Button
+                      size="sm"
+                      variant="ghost"
                       onClick={() => setStokTarget(r)}
                       title="Tambah stok barang masuk"
-                      className="inline-flex h-6 w-6 items-center justify-center rounded-md bg-emerald-50 text-emerald-600 transition hover:bg-emerald-100"
-                    >
-                      <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
-                    </button>
+                      className="h-6 w-6 border-emerald-100 bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
+                      icon={Plus}
+                    />
                   </div>
                 ),
               },
@@ -252,13 +249,14 @@ export default function RokokPage({ rokokList, usedIds }) {
                   <p className="font-medium text-neutral-900">{r.nama}</p>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <p className="text-xs text-neutral-500">Stok: {r.stok ?? 0}</p>
-                    <button
+                    <Button
+                      size="sm"
+                      variant="ghost"
                       onClick={() => setStokTarget(r)}
                       title="Tambah stok barang masuk"
-                      className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-emerald-50 text-emerald-600 transition hover:bg-emerald-100"
-                    >
-                      <Plus className="h-3 w-3" strokeWidth={2.5} />
-                    </button>
+                      className="h-5 w-5 border-emerald-100 bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
+                      icon={Plus}
+                    />
                     <span className="text-xs text-neutral-400">·</span>
                     <p className="text-xs text-neutral-500">Beli: {fmtIDR(r.harga_beli)}</p>
                   </div>
@@ -363,10 +361,16 @@ function TambahStokForm({ rokok, onSubmit, onCancel }) {
   const totalBungkus = (Number(slop) || 0) * 10 + (Number(bungkus) || 0)
   const valid = totalBungkus > 0
 
-  const submit = (e) => {
+  const [loading, setLoading] = useState(false)
+  const submit = async (e) => {
     e.preventDefault()
-    if (!valid) return
-    onSubmit(totalBungkus)
+    if (!valid || loading) return
+    setLoading(true)
+    try {
+      await onSubmit(totalBungkus)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -417,7 +421,7 @@ function TambahStokForm({ rokok, onSubmit, onCancel }) {
         <span className="text-lg font-semibold tabular-nums text-neutral-900">{(rokok.stok ?? 0) + totalBungkus} bungkus</span>
       </div>
 
-      <FormActions onCancel={onCancel} disabled={!valid} submitLabel="Simpan Stok" />
+      <FormActions onCancel={onCancel} disabled={!valid} loading={loading} submitLabel="Simpan Stok" />
     </form>
   )
 }
@@ -437,10 +441,16 @@ function RokokForm({ initial, rokokList, onSubmit, onCancel }) {
   )
   const valid = nama.trim() && hargaBeli && hargaGrosir && hargaToko && hargaPerorangan && !isDuplicate
 
-  const submit = (e) => {
+  const [loading, setLoading] = useState(false)
+  const submit = async (e) => {
     e.preventDefault()
-    if (!valid) return
-    onSubmit({ nama: nama.trim(), stok: Number(stok), harga_beli: Number(hargaBeli), harga_grosir: Number(hargaGrosir), harga_toko: Number(hargaToko), harga_perorangan: Number(hargaPerorangan) })
+    if (!valid || loading) return
+    setLoading(true)
+    try {
+      await onSubmit({ nama: nama.trim(), stok: Number(stok), harga_beli: Number(hargaBeli), harga_grosir: Number(hargaGrosir), harga_toko: Number(hargaToko), harga_perorangan: Number(hargaPerorangan) })
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -466,7 +476,7 @@ function RokokForm({ initial, rokokList, onSubmit, onCancel }) {
           <input type="number" min="0" value={hargaPerorangan} onChange={(e) => setHargaPerorangan(e.target.value)} className={inputCls} required />
         </Field>
       </div>
-      <FormActions onCancel={onCancel} disabled={!valid} submitLabel={initial ? "Simpan Perubahan" : "Tambah Rokok"} />
+      <FormActions onCancel={onCancel} disabled={!valid} loading={loading} submitLabel={initial ? "Simpan Perubahan" : "Tambah Rokok"} />
     </form>
   )
 }

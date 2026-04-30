@@ -117,16 +117,22 @@ export default function SalesPage({ salesList, sesiList }) {
 function SalesForm({ initial, salesList, onSubmit, onCancel }) {
   const [nama, setNama] = useState(initial?.nama || "")
   const [noHp, setNoHp] = useState(initial?.no_hp || "")
+  const [loading, setLoading] = useState(false)
 
   const isDuplicate = salesList.some(
     (s) => s.nama.toLowerCase() === nama.trim().toLowerCase() && s.id !== initial?.id
   )
   const valid = nama.trim().length > 0 && !isDuplicate
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault()
-    if (!valid) return
-    onSubmit({ nama: nama.trim(), no_hp: noHp.trim() })
+    if (!valid || loading) return
+    setLoading(true)
+    try {
+      await onSubmit({ nama: nama.trim(), no_hp: noHp.trim() })
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -138,7 +144,7 @@ function SalesForm({ initial, salesList, onSubmit, onCancel }) {
       <Field label="No HP">
         <input type="text" value={noHp} onChange={(e) => setNoHp(e.target.value)} placeholder="Misal: 0812-3456-7890" className={inputCls} />
       </Field>
-      <FormActions onCancel={onCancel} disabled={!valid} submitLabel={initial ? "Simpan Perubahan" : "Tambah Sales"} />
+      <FormActions onCancel={onCancel} disabled={!valid} loading={loading} submitLabel={initial ? "Simpan Perubahan" : "Tambah Sales"} />
     </form>
   )
 }

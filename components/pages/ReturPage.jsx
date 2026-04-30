@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Plus, Trash2 } from "lucide-react"
 import { fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc, downloadExcel } from "@/lib/utils"
 import { addRetur, updateRetur, deleteRetur } from "@/actions/retur"
-import { Card, PageHeader, DateFilter, DownloadButton, PrimaryButton, Field, FormActions, SelectInput, SearchableSelect, inputCls, RowActions, IconButton, useConfirm } from "@/components/ui"
+import { Card, PageHeader, DateFilter, DownloadButton, PrimaryButton, Field, FormActions, SelectInput, SearchableSelect, inputCls, RowActions, IconButton, useConfirm, Button } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
 
@@ -196,6 +196,7 @@ function ReturForm({ initial, rokokList, salesList, onSubmit, onCancel }) {
       ? initial.items.map((it) => ({ rokok_id: it.rokok_id, qty: it.qty }))
       : [{ rokok_id: "", qty: "" }, { rokok_id: "", qty: "" }]
   )
+  const [loading, setLoading] = useState(false)
 
   const addItem    = () => setItems([...items, { rokok_id: "", qty: "" }])
   const removeItem = (idx) => setItems(items.filter((_, i) => i !== idx))
@@ -204,16 +205,21 @@ function ReturForm({ initial, rokokList, salesList, onSubmit, onCancel }) {
   const validItems = items.filter((it) => it.rokok_id && Number(it.qty) > 0)
   const valid = tanggal && !!tipePenjualan && !!salesId && alasan.trim().length > 0 && validItems.length > 0
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault()
-    if (!valid) return
-    onSubmit({
-      tanggal,
-      tipe_penjualan: tipePenjualan,
-      sales_id: salesId,
-      alasan: alasan.trim(),
-      items: validItems.map((it) => ({ rokok_id: it.rokok_id, qty: Number(it.qty) })),
-    })
+    if (!valid || loading) return
+    setLoading(true)
+    try {
+      await onSubmit({
+        tanggal,
+        tipe_penjualan: tipePenjualan,
+        sales_id: salesId,
+        alasan: alasan.trim(),
+        items: validItems.map((it) => ({ rokok_id: it.rokok_id, qty: Number(it.qty) })),
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -266,9 +272,9 @@ function ReturForm({ initial, rokokList, salesList, onSubmit, onCancel }) {
             </div>
             )
           })}
-          <button type="button" onClick={addItem} className="w-full rounded-lg border border-dashed border-neutral-300 px-4 py-2.5 text-sm font-medium text-neutral-500 transition hover:border-neutral-400 hover:bg-neutral-50 hover:text-neutral-700">
+          <Button type="button" onClick={addItem} variant="secondary" className="w-full border-dashed">
             + Tambah Baris
-          </button>
+          </Button>
         </div>
 
         <Field label="Alasan">
@@ -276,7 +282,7 @@ function ReturForm({ initial, rokokList, salesList, onSubmit, onCancel }) {
         </Field>
       </div>
 
-      <FormActions onCancel={onCancel} disabled={!valid} submitLabel={initial ? "Simpan Perubahan" : "Simpan Retur"} />
+      <FormActions onCancel={onCancel} disabled={!valid} loading={loading} submitLabel={initial ? "Simpan Perubahan" : "Simpan Retur"} />
     </form>
   )
 }

@@ -136,16 +136,22 @@ function TokoForm({ initial, tokoList, onSubmit, onCancel }) {
   const [nama,     setNama]     = useState(initial?.nama     || "")
   const [alamat,   setAlamat]   = useState(initial?.alamat   || "")
   const [kategori, setKategori] = useState(initial?.kategori || "toko")
+  const [loading,  setLoading]  = useState(false)
 
   const isDuplicate = tokoList.some(
     (t) => t.nama.toLowerCase() === nama.trim().toLowerCase() && t.id !== initial?.id
   )
   const valid = nama.trim().length > 0 && !isDuplicate
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault()
-    if (!valid) return
-    onSubmit({ nama: nama.trim(), alamat: alamat.trim(), kategori })
+    if (!valid || loading) return
+    setLoading(true)
+    try {
+      await onSubmit({ nama: nama.trim(), alamat: alamat.trim(), kategori })
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -169,7 +175,7 @@ function TokoForm({ initial, tokoList, onSubmit, onCancel }) {
           placeholder="Alamat toko" className={inputCls}
         />
       </Field>
-      <FormActions onCancel={onCancel} disabled={!valid} submitLabel={initial ? "Simpan Perubahan" : "Tambah Toko"} />
+      <FormActions onCancel={onCancel} disabled={!valid} loading={loading} submitLabel={initial ? "Simpan Perubahan" : "Tambah Toko"} />
     </form>
   )
 }
