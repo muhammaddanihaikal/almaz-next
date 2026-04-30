@@ -1,14 +1,15 @@
 "use client"
 
-import { useState, useTransition } from "react"
-import { useRouter } from "next/navigation"
+import { useState } from "react"
+import { usePathname } from "next/navigation"
 import { Calendar, ChevronDown, ChevronUp, Box, ArrowLeft, ArrowUpRight, ArrowDownLeft, RotateCcw } from "lucide-react"
 import { fmtIDR } from "@/lib/utils"
 import { Card, PageHeader, Field, Button, IconButton, DateFilter, inputCls } from "@/components/ui"
+import { useLoading } from "@/components/LoadingProvider"
 
 export default function MutasiStokPage({ initialData, startDate, endDate, initialPreset }) {
-  const router = useRouter()
-  const [isPending, startTransition] = useTransition()
+  const pathname = usePathname()
+  const { isPending, navigate } = useLoading()
   const [filter, setFilter] = useState({
     preset: initialPreset || "hari_ini",
     start: startDate,
@@ -16,16 +17,13 @@ export default function MutasiStokPage({ initialData, startDate, endDate, initia
   })
   const [expandedDate, setExpandedDate] = useState(initialData[0]?.tanggal || null)
 
-
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2 -mb-2">
         <IconButton 
           icon={ArrowLeft} 
           onClick={() => {
-            startTransition(() => {
-              router.push("/rokok")
-            })
+            navigate("/rokok")
           }} 
           loading={isPending}
           label="Kembali ke Master Rokok" 
@@ -41,9 +39,7 @@ export default function MutasiStokPage({ initialData, startDate, endDate, initia
               value={filter} 
               onChange={(val) => {
                 setFilter(val)
-                startTransition(() => {
-                  router.push(`/rokok/mutasi?start=${val.start}&end=${val.end}&preset=${val.preset}`)
-                })
+                navigate(`/rokok/mutasi?start=${val.start}&end=${val.end}&preset=${val.preset}`)
               }} 
             />
           </div>

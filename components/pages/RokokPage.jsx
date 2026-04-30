@@ -1,13 +1,14 @@
 "use client"
 
-import { useMemo, useState, useEffect, useTransition } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Plus, GripVertical, Save, X, MoveVertical, Loader2, RotateCcw } from "lucide-react"
+import { Plus, GripVertical, Save, X, MoveVertical, RotateCcw } from "lucide-react"
 import { fmtIDR } from "@/lib/utils"
 import { addRokok, updateRokok, deleteRokok, toggleAktifRokok, tambahStok, updateRokokOrder } from "@/actions/rokok"
 import { Card, PageHeader, PrimaryButton, IconButton, RowActions, Field, FormActions, Toggle, inputCls, useConfirm, Button } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
+import { useLoading } from "@/components/LoadingProvider"
 
 import {
   DndContext,
@@ -30,7 +31,8 @@ const PAGE_SIZE = 10
 
 export default function RokokPage({ rokokList, usedIds }) {
   const router = useRouter()
-  const [isPending, startTransition] = useTransition()
+  const [isLocalPending, startLocalTransition] = useTransition()
+  const { isPending, navigate } = useLoading()
   const { confirm, ConfirmModal } = useConfirm()
   const [mode, setMode] = useState(null)
   const [editing, setEditing] = useState(null)
@@ -90,7 +92,7 @@ export default function RokokPage({ rokokList, usedIds }) {
       const items = sortedList.map((it, idx) => ({ id: it.id, urutan: idx }))
       const res = await updateRokokOrder(items)
       if (res?.success) {
-        startTransition(() => {
+        startLocalTransition(() => {
           setIsSorting(false)
           router.refresh()
         })
@@ -122,7 +124,7 @@ export default function RokokPage({ rokokList, usedIds }) {
                 </Button>
                 <PrimaryButton 
                   onClick={saveOrder} 
-                  loading={isSaving || isPending}
+                  loading={isSaving || isLocalPending}
                   icon={Save}
                 >
                   Simpan Urutan
@@ -140,9 +142,7 @@ export default function RokokPage({ rokokList, usedIds }) {
                 <Button
                   variant="secondary"
                   onClick={() => {
-                    startTransition(() => {
-                      router.push("/rokok/mutasi")
-                    })
+                    navigate("/rokok/mutasi")
                   }}
                   icon={RotateCcw}
                   loading={isPending}

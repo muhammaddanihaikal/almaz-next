@@ -11,6 +11,8 @@ import {
   UserCog, HardDrive, ShieldCheck, Loader2,
 } from "lucide-react"
 
+import { useLoading } from "./LoadingProvider"
+
 const ROLE_LABELS = { superadmin: "Super Admin", admin: "Admin", staff: "Staff" }
 
 function buildMenus(role, titipJualCounts) {
@@ -59,8 +61,7 @@ function buildMenus(role, titipJualCounts) {
 
 export default function Sidebar({ role, userName, titipJualCounts }) {
   const pathname    = usePathname()
-  const router      = useRouter()
-  const [isPending, startTransition] = useTransition()
+  const { isPending, loadingPath, navigate } = useLoading()
   const [clickedId, setClickedId]     = useState(null)
   
   const [mobileOpen, setMobileOpen]       = useState(false)
@@ -84,7 +85,7 @@ export default function Sidebar({ role, userName, titipJualCounts }) {
 
   const navLink = (item) => {
     const active = isActive(item.href)
-    const loading = isPending && clickedId === item.id
+    const loading = isPending && (clickedId === item.id || loadingPath === item.href)
 
     return (
       <button
@@ -92,9 +93,7 @@ export default function Sidebar({ role, userName, titipJualCounts }) {
         onClick={() => {
           setClickedId(item.id)
           setMobileOpen(false)
-          startTransition(() => {
-            router.push(item.href)
-          })
+          navigate(item.href)
         }}
         className={
           "flex w-full items-center gap-3 rounded-lg py-2.5 pl-9 pr-3 text-sm font-medium transition-colors lg:pl-3 " +
