@@ -2,7 +2,8 @@
 
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
-import { mutateStock } from "@/lib/stock"
+import { mutateStock, MUTATION_SOURCE } from "@/lib/stock"
+import { auth } from "@/lib/auth"
 
 function serialize(p) {
   const hasKeluar = p.keluarItems.length > 0
@@ -89,6 +90,7 @@ export async function addPenjualan(data) {
         },
       },
     })
+    const session = await auth()
     for (const it of masuk) {
       await mutateStock({
         tx,
@@ -96,8 +98,9 @@ export async function addPenjualan(data) {
         tanggal: data.tanggal,
         jenis: 'out',
         qty: it.qty,
-        source: 'penjualan',
-        reference_id: data.id || "new"
+        source: MUTATION_SOURCE.PENJUALAN,
+        reference_id: data.id || "new",
+        user_id: session?.user?.id
       })
     }
     for (const it of samples) {
@@ -108,8 +111,9 @@ export async function addPenjualan(data) {
           tanggal: data.tanggal,
           jenis: 'out',
           qty: it.qty_masuk,
-          source: 'penjualan_sample',
-          reference_id: data.id || "new"
+          source: MUTATION_SOURCE.PENJUALAN_SAMPLE,
+          reference_id: data.id || "new",
+          user_id: session?.user?.id
         })
       }
     }
@@ -126,6 +130,7 @@ export async function updatePenjualan(id, data) {
       where: { id },
       include: { masukItems: true, sampleItems: true },
     })
+    const session = await auth()
     for (const it of old.masukItems) {
       await mutateStock({
         tx,
@@ -133,8 +138,10 @@ export async function updatePenjualan(id, data) {
         tanggal: old.tanggal,
         jenis: 'in',
         qty: it.qty,
-        source: 'penjualan_edit_revert',
-        reference_id: id
+        source: MUTATION_SOURCE.REVERT,
+        reference_id: id,
+        keterangan: "Revert penjualan (edit)",
+        user_id: session?.user?.id
       })
     }
     for (const it of old.sampleItems) {
@@ -145,8 +152,10 @@ export async function updatePenjualan(id, data) {
           tanggal: old.tanggal,
           jenis: 'in',
           qty: it.qty_masuk,
-          source: 'penjualan_sample_edit_revert',
-          reference_id: id
+          source: MUTATION_SOURCE.REVERT,
+          reference_id: id,
+          keterangan: "Revert penjualan sample (edit)",
+          user_id: session?.user?.id
         })
       }
     }
@@ -191,8 +200,9 @@ export async function updatePenjualan(id, data) {
         tanggal: data.tanggal,
         jenis: 'out',
         qty: it.qty,
-        source: 'penjualan',
-        reference_id: id
+        source: MUTATION_SOURCE.PENJUALAN,
+        reference_id: id,
+        user_id: session?.user?.id
       })
     }
     for (const it of samples) {
@@ -203,8 +213,9 @@ export async function updatePenjualan(id, data) {
           tanggal: data.tanggal,
           jenis: 'out',
           qty: it.qty_masuk,
-          source: 'penjualan_sample',
-          reference_id: id
+          source: MUTATION_SOURCE.PENJUALAN_SAMPLE,
+          reference_id: id,
+          user_id: session?.user?.id
         })
       }
     }
@@ -219,6 +230,7 @@ export async function deletePenjualan(id) {
       where: { id },
       include: { masukItems: true, sampleItems: true },
     })
+    const session = await auth()
     for (const it of old.masukItems) {
       await mutateStock({
         tx,
@@ -226,8 +238,10 @@ export async function deletePenjualan(id) {
         tanggal: old.tanggal,
         jenis: 'in',
         qty: it.qty,
-        source: 'penjualan_delete_revert',
-        reference_id: id
+        source: MUTATION_SOURCE.REVERT,
+        reference_id: id,
+        keterangan: "Revert penjualan (delete)",
+        user_id: session?.user?.id
       })
     }
     for (const it of old.sampleItems) {
@@ -238,8 +252,10 @@ export async function deletePenjualan(id) {
           tanggal: old.tanggal,
           jenis: 'in',
           qty: it.qty_masuk,
-          source: 'penjualan_sample_delete_revert',
-          reference_id: id
+          source: MUTATION_SOURCE.REVERT,
+          reference_id: id,
+          keterangan: "Revert penjualan sample (delete)",
+          user_id: session?.user?.id
         })
       }
     }

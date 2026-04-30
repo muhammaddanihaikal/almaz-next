@@ -2,7 +2,8 @@
 
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
-import { mutateStock } from "@/lib/stock"
+import { mutateStock, MUTATION_SOURCE } from "@/lib/stock"
+import { auth } from "@/lib/auth"
 
 function serialize(r) {
   return {
@@ -46,6 +47,7 @@ export async function addRetur(data) {
         },
       },
     })
+    const session = await auth()
     for (const it of data.items) {
       await mutateStock({
         tx,
@@ -53,8 +55,9 @@ export async function addRetur(data) {
         tanggal: data.tanggal,
         jenis: 'in',
         qty: it.qty,
-        source: 'retur',
-        reference_id: r.id
+        source: MUTATION_SOURCE.RETUR,
+        reference_id: r.id,
+        user_id: session?.user?.id
       })
     }
   })
@@ -65,6 +68,7 @@ export async function addRetur(data) {
 export async function updateRetur(id, data) {
   await prisma.$transaction(async (tx) => {
     const old = await tx.retur.findUnique({ where: { id }, include: { items: true } })
+    const session = await auth()
     // Reverse old stok (decrement, since retur increments)
     for (const it of old.items) {
       await mutateStock({
@@ -73,8 +77,10 @@ export async function updateRetur(id, data) {
         tanggal: data.tanggal,
         jenis: 'out',
         qty: it.qty,
-        source: 'retur_edit_revert',
-        reference_id: id
+        source: MUTATION_SOURCE.REVERT,
+        reference_id: id,
+        keterangan: "Revert retur (edit)",
+        user_id: session?.user?.id
       })
     }
     await tx.returItem.deleteMany({ where: { retur_id: id } })
@@ -97,8 +103,9 @@ export async function updateRetur(id, data) {
         tanggal: data.tanggal,
         jenis: 'in',
         qty: it.qty,
-        source: 'retur',
-        reference_id: id
+        source: MUTATION_SOURCE.RETUR,
+        reference_id: id,
+        user_id: session?.user?.id
       })
     }
   })
@@ -109,6 +116,7 @@ export async function updateRetur(id, data) {
 export async function deleteRetur(id) {
   await prisma.$transaction(async (tx) => {
     const old = await tx.retur.findUnique({ where: { id }, include: { items: true } })
+    const session = await auth()
     for (const it of old.items) {
       await mutateStock({
         tx,
@@ -116,8 +124,10 @@ export async function deleteRetur(id) {
         tanggal: old.tanggal,
         jenis: 'out',
         qty: it.qty,
-        source: 'retur_delete_revert',
-        reference_id: id
+        source: MUTATION_SOURCE.REVERT,
+        reference_id: id,
+        keterangan: "Revert retur (delete)",
+        user_id: session?.user?.id
       })
     }
     await tx.retur.delete({ where: { id } })

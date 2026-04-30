@@ -3,7 +3,7 @@ const bcrypt = require("bcryptjs")
 
 const prisma = new PrismaClient()
 
-async function mutateStock(tx, { rokok_id, tanggal, jenis, qty, source, reference_id = null }) {
+async function mutateStock(tx, { rokok_id, tanggal, jenis, qty, source, reference_id = null, keterangan = null, user_id = null }) {
   await tx.stockMutation.create({
     data: {
       rokok_id,
@@ -11,7 +11,9 @@ async function mutateStock(tx, { rokok_id, tanggal, jenis, qty, source, referenc
       jenis,
       qty,
       source,
-      reference_id
+      reference_id,
+      keterangan,
+      user_id
     }
   })
 }
@@ -38,228 +40,186 @@ async function updateStockCache(tx, rokok_id) {
 
 async function main() {
   await prisma.$transaction(async (tx) => {
-    // ─── Clear Data (Optional, but good for fresh seed) ─────────────
+    // ─── Clear Data ───────────────────────────────────────────────────────────
+    // Order matters for relational cleanup
     await tx.stockMutation.deleteMany({})
-
-    // ─── User ─────────────────────────────────────────────────────────────────
-    const superadminPass = await bcrypt.hash("jagungmanis9192", 10)
-    const adminPass      = await bcrypt.hash("WedangJahe15!", 10)
-    const staffPass      = await bcrypt.hash("staff123", 10)
+    await tx.titipJualSetoran.deleteMany({})
+    await tx.titipJualItem.deleteMany({})
+    await tx.titipJual.deleteMany({})
+    await tx.sesiSetoran.deleteMany({})
+    await tx.sesiPenjualan.deleteMany({})
+    await tx.sesiBarangKembali.deleteMany({})
+    await tx.sesiBarangKeluar.deleteMany({})
+    await tx.sesiHarian.deleteMany({})
+    await tx.returItem.deleteMany({})
+    await tx.retur.deleteMany({})
+    await tx.stokMasuk.deleteMany({})
+    await tx.pengeluaran.deleteMany({})
+    await tx.toko.deleteMany({})
+    await tx.sales.deleteMany({})
+    await tx.rokok.deleteMany({})
+    // We don't delete users to avoid breaking the current session if running in dev
     
-    await tx.user.upsert({
-      where:  { username: "mdanihaikal" },
+    // ─── Users ────────────────────────────────────────────────────────────────
+    const pass = await bcrypt.hash("admin123", 10)
+    const superadmin = await tx.user.upsert({
+      where: { username: "mdanihaikal" },
       update: { role: "superadmin" },
-      create: { username: "mdanihaikal", password: superadminPass, name: "M. Dani Haikal", role: "superadmin" },
-    })
-    await tx.user.upsert({
-      where:  { username: "alwin" },
-      update: { role: "admin" },
-      create: { username: "alwin", password: adminPass, name: "Alwin", role: "admin" },
-    })
-    await tx.user.upsert({
-      where:  { username: "staff" },
-      update: { role: "staff" },
-      create: { username: "staff", password: staffPass, name: "Staff", role: "staff" },
+      create: { username: "mdanihaikal", password: pass, name: "M. Dani Haikal", role: "superadmin" },
     })
 
     // ─── Rokok ────────────────────────────────────────────────────────────────
     const rokokData = [
-      { nama: "Gudang Garam Surya 12", harga_beli: 20000, harga_grosir: 22000, harga_toko: 23000, harga_perorangan: 25000, stok_awal: 500, urutan: 1 },
-      { nama: "Sampoerna A Mild 16",   harga_beli: 22000, harga_grosir: 24000, harga_toko: 25000, harga_perorangan: 27000, stok_awal: 400, urutan: 2 },
-      { nama: "Dji Sam Soe 234",       harga_beli: 25000, harga_grosir: 27000, harga_toko: 28000, harga_perorangan: 30000, stok_awal: 350, urutan: 3 },
-      { nama: "Marlboro Merah",        harga_beli: 28000, harga_grosir: 30000, harga_toko: 32000, harga_perorangan: 35000, stok_awal: 300, urutan: 4 },
-      { nama: "LA Bold",               harga_beli: 19000, harga_grosir: 21000, harga_toko: 22000, harga_perorangan: 24000, stok_awal: 450, urutan: 5 },
-      { nama: "Gudang Garam Merah",    harga_beli: 18000, harga_grosir: 20000, harga_toko: 21000, harga_perorangan: 23000, stok_awal: 600, urutan: 6 },
-      { nama: "Sampoerna Kretek",      harga_beli: 15000, harga_grosir: 17000, harga_toko: 18000, harga_perorangan: 20000, stok_awal: 700, urutan: 7 },
+      { nama: "Gudang Garam Surya 12", harga_beli: 20000, harga_grosir: 22000, harga_toko: 23000, harga_perorangan: 25000, urutan: 1, stok_awal: 1000 },
+      { nama: "Sampoerna A Mild 16",   harga_beli: 22000, harga_grosir: 24500, harga_toko: 25500, harga_perorangan: 27500, urutan: 2, stok_awal: 800 },
+      { nama: "Dji Sam Soe 234",       harga_beli: 25000, harga_grosir: 27500, harga_toko: 28500, harga_perorangan: 30000, urutan: 3, stok_awal: 500 },
+      { nama: "Marlboro Merah",        harga_beli: 29000, harga_grosir: 31000, harga_toko: 32500, harga_perorangan: 35000, urutan: 4, stok_awal: 400 },
+      { nama: "LA Bold",               harga_beli: 19500, harga_grosir: 21500, harga_toko: 22500, harga_perorangan: 24500, urutan: 5, stok_awal: 600 },
+      { nama: "Gudang Garam Merah",    harga_beli: 17500, harga_grosir: 19500, harga_toko: 20500, harga_perorangan: 22500, urutan: 6, stok_awal: 1200 },
     ]
 
-    const rokok = []
+    const rokok = {}
     for (const r of rokokData) {
-      let item = await tx.rokok.findUnique({ where: { nama: r.nama } })
-      if (!item) {
-        item = await tx.rokok.create({
-          data: {
-            nama: r.nama,
-            harga_beli: r.harga_beli,
-            harga_grosir: r.harga_grosir,
-            harga_toko: r.harga_toko,
-            harga_perorangan: r.harga_perorangan,
-            urutan: r.urutan,
-            stok: r.stok_awal // temporary
-          }
-        })
-        
-        // Add initial stock mutation
-        const sm = await tx.stokMasuk.create({
-          data: {
-            rokok_id: item.id,
-            qty: r.stok_awal,
-            tanggal: new Date("2026-01-01"),
-            keterangan: "Stok Awal Seed"
-          }
-        })
-        await mutateStock(tx, {
-          rokok_id: item.id,
-          tanggal: new Date("2026-01-01"),
-          jenis: 'in',
-          qty: r.stok_awal,
-          source: 'supplier',
-          reference_id: sm.id
-        })
-        await updateStockCache(tx, item.id)
-      }
-      rokok.push(item)
+      const item = await tx.rokok.create({
+        data: {
+          nama: r.nama,
+          harga_beli: r.harga_beli,
+          harga_grosir: r.harga_grosir,
+          harga_toko: r.harga_toko,
+          harga_perorangan: r.harga_perorangan,
+          urutan: r.urutan,
+          stok: r.stok_awal
+        }
+      })
+      rokok[r.nama] = item
+      
+      const sm = await tx.stokMasuk.create({
+        data: { rokok_id: item.id, qty: r.stok_awal, tanggal: new Date("2026-04-01"), keterangan: "Saldo Awal Seed" }
+      })
+      await mutateStock(tx, {
+        rokok_id: item.id,
+        tanggal: "2026-04-01",
+        jenis: "in",
+        qty: r.stok_awal,
+        source: "stok_awal",
+        reference_id: sm.id,
+        keterangan: "Inisialisasi stok awal sistem",
+        user_id: superadmin.id
+      })
     }
 
-    // ─── Sales ────────────────────────────────────────────────────────────────
-    const salesData = [
-      { nama: "Budi Santoso",   no_hp: "08211000001" },
-      { nama: "Agus Prasetyo",  no_hp: "08211000002" },
-      { nama: "Siti Rahayu",    no_hp: "08211000003" },
-      { nama: "Deni Kurniawan", no_hp: "08211000004" },
-      { nama: "Rini Wulandari", no_hp: "08211000005" },
-    ]
-
-    const sales = []
-    for (const s of salesData) {
-      const item = await tx.sales.upsert({ where: { nama: s.nama }, update: {}, create: s })
-      sales.push(item)
+    // ─── Sales & Toko ──────────────────────────────────────────────────────────
+    const salesNames = ["Budi Santoso", "Agus Prasetyo", "Siti Rahayu"]
+    const sales = {}
+    for (const name of salesNames) {
+      sales[name] = await tx.sales.create({ data: { nama: name, no_hp: "08123456789" } })
     }
 
-    // ─── Toko ─────────────────────────────────────────────────────────────────
     const tokoData = [
-      { nama: "Toko Maju Jaya",      alamat: "Jl. Maju No. 1",      kategori: "toko"   },
-      { nama: "Grosir Makmur",       alamat: "Pasar Besar No. 5",    kategori: "grosir" },
-      { nama: "Toko Berkah Mandiri", alamat: "Jl. Berkah No. 3",     kategori: "toko"   },
-      { nama: "Toko Sumber Rezeki",  alamat: "Jl. Sumber No. 7",     kategori: "toko"   },
-      { nama: "Toko Agung Sejahtera",alamat: "Jl. Agung No. 9",      kategori: "grosir" },
+      { nama: "Toko Berkah", alamat: "Jl. Merdeka 10", kategori: "toko" },
+      { nama: "Grosir Jaya", alamat: "Pasar Baru Blok A", kategori: "grosir" },
+      { nama: "Warung Bu Siti", alamat: "Jl. Mawar 5", kategori: "toko" },
+      { nama: "Minimarket Almaz", alamat: "Jl. Almaz 1", kategori: "toko" },
     ]
-
-    const toko = []
+    const toko = {}
     for (const t of tokoData) {
-      const item = await tx.toko.upsert({ where: { nama: t.nama }, update: {}, create: t })
-      toko.push(item)
+      toko[t.nama] = await tx.toko.create({ data: t })
     }
 
     // ─── Pengeluaran ──────────────────────────────────────────────────────────
-    // (Skip recreating if already exists, just create roughly)
-    const pengeluaranCount = await tx.pengeluaran.count()
-    if (pengeluaranCount === 0) {
-      const pengeluaranData = [
-        { tanggal: new Date("2026-03-02"), jumlah: 150000, keterangan: "Bensin motor sales" },
-        { tanggal: new Date("2026-03-07"), jumlah: 300000, keterangan: "Biaya pengiriman" },
-        { tanggal: new Date("2026-03-12"), jumlah:  50000, keterangan: "Alat tulis kantor" },
-        { tanggal: new Date("2026-03-20"), jumlah: 200000, keterangan: "Makan siang tim" },
-      ]
-      for (const p of pengeluaranData) {
-        await tx.pengeluaran.create({ data: p })
-      }
-    }
-
-    // ─── Sesi Harian (selesai — data lama) ────────────────────────────────────
-    const sesiLama = [
-      {
-        tanggal: new Date("2026-03-10"), sales_id: sales[0].id, status: "selesai",
-        keluar:  [{ r: rokok[0], qty: 20 }, { r: rokok[5], qty: 15 }],
-        penjualan: [
-          { r: rokok[0], kategori: "grosir", qty: 10 },
-          { r: rokok[0], kategori: "toko",   qty:  8 },
-          { r: rokok[5], kategori: "toko",   qty: 12 },
-        ],
-        setoran:  [{ metode: "cash", jumlah: 10 * 22000 + 8 * 21000 + 12 * 21000 }],
-        kembali:  [{ r: rokok[0], qty: 2 }, { r: rokok[5], qty: 3 }],
-      },
-      {
-        tanggal: new Date("2026-03-18"), sales_id: sales[1].id, status: "selesai",
-        keluar:  [{ r: rokok[1], qty: 25 }, { r: rokok[2], qty: 10 }],
-        penjualan: [
-          { r: rokok[1], kategori: "grosir", qty: 20 },
-          { r: rokok[2], kategori: "grosir", qty:  8 },
-        ],
-        setoran:  [{ metode: "transfer", jumlah: 20 * 24000 + 8 * 27000 }],
-        kembali:  [{ r: rokok[1], qty: 5 }, { r: rokok[2], qty: 2 }],
-      }
+    const pengeluaranData = [
+      { tanggal: new Date("2026-04-25"), jumlah: 50000, keterangan: "Bensin Motor Budi" },
+      { tanggal: new Date("2026-04-26"), jumlah: 250000, keterangan: "Makan Siang Kantor" },
+      { tanggal: new Date("2026-04-28"), jumlah: 15000, keterangan: "Parkir & Tol" },
     ]
+    for (const p of pengeluaranData) await tx.pengeluaran.create({ data: p })
 
-    for (const s of sesiLama) {
-      // Check if exists
-      const exist = await tx.sesiHarian.findFirst({ where: { tanggal: s.tanggal, sales_id: s.sales_id } })
-      if (!exist) {
-        const sesi = await tx.sesiHarian.create({
-          data: {
-            tanggal:  s.tanggal,
-            sales_id: s.sales_id,
-            status:   s.status,
-            barangKeluar: {
-              create: s.keluar.map((it) => ({ rokok_id: it.r.id, qty: it.qty })),
-            },
-            penjualan: {
-              create: s.penjualan.map((it) => ({
-                rokok_id: it.r.id,
-                kategori: it.kategori,
-                qty:      it.qty,
-                harga:    it.kategori === "grosir" ? it.r.harga_grosir : it.kategori === "toko" ? it.r.harga_toko : it.r.harga_perorangan,
-              })),
-            },
-            setoran: {
-              create: s.setoran,
-            },
-            barangKembali: {
-              create: s.kembali.map((it) => ({ rokok_id: it.r.id, qty: it.qty })),
-            },
-          },
-          include: { barangKeluar: true, barangKembali: true }
-        })
+    // ─── Sesi Distribusi & Ledger ─────────────────────────────────────────────
+    // Sesi 1: Selesai
+    const tgl1 = "2026-04-28"
+    const sesi1 = await tx.sesiHarian.create({
+      data: {
+        tanggal: new Date(tgl1),
+        sales_id: sales["Budi Santoso"].id,
+        status: "selesai",
+        barangKeluar: { create: [{ rokok_id: rokok["Gudang Garam Surya 12"].id, qty: 50 }] },
+        penjualan: { create: [{ rokok_id: rokok["Gudang Garam Surya 12"].id, kategori: "toko", qty: 45, harga: 23000 }] },
+        barangKembali: { create: [{ rokok_id: rokok["Gudang Garam Surya 12"].id, qty: 5 }] },
+        setoran: { create: [{ metode: "cash", jumlah: 45 * 23000 }] }
+      }
+    })
+    await mutateStock(tx, { rokok_id: rokok["Gudang Garam Surya 12"].id, tanggal: tgl1, jenis: "out", qty: 50, source: "distribusi_sales", reference_id: sesi1.id, user_id: superadmin.id })
+    await mutateStock(tx, { rokok_id: rokok["Gudang Garam Surya 12"].id, tanggal: tgl1, jenis: "in", qty: 5, source: "retur_sales", reference_id: sesi1.id, user_id: superadmin.id })
 
-        // Mutations for barang keluar
-        for (const bk of sesi.barangKeluar) {
-          await mutateStock(tx, { rokok_id: bk.rokok_id, tanggal: s.tanggal, jenis: 'out', qty: bk.qty, source: 'distribusi_sales', reference_id: sesi.id })
-          await updateStockCache(tx, bk.rokok_id)
-        }
-        
-        // Mutations for barang kembali
-        for (const bk of sesi.barangKembali) {
-          await mutateStock(tx, { rokok_id: bk.rokok_id, tanggal: s.tanggal, jenis: 'in', qty: bk.qty, source: 'retur_sales', reference_id: sesi.id })
-          await updateStockCache(tx, bk.rokok_id)
+    // Sesi 2: Aktif (Sedang jalan)
+    const tgl2 = "2026-04-30"
+    const sesi2 = await tx.sesiHarian.create({
+      data: {
+        tanggal: new Date(tgl2),
+        sales_id: sales["Agus Prasetyo"].id,
+        status: "aktif",
+        barangKeluar: {
+          create: [
+            { rokok_id: rokok["Sampoerna A Mild 16"].id, qty: 30 },
+            { rokok_id: rokok["LA Bold"].id, qty: 20 },
+          ]
         }
       }
-    }
+    })
+    await mutateStock(tx, { rokok_id: rokok["Sampoerna A Mild 16"].id, tanggal: tgl2, jenis: "out", qty: 30, source: "distribusi_sales", reference_id: sesi2.id, user_id: superadmin.id })
+    await mutateStock(tx, { rokok_id: rokok["LA Bold"].id, tanggal: tgl2, jenis: "out", qty: 20, source: "distribusi_sales", reference_id: sesi2.id, user_id: superadmin.id })
 
-    // ─── Titip Jual (Selesai & Aktif) ──────────────────────────────────────────
-    const tjExist = await tx.titipJual.count()
-    if (tjExist === 0) {
-      const sesiLama0 = await tx.sesiHarian.findFirst({ where: { sales_id: sales[0].id, tanggal: new Date("2026-03-10") } })
-      
-      const tj1 = await tx.titipJual.create({
-        data: {
-          sesi_id:             sesiLama0.id,
-          sales_id:            sales[0].id,
-          toko_id:             toko[0].id,
-          kategori:            "toko",
-          tanggal_jatuh_tempo: new Date("2026-03-20"),
-          status:              "selesai",
-          items: {
-            create: [
-              { rokok_id: rokok[0].id, qty_keluar: 10, qty_terjual: 8, qty_kembali: 2, harga: rokok[0].harga_toko },
-            ],
-          },
-          setoran: {
-            create: [{ metode: "cash", jumlah: 8 * rokok[0].harga_toko, tanggal: new Date("2026-03-20") }],
-          },
+    // ─── Titip Jual (Konsinyasi) ──────────────────────────────────────────────
+    // 1. Konsinyasi Selesai
+    const tj1 = await tx.titipJual.create({
+      data: {
+        sesi_id: sesi1.id,
+        sales_id: sales["Budi Santoso"].id,
+        toko_id: toko["Toko Berkah"].id,
+        kategori: "toko",
+        tanggal_jatuh_tempo: new Date("2026-05-05"),
+        status: "selesai",
+        tanggal_selesai: new Date("2026-04-29"),
+        items: {
+          create: [{ rokok_id: rokok["Dji Sam Soe 234"].id, qty_keluar: 10, qty_terjual: 9, qty_kembali: 1, harga: 28500 }]
         },
-        include: { items: true }
-      })
-
-      // Add mutation
-      for (const item of tj1.items) {
-        await mutateStock(tx, { rokok_id: item.rokok_id, tanggal: tj1.createdAt, jenis: 'out', qty: item.qty_keluar, source: 'distribusi_sales', reference_id: tj1.id })
-        await mutateStock(tx, { rokok_id: item.rokok_id, tanggal: tj1.createdAt, jenis: 'in', qty: item.qty_kembali, source: 'konsinyasi_kembali', reference_id: tj1.id })
-        await updateStockCache(tx, item.rokok_id)
+        setoran: { create: [{ metode: "transfer", jumlah: 9 * 28500, tanggal: new Date("2026-04-29") }] }
       }
+    })
+    await mutateStock(tx, { rokok_id: rokok["Dji Sam Soe 234"].id, tanggal: tgl1, jenis: "out", qty: 10, source: "distribusi_sales", reference_id: tj1.id, user_id: superadmin.id })
+    await mutateStock(tx, { rokok_id: rokok["Dji Sam Soe 234"].id, tanggal: "2026-04-29", jenis: "in", qty: 1, source: "konsinyasi_kembali", reference_id: tj1.id, user_id: superadmin.id })
+
+    // 2. Konsinyasi Aktif (Jatuh tempo dekat)
+    await tx.titipJual.create({
+      data: {
+        sesi_id: sesi2.id,
+        sales_id: sales["Agus Prasetyo"].id,
+        toko_id: toko["Grosir Jaya"].id,
+        kategori: "grosir",
+        tanggal_jatuh_tempo: new Date("2026-05-01"), // Besok!
+        status: "aktif",
+        items: {
+          create: [{ rokok_id: rokok["Marlboro Merah"].id, qty_keluar: 15, harga: 31000 }]
+        }
+      }
+    })
+    await mutateStock(tx, { rokok_id: rokok["Marlboro Merah"].id, tanggal: tgl2, jenis: "out", qty: 15, source: "distribusi_sales", reference_id: "tj_aktif", user_id: superadmin.id })
+
+    // ─── Re-Sync Cache Stok ───────────────────────────────────────────────────
+    const allRokok = await tx.rokok.findMany()
+    for (const r of allRokok) {
+      const muts = await tx.stockMutation.groupBy({
+        by: ["jenis"],
+        where: { rokok_id: r.id },
+        _sum: { qty: true }
+      })
+      const totalIn = muts.find(m => m.jenis === "in")?._sum.qty || 0
+      const totalOut = muts.find(m => m.jenis === "out")?._sum.qty || 0
+      await tx.rokok.update({ where: { id: r.id }, data: { stok: totalIn - totalOut } })
     }
   })
 
-  console.log("Seed (dengan ledger mutations) selesai!")
+  console.log("Seed Lengkap (Distribusi, Konsinyasi, Pengeluaran) Berhasil!")
 }
 
 main()

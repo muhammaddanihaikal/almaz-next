@@ -2,7 +2,8 @@
 
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
-import { mutateStock } from "@/lib/stock"
+import { mutateStock, MUTATION_SOURCE } from "@/lib/stock"
+import { auth } from "@/lib/auth"
 
 export async function getRokokList() {
   try {
@@ -62,14 +63,17 @@ export async function addRokok(data) {
           keterangan: "Stok Awal",
         },
       })
+      const session = await auth()
       await mutateStock({
         tx,
         rokok_id: r.id,
         tanggal: new Date(),
         jenis: 'in',
         qty: r.stok,
-        source: 'supplier',
-        reference_id: sm.id
+        source: MUTATION_SOURCE.STOK_AWAL,
+        reference_id: sm.id,
+        keterangan: `Stok awal saat data rokok dibuat`,
+        user_id: session?.user?.id || null,
       })
     }
   })
@@ -113,14 +117,17 @@ export async function tambahStok(id, qty, date, keterangan) {
       },
     })
     
+    const session = await auth()
     await mutateStock({
       tx,
       rokok_id: id,
       tanggal: new Date(date),
       jenis: 'in',
       qty: qty,
-      source: 'supplier',
-      reference_id: sm.id
+      source: MUTATION_SOURCE.SUPPLIER,
+      reference_id: sm.id,
+      keterangan: keterangan || "Stok Masuk dari Supplier",
+      user_id: session?.user?.id || null,
     })
   })
   revalidatePath("/rokok")
@@ -223,4 +230,22 @@ export async function getMutasiStok(startDate, endDate) {
   }
 
   return report.reverse()
+}
+
+export async function koreksiStok(id, qty, jenis, keterangan) {
+  const session = await auth()
+  await prisma.$transaction(async (tx) => {
+    await mutateStock({
+      tx,
+      rokok_id: id,
+      tanggal: new Date(),
+      jenis, // 'in' or 'out'
+      qty,
+      source: MUTATION_SOURCE.KOREKSI,
+      reference_id: "manual",
+      keterangan: keterangan || "Koreksi manual admin",
+      user_id: session?.user?.id || null,
+    })
+  })
+  revalidatePath("/rokok")
 }

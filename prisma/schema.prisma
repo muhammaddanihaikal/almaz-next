@@ -18,6 +18,8 @@ model User {
   aktif     Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  stockMutations StockMutation[]
 }
 
 // ─── MASTER DATA ─────────────────────────────────────────────────────────────
@@ -248,12 +250,15 @@ model StockMutation {
   tanggal      DateTime @db.Date
   jenis        String   // "in" | "out"
   qty          Int
-  source       String   // "supplier", "distribusi_sales", "retur_sales", "retur", "adjustment", dll
-  reference_id String?  // Optional: ID transaksi asal (misal ID StokMasuk, SesiBarangKeluar, dll)
+  source       String   // "stok_awal", "adjustment", "koreksi", "penjualan", "distribusi_sales", "retur_sales", "retur", "konsinyasi_keluar", "konsinyasi_kembali"
+  reference_id String?  // Optional: ID transaksi asal
+  keterangan   String?  // Optional: Catatan tambahan untuk mutasi ini
+  user_id      String?  // Optional: User yang melakukan mutasi
   createdAt    DateTime @default(now())
   updatedAt    DateTime @default(now()) @updatedAt
 
   rokok Rokok @relation(fields: [rokok_id], references: [id], onDelete: Cascade)
+  user  User? @relation(fields: [user_id], references: [id])
 
   @@index([rokok_id, tanggal])
 }

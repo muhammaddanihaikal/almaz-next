@@ -2,7 +2,8 @@
 
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
-import { mutateStock } from "@/lib/stock"
+import { mutateStock, MUTATION_SOURCE } from "@/lib/stock"
+import { auth } from "@/lib/auth"
 
 const include = {
   sales: true,
@@ -86,6 +87,7 @@ export async function settleTitipJual(id, data) {
   const today = new Date(data.tanggal || new Date().toISOString().split("T")[0])
 
   await prisma.$transaction(async (tx) => {
+    const session = await auth()
     for (const it of data.items) {
       await tx.titipJualItem.update({
         where: { id: it.id },
@@ -98,8 +100,9 @@ export async function settleTitipJual(id, data) {
           tanggal: data.tanggal || new Date().toISOString().split("T")[0],
           jenis: 'in',
           qty: it.qty_kembali,
-          source: 'konsinyasi_kembali',
-          reference_id: id
+          source: MUTATION_SOURCE.KONSINYASI_KEMBALI,
+          reference_id: id,
+          user_id: session?.user?.id
         })
       }
     }
@@ -144,6 +147,7 @@ export async function deleteTitipJual(id) {
   await prisma.$transaction(async (tx) => {
     const k = await tx.titipJual.findUnique({ where: { id }, include: { items: true } })
     if (k.status !== "aktif") throw new Error("Hanya titip jual aktif yang bisa dihapus")
+    const session = await auth()
     for (const it of k.items) {
       await mutateStock({
         tx,
@@ -151,8 +155,10 @@ export async function deleteTitipJual(id) {
         tanggal: k.createdAt, // Or today
         jenis: 'in',
         qty: it.qty_keluar,
-        source: 'konsinyasi_delete_revert',
-        reference_id: id
+        source: MUTATION_SOURCE.REVERT,
+        reference_id: id,
+        keterangan: "Revert titip jual keluar (delete)",
+        user_id: session?.user?.id
       })
     }
     await tx.titipJual.delete({ where: { id } })
@@ -199,6 +205,7 @@ export async function editSettlement(id, data) {
   const today = new Date(data.tanggal || new Date().toISOString().split("T")[0])
 
   await prisma.$transaction(async (tx) => {
+    const session = await auth()
     const old = await tx.titipJual.findUnique({ where: { id }, include: { items: true } })
 
     for (const it of old.items) {
@@ -209,8 +216,10 @@ export async function editSettlement(id, data) {
           tanggal: data.tanggal || new Date().toISOString().split("T")[0],
           jenis: 'out',
           qty: it.qty_kembali,
-          source: 'konsinyasi_kembali_edit_revert',
-          reference_id: id
+          source: MUTATION_SOURCE.REVERT,
+          reference_id: id,
+          keterangan: "Revert titip jual kembali (edit settlement)",
+          user_id: session?.user?.id
         })
       }
     }
@@ -227,8 +236,9 @@ export async function editSettlement(id, data) {
           tanggal: data.tanggal || new Date().toISOString().split("T")[0],
           jenis: 'in',
           qty: it.qty_kembali,
-          source: 'konsinyasi_kembali',
-          reference_id: id
+          source: MUTATION_SOURCE.KONSINYASI_KEMBALI,
+          reference_id: id,
+          user_id: session?.user?.id
         })
       }
     }
@@ -254,6 +264,7 @@ export async function editSettlement(id, data) {
 
 export async function revertSettlement(id) {
   await prisma.$transaction(async (tx) => {
+    const session = await auth()
     const old = await tx.titipJual.findUnique({ where: { id }, include: { items: true } })
 
     for (const it of old.items) {
@@ -264,8 +275,10 @@ export async function revertSettlement(id) {
           tanggal: new Date().toISOString().split("T")[0],
           jenis: 'out',
           qty: it.qty_kembali,
-          source: 'konsinyasi_kembali_revert',
-          reference_id: id
+          source: MUTATION_SOURCE.REVERT,
+          reference_id: id,
+          keterangan: "Revert titip jual kembali (revert settlement)",
+          user_id: session?.user?.id
         })
       }
       await tx.titipJualItem.update({

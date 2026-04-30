@@ -2,7 +2,8 @@
 
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
-import { mutateStock } from "@/lib/stock"
+import { mutateStock, MUTATION_SOURCE } from "@/lib/stock"
+import { auth } from "@/lib/auth"
 
 const include = {
   sales: true,
@@ -108,6 +109,7 @@ export async function createSesi(data) {
         },
       },
     })
+    const session = await auth()
     for (const it of data.barangKeluar || []) {
       await mutateStock({
         tx,
@@ -115,8 +117,9 @@ export async function createSesi(data) {
         tanggal: data.tanggal,
         jenis: 'out',
         qty: it.qty,
-        source: 'distribusi_sales',
-        reference_id: sesi.id
+        source: MUTATION_SOURCE.DISTRIBUSI,
+        reference_id: sesi.id,
+        user_id: session?.user?.id
       })
     }
     return sesi
@@ -131,6 +134,7 @@ export async function updateSesiPagi(id, data) {
       where: { id },
       include: { barangKeluar: true },
     })
+    const session = await auth()
     for (const it of old.barangKeluar) {
       await mutateStock({
         tx,
@@ -138,8 +142,10 @@ export async function updateSesiPagi(id, data) {
         tanggal: data.tanggal,
         jenis: 'in',
         qty: it.qty,
-        source: 'distribusi_sales_edit_revert',
-        reference_id: id
+        source: MUTATION_SOURCE.REVERT,
+        reference_id: id,
+        keterangan: "Revert distribusi pagi (edit)",
+        user_id: session?.user?.id
       })
     }
     await tx.sesiBarangKeluar.deleteMany({ where: { sesi_id: id } })
@@ -164,8 +170,9 @@ export async function updateSesiPagi(id, data) {
         tanggal: data.tanggal,
         jenis: 'out',
         qty: it.qty,
-        source: 'distribusi_sales',
-        reference_id: id
+        source: MUTATION_SOURCE.DISTRIBUSI,
+        reference_id: id,
+        user_id: session?.user?.id
       })
     }
   })
@@ -184,6 +191,7 @@ export async function submitLaporanSore(id, data) {
     await tx.sesiPenjualan.deleteMany({ where: { sesi_id: id } })
     await tx.sesiSetoran.deleteMany({   where: { sesi_id: id } })
 
+    const session = await auth()
     const oldKembali = await tx.sesiBarangKembali.findMany({ where: { sesi_id: id } })
     for (const it of oldKembali) {
       await mutateStock({
@@ -192,8 +200,10 @@ export async function submitLaporanSore(id, data) {
         tanggal: data.tanggal,
         jenis: 'out',
         qty: it.qty,
-        source: 'retur_sales_edit_revert',
-        reference_id: id
+        source: MUTATION_SOURCE.REVERT,
+        reference_id: id,
+        keterangan: "Revert retur sales (edit)",
+        user_id: session?.user?.id
       })
     }
     await tx.sesiBarangKembali.deleteMany({ where: { sesi_id: id } })
@@ -225,8 +235,9 @@ export async function submitLaporanSore(id, data) {
         tanggal: data.tanggal,
         jenis: 'in',
         qty: it.qty,
-        source: 'retur_sales',
-        reference_id: id
+        source: MUTATION_SOURCE.RETUR_SALES,
+        reference_id: id,
+        user_id: session?.user?.id
       })
     }
 
@@ -265,8 +276,9 @@ export async function submitLaporanSore(id, data) {
             tanggal: data.tanggal,
             jenis: 'in',
             qty: it.qty_kembali,
-            source: 'konsinyasi_kembali',
-            reference_id: p.konsinyasi_id
+            source: MUTATION_SOURCE.KONSINYASI_KEMBALI,
+            reference_id: p.konsinyasi_id,
+            user_id: session?.user?.id
           })
         }
       }
@@ -304,6 +316,7 @@ export async function editLaporanSore(id, data) {
 
   await prisma.$transaction(async (tx) => {
     // Reverse stok dari barang kembali lama
+    const session = await auth()
     const oldKembali = await tx.sesiBarangKembali.findMany({ where: { sesi_id: id } })
     for (const it of oldKembali) {
       await mutateStock({
@@ -312,8 +325,10 @@ export async function editLaporanSore(id, data) {
         tanggal: data.tanggal,
         jenis: 'out',
         qty: it.qty,
-        source: 'retur_sales_edit_revert',
-        reference_id: id
+        source: MUTATION_SOURCE.REVERT,
+        reference_id: id,
+        keterangan: "Revert retur sales (edit sore)",
+        user_id: session?.user?.id
       })
     }
 
@@ -352,8 +367,9 @@ export async function editLaporanSore(id, data) {
         tanggal: data.tanggal,
         jenis: 'in',
         qty: it.qty,
-        source: 'retur_sales',
-        reference_id: id
+        source: MUTATION_SOURCE.RETUR_SALES,
+        reference_id: id,
+        user_id: session?.user?.id
       })
     }
 
@@ -399,6 +415,7 @@ export async function deleteSesi(id) {
     if (!sesi) return
 
     // 1. Revert stok dari barang keluar (pagi)
+    const session = await auth()
     for (const it of sesi.barangKeluar) {
       await mutateStock({
         tx,
@@ -406,8 +423,10 @@ export async function deleteSesi(id) {
         tanggal: sesi.tanggal,
         jenis: 'in',
         qty: it.qty,
-        source: 'distribusi_sales_delete_revert',
-        reference_id: id
+        source: MUTATION_SOURCE.REVERT,
+        reference_id: id,
+        keterangan: "Revert distribusi pagi (delete sesi)",
+        user_id: session?.user?.id
       })
     }
 
@@ -419,8 +438,10 @@ export async function deleteSesi(id) {
         tanggal: sesi.tanggal,
         jenis: 'out',
         qty: it.qty,
-        source: 'retur_sales_delete_revert',
-        reference_id: id
+        source: MUTATION_SOURCE.REVERT,
+        reference_id: id,
+        keterangan: "Revert retur sales (delete sesi)",
+        user_id: session?.user?.id
       })
     }
 
@@ -448,8 +469,10 @@ export async function deleteSesi(id) {
               tanggal: sesi.tanggal,
               jenis: 'out',
               qty: it.qty_kembali,
-              source: 'konsinyasi_kembali_delete_revert',
-              reference_id: tjId
+              source: MUTATION_SOURCE.REVERT,
+              reference_id: tjId,
+              keterangan: "Revert konsinyasi kembali (delete sesi)",
+              user_id: session?.user?.id
             })
           }
         }
@@ -478,8 +501,10 @@ export async function deleteSesi(id) {
             tanggal: sesi.tanggal,
             jenis: 'out',
             qty: it.qty_kembali,
-            source: 'konsinyasi_kembali_delete_revert',
-            reference_id: k.id
+            source: MUTATION_SOURCE.REVERT,
+            reference_id: k.id,
+            keterangan: "Revert konsinyasi kembali (delete sesi/titip jual baru)",
+            user_id: session?.user?.id
           })
         }
       }
