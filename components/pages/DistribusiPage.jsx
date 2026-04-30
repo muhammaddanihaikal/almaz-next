@@ -4,7 +4,7 @@ import { useMemo, useState, Fragment } from "react"
 import { useRouter } from "next/navigation"
 import { Plus, Trash2, AlertCircle, ChevronDown, ChevronUp, Download } from "lucide-react"
 import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc } from "@/lib/utils"
-import { createSesi, updateSesiPagi, submitLaporanSore, editLaporanSore, deleteSesi } from "@/actions/distribusi"
+import { createSesi, updateSesiPagi, submitLaporanSore, editLaporanSore, deleteSesi, deleteBulkSesi } from "@/actions/distribusi"
 import { settleTitipJual, createTitipJual, editSettlement, revertSettlement, editTitipJualDetail, deleteTitipJual } from "@/actions/titip_jual"
 import { addToko } from "@/actions/toko"
 import SettlementForm from "@/components/SettlementForm"
@@ -360,6 +360,7 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
   const [rokokFilter, setRokokFilter] = useState([])
   const [statusFilter, setStatusFilter] = useState("")
   const [showExportMenu, setShowExportMenu] = useState(false)
+  const [selectedIds, setSelectedIds] = useState([])
 
   const rows = useMemo(() => {
     let temp = [...sesiList]
@@ -397,10 +398,25 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
   const close = () => { setMode(null); setEditing(null) }
 
   const handleDelete = async (r) => {
-    const ok = await confirm(`Hapus sesi ${r.sales} — ${fmtTanggal(r.tanggal)}?`, { title: "Hapus Sesi", variant: "danger", confirmLabel: "Ya, Hapus" })
+    const ok = await confirm(`Hapus sesi ${r.sales} — ${fmtTanggal(r.tanggal)}?`, {
+      title: "Hapus Sesi",
+      variant: "danger",
+      confirmLabel: "Ya, Hapus"
+    })
     if (!ok) return
-    // Assuming deleteSesi is available or we use an API
-    // await deleteSesi(r.id)
+    await deleteSesi(r.id)
+    router.refresh()
+  }
+
+  const handleDeleteBulk = async () => {
+    const ok = await confirm(`Hapus ${selectedIds.length} sesi yang terpilih?`, {
+      title: "Hapus Masal",
+      variant: "danger",
+      confirmLabel: "Ya, Hapus Semua"
+    })
+    if (!ok) return
+    await deleteBulkSesi(selectedIds)
+    setSelectedIds([])
     router.refresh()
   }
 
@@ -462,6 +478,16 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
                 </>
               )}
             </div>
+            {selectedIds.length > 0 && (
+              <Button
+                variant="ghost"
+                className="text-red-600 hover:bg-red-50"
+                onClick={handleDeleteBulk}
+                icon={Trash2}
+              >
+                Hapus ({selectedIds.length})
+              </Button>
+            )}
             <PrimaryButton onClick={() => { setEditing(null); setMode("add") }} icon={Plus}>
               Buat Sesi
             </PrimaryButton>
@@ -518,7 +544,32 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
           rows={rows}
           empty="Belum ada sesi distribusi."
           columns={[
-            { key: "no",      label: "No",      render: (_, idx) => idx + 1 },
+            {
+              key: "select",
+              label: (
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-neutral-300 text-blue-600 focus:ring-blue-500"
+                  checked={selectedIds.length > 0 && selectedIds.length === rows.length}
+                  onChange={(e) => {
+                    if (e.target.checked) setSelectedIds(rows.map(r => r.id))
+                    else setSelectedIds([])
+                  }}
+                />
+              ),
+              render: (r) => (
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-neutral-300 text-blue-600 focus:ring-blue-500"
+                  checked={selectedIds.includes(r.id)}
+                  onChange={(e) => {
+                    if (e.target.checked) setSelectedIds([...selectedIds, r.id])
+                    else setSelectedIds(selectedIds.filter(id => id !== r.id))
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              )
+            },
             { key: "tanggal", label: "Tanggal", render: (r) => fmtTanggal(r.tanggal) },
             { key: "sales",   label: "Sales",   render: (r) => r.sales },
             {

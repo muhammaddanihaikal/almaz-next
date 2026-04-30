@@ -429,3 +429,9 @@ export async function deleteSesi(id) {
   revalidatePath("/titip-jual")
   revalidatePath("/")
 }
+
+export async function deleteBulkSesi(ids) {
+  for (const id of ids) {
+    await deleteSesi(id)
+  }
+}
