@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { mutateStock } from "@/lib/stock"
 
 export async function getRokokList() {
   try {
@@ -53,13 +54,22 @@ export async function addRokok(data) {
       },
     })
     if (r.stok > 0) {
-      await tx.stokMasuk.create({
+      const sm = await tx.stokMasuk.create({
         data: {
           rokok_id: r.id,
           qty:      r.stok,
           tanggal:  new Date(),
           keterangan: "Stok Awal",
         },
+      })
+      await mutateStock({
+        tx,
+        rokok_id: r.id,
+        tanggal: new Date(),
+        jenis: 'in',
+        qty: r.stok,
+        source: 'supplier',
+        reference_id: sm.id
       })
     }
   })
@@ -71,7 +81,7 @@ export async function updateRokok(id, data) {
     where: { id },
     data: {
       nama: data.nama,
-      stok: Number(data.stok) || 0,
+      // stok: Number(data.stok) || 0, // Dihapus: stok diatur oleh stock_mutations
       harga_beli: Number(data.harga_beli),
       harga_grosir: Number(data.harga_grosir),
       harga_toko: Number(data.harga_toko),
@@ -94,7 +104,7 @@ export async function toggleAktifRokok(id) {
 
 export async function tambahStok(id, qty, date, keterangan) {
   await prisma.$transaction(async (tx) => {
-    await tx.stokMasuk.create({
+    const sm = await tx.stokMasuk.create({
       data: {
         rokok_id: id,
         qty:      qty,
@@ -102,9 +112,15 @@ export async function tambahStok(id, qty, date, keterangan) {
         keterangan: keterangan || "Stok Masuk",
       },
     })
-    await tx.rokok.update({
-      where: { id },
-      data: { stok: { increment: qty } },
+    
+    await mutateStock({
+      tx,
+      rokok_id: id,
+      tanggal: new Date(date),
+      jenis: 'in',
+      qty: qty,
+      source: 'supplier',
+      reference_id: sm.id
     })
   })
   revalidatePath("/rokok")
@@ -131,21 +147,8 @@ export async function updateRokokOrder(items) {
   }
 }
 export async function getUsedRokokIds() {
-  const [keluar, jual, kembali, konsinyasi, retur] = await Promise.all([
-    prisma.sesiBarangKeluar.findMany({ select: { rokok_id: true }, distinct: ["rokok_id"] }),
-    prisma.sesiPenjualan.findMany({ select: { rokok_id: true }, distinct: ["rokok_id"] }),
-    prisma.sesiBarangKembali.findMany({ select: { rokok_id: true }, distinct: ["rokok_id"] }),
-    prisma.titipJualItem.findMany({ select: { rokok_id: true }, distinct: ["rokok_id"] }),
-    prisma.returItem.findMany({ select: { rokok_id: true }, distinct: ["rokok_id"] }),
-  ])
-  const ids = new Set([
-    ...keluar.map(i => i.rokok_id),
-    ...jual.map(i => i.rokok_id),
-    ...kembali.map(i => i.rokok_id),
-    ...konsinyasi.map(i => i.rokok_id),
-    ...retur.map(i => i.rokok_id),
-  ])
-  return Array.from(ids)
+  const mutations = await prisma.stockMutation.findMany({ select: { rokok_id: true }, distinct: ["rokok_id"] })
+  return mutations.map(m => m.rokok_id)
 }
 
 export async function getMutasiStok(startDate, endDate) {
@@ -155,29 +158,24 @@ export async function getMutasiStok(startDate, endDate) {
   const rokokList = await prisma.rokok.findMany({ orderBy: { urutan: "asc" } })
 
   // 1. Get initial balance before startDate
-  const [preMasuk, preKeluar, preKembali, preRetur] = await Promise.all([
-    prisma.stokMasuk.groupBy({ by: ["rokok_id"], where: { tanggal: { lt: start } }, _sum: { qty: true } }),
-    prisma.sesiBarangKeluar.groupBy({ by: ["rokok_id"], where: { sesi: { tanggal: { lt: start } } }, _sum: { qty: true } }),
-    prisma.sesiBarangKembali.groupBy({ by: ["rokok_id"], where: { sesi: { tanggal: { lt: start } } }, _sum: { qty: true } }),
-    prisma.returItem.groupBy({ by: ["rokok_id"], where: { retur: { tanggal: { lt: start } } }, _sum: { qty: true } }),
-  ])
+  const preMutations = await prisma.stockMutation.groupBy({
+    by: ["rokok_id", "jenis"],
+    where: { tanggal: { lt: start } },
+    _sum: { qty: true }
+  })
 
   const initialBalances = {}
   for (const r of rokokList) {
-    const masuk   = preMasuk.find((it) => it.rokok_id === r.id)?._sum.qty || 0
-    const keluar  = preKeluar.find((it) => it.rokok_id === r.id)?._sum.qty || 0
-    const kembali = preKembali.find((it) => it.rokok_id === r.id)?._sum.qty || 0
-    const retur   = preRetur.find((it) => it.rokok_id === r.id)?._sum.qty || 0
-    initialBalances[r.id] = masuk - keluar + kembali + retur
+    const inQty = preMutations.find(m => m.rokok_id === r.id && m.jenis === 'in')?._sum.qty || 0
+    const outQty = preMutations.find(m => m.rokok_id === r.id && m.jenis === 'out')?._sum.qty || 0
+    initialBalances[r.id] = inQty - outQty
   }
 
   // 2. Get activity in range
-  const [inMasuk, inKeluar, inKembali, inRetur] = await Promise.all([
-    prisma.stokMasuk.findMany({ where: { tanggal: { gte: start, lte: end } }, orderBy: { tanggal: "asc" } }),
-    prisma.sesiBarangKeluar.findMany({ where: { sesi: { tanggal: { gte: start, lte: end } } }, include: { sesi: true } }),
-    prisma.sesiBarangKembali.findMany({ where: { sesi: { tanggal: { gte: start, lte: end } } }, include: { sesi: true } }),
-    prisma.returItem.findMany({ where: { retur: { tanggal: { gte: start, lte: end } } }, include: { retur: true } }),
-  ])
+  const inRangeMutations = await prisma.stockMutation.findMany({
+    where: { tanggal: { gte: start, lte: end } },
+    orderBy: { tanggal: "asc" }
+  })
 
   // 3. Build daily summary
   const report = []
@@ -189,26 +187,30 @@ export async function getMutasiStok(startDate, endDate) {
     const dayRows = []
 
     for (const r of rokokList) {
-      const masuk   = inMasuk.filter((it) => it.rokok_id === r.id && it.tanggal.toISOString().split("T")[0] === dStr).reduce((s, it) => s + it.qty, 0)
-      const keluar  = inKeluar.filter((it) => it.rokok_id === r.id && it.sesi.tanggal.toISOString().split("T")[0] === dStr).reduce((s, it) => s + it.qty, 0)
-      const kembali = inKembali.filter((it) => it.rokok_id === r.id && it.sesi.tanggal.toISOString().split("T")[0] === dStr).reduce((s, it) => s + it.qty, 0)
-      const retur   = inRetur.filter((it) => it.rokok_id === r.id && it.retur.tanggal.toISOString().split("T")[0] === dStr).reduce((s, it) => s + it.qty, 0)
+      const todayMuts = inRangeMutations.filter(m => m.rokok_id === r.id && m.tanggal.toISOString().split("T")[0] === dStr)
+      
+      const totalMasuk = todayMuts.filter(m => m.jenis === 'in').reduce((s, m) => s + m.qty, 0)
+      const totalKeluar = todayMuts.filter(m => m.jenis === 'out').reduce((s, m) => s + m.qty, 0)
+      
+      // Keep old detail mapping for UI compatibility (supplier=masuk, retur_sales=kembali, retur=retur)
+      const detail_masuk = todayMuts.filter(m => m.jenis === 'in' && m.source === 'supplier').reduce((s, m) => s + m.qty, 0)
+      const detail_kembali = todayMuts.filter(m => m.jenis === 'in' && m.source === 'retur_sales').reduce((s, m) => s + m.qty, 0)
+      const detail_retur = todayMuts.filter(m => m.jenis === 'in' && m.source === 'retur').reduce((s, m) => s + m.qty, 0)
 
       const awal = currentBalances[r.id]
-      const totalMasuk = masuk + kembali + retur
-      const akhir = awal + totalMasuk - keluar
+      const akhir = awal + totalMasuk - totalKeluar
 
-      if (awal !== 0 || totalMasuk !== 0 || keluar !== 0) {
+      if (awal !== 0 || totalMasuk !== 0 || totalKeluar !== 0) {
         dayRows.push({
           rokok_id: r.id,
           nama:     r.nama,
           awal,
           masuk:    totalMasuk,
-          keluar,
+          keluar:   totalKeluar,
           akhir,
-          detail_masuk: masuk,
-          detail_kembali: kembali,
-          detail_retur: retur
+          detail_masuk,
+          detail_kembali,
+          detail_retur
         })
       }
       currentBalances[r.id] = akhir

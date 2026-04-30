@@ -53,6 +53,8 @@ model Rokok {
   titipJualItems    TitipJualItem[]
   returItems        ReturItem[]
   stokMasuk         StokMasuk[]
+  stockMutations    StockMutation[]
+  closingHarian     ClosingHarian[]
 }
 
 model StokMasuk {
@@ -238,3 +240,33 @@ model ReturItem {
   rokok Rokok @relation(fields: [rokok_id], references: [id])
 }
 
+// ─── STOK (LEDGER BASED) ────────────────────────────────────────────────────────
+
+model StockMutation {
+  id           String   @id @default(cuid())
+  rokok_id     String
+  tanggal      DateTime @db.Date
+  jenis        String   // "in" | "out"
+  qty          Int
+  source       String   // "supplier", "distribusi_sales", "retur_sales", "retur", "adjustment", dll
+  reference_id String?  // Optional: ID transaksi asal (misal ID StokMasuk, SesiBarangKeluar, dll)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
+
+  rokok Rokok @relation(fields: [rokok_id], references: [id], onDelete: Cascade)
+
+  @@index([rokok_id, tanggal])
+}
+
+model ClosingHarian {
+  id         String   @id @default(cuid())
+  tanggal    DateTime @db.Date
+  rokok_id   String
+  stok_akhir Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+
+  rokok Rokok @relation(fields: [rokok_id], references: [id], onDelete: Cascade)
+
+  @@unique([tanggal, rokok_id])
+}

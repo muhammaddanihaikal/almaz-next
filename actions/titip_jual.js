@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { mutateStock } from "@/lib/stock"
 
 const include = {
   sales: true,
@@ -91,9 +92,14 @@ export async function settleTitipJual(id, data) {
         data:  { qty_terjual: it.qty_terjual, qty_kembali: it.qty_kembali },
       })
       if (it.qty_kembali > 0) {
-        await tx.rokok.update({
-          where: { id: it.rokok_id },
-          data:  { stok: { increment: it.qty_kembali } },
+        await mutateStock({
+          tx,
+          rokok_id: it.rokok_id,
+          tanggal: data.tanggal || new Date().toISOString().split("T")[0],
+          jenis: 'in',
+          qty: it.qty_kembali,
+          source: 'konsinyasi_kembali',
+          reference_id: id
         })
       }
     }
@@ -139,7 +145,15 @@ export async function deleteTitipJual(id) {
     const k = await tx.titipJual.findUnique({ where: { id }, include: { items: true } })
     if (k.status !== "aktif") throw new Error("Hanya titip jual aktif yang bisa dihapus")
     for (const it of k.items) {
-      await tx.rokok.update({ where: { id: it.rokok_id }, data: { stok: { increment: it.qty_keluar } } })
+      await mutateStock({
+        tx,
+        rokok_id: it.rokok_id,
+        tanggal: k.createdAt, // Or today
+        jenis: 'in',
+        qty: it.qty_keluar,
+        source: 'konsinyasi_delete_revert',
+        reference_id: id
+      })
     }
     await tx.titipJual.delete({ where: { id } })
   })
@@ -189,7 +203,15 @@ export async function editSettlement(id, data) {
 
     for (const it of old.items) {
       if (it.qty_kembali > 0) {
-        await tx.rokok.update({ where: { id: it.rokok_id }, data: { stok: { decrement: it.qty_kembali } } })
+        await mutateStock({
+          tx,
+          rokok_id: it.rokok_id,
+          tanggal: data.tanggal || new Date().toISOString().split("T")[0],
+          jenis: 'out',
+          qty: it.qty_kembali,
+          source: 'konsinyasi_kembali_edit_revert',
+          reference_id: id
+        })
       }
     }
 
@@ -199,7 +221,15 @@ export async function editSettlement(id, data) {
         data:  { qty_terjual: it.qty_terjual, qty_kembali: it.qty_kembali },
       })
       if (it.qty_kembali > 0) {
-        await tx.rokok.update({ where: { id: it.rokok_id }, data: { stok: { increment: it.qty_kembali } } })
+        await mutateStock({
+          tx,
+          rokok_id: it.rokok_id,
+          tanggal: data.tanggal || new Date().toISOString().split("T")[0],
+          jenis: 'in',
+          qty: it.qty_kembali,
+          source: 'konsinyasi_kembali',
+          reference_id: id
+        })
       }
     }
 
@@ -228,7 +258,15 @@ export async function revertSettlement(id) {
 
     for (const it of old.items) {
       if (it.qty_kembali > 0) {
-        await tx.rokok.update({ where: { id: it.rokok_id }, data: { stok: { decrement: it.qty_kembali } } })
+        await mutateStock({
+          tx,
+          rokok_id: it.rokok_id,
+          tanggal: new Date().toISOString().split("T")[0],
+          jenis: 'out',
+          qty: it.qty_kembali,
+          source: 'konsinyasi_kembali_revert',
+          reference_id: id
+        })
       }
       await tx.titipJualItem.update({
         where: { id: it.id },

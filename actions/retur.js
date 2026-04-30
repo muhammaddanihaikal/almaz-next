@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { mutateStock } from "@/lib/stock"
 
 function serialize(r) {
   return {
@@ -34,7 +35,7 @@ export async function getRetur() {
 
 export async function addRetur(data) {
   await prisma.$transaction(async (tx) => {
-    await tx.retur.create({
+    const r = await tx.retur.create({
       data: {
         tanggal: new Date(data.tanggal),
         tipe_penjualan: data.tipe_penjualan,
@@ -46,9 +47,14 @@ export async function addRetur(data) {
       },
     })
     for (const it of data.items) {
-      await tx.rokok.update({
-        where: { id: it.rokok_id },
-        data: { stok: { increment: it.qty } },
+      await mutateStock({
+        tx,
+        rokok_id: it.rokok_id,
+        tanggal: data.tanggal,
+        jenis: 'in',
+        qty: it.qty,
+        source: 'retur',
+        reference_id: r.id
       })
     }
   })
@@ -61,9 +67,14 @@ export async function updateRetur(id, data) {
     const old = await tx.retur.findUnique({ where: { id }, include: { items: true } })
     // Reverse old stok (decrement, since retur increments)
     for (const it of old.items) {
-      await tx.rokok.update({
-        where: { id: it.rokok_id },
-        data: { stok: { decrement: it.qty } },
+      await mutateStock({
+        tx,
+        rokok_id: it.rokok_id,
+        tanggal: data.tanggal,
+        jenis: 'out',
+        qty: it.qty,
+        source: 'retur_edit_revert',
+        reference_id: id
       })
     }
     await tx.returItem.deleteMany({ where: { retur_id: id } })
@@ -80,9 +91,14 @@ export async function updateRetur(id, data) {
       },
     })
     for (const it of data.items) {
-      await tx.rokok.update({
-        where: { id: it.rokok_id },
-        data: { stok: { increment: it.qty } },
+      await mutateStock({
+        tx,
+        rokok_id: it.rokok_id,
+        tanggal: data.tanggal,
+        jenis: 'in',
+        qty: it.qty,
+        source: 'retur',
+        reference_id: id
       })
     }
   })
@@ -94,9 +110,14 @@ export async function deleteRetur(id) {
   await prisma.$transaction(async (tx) => {
     const old = await tx.retur.findUnique({ where: { id }, include: { items: true } })
     for (const it of old.items) {
-      await tx.rokok.update({
-        where: { id: it.rokok_id },
-        data: { stok: { decrement: it.qty } },
+      await mutateStock({
+        tx,
+        rokok_id: it.rokok_id,
+        tanggal: old.tanggal,
+        jenis: 'out',
+        qty: it.qty,
+        source: 'retur_delete_revert',
+        reference_id: id
       })
     }
     await tx.retur.delete({ where: { id } })

@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { mutateStock } from "@/lib/stock"
 
 const include = {
   sales: true,
@@ -108,9 +109,14 @@ export async function createSesi(data) {
       },
     })
     for (const it of data.barangKeluar || []) {
-      await tx.rokok.update({
-        where: { id: it.rokok_id },
-        data:  { stok: { decrement: it.qty } },
+      await mutateStock({
+        tx,
+        rokok_id: it.rokok_id,
+        tanggal: data.tanggal,
+        jenis: 'out',
+        qty: it.qty,
+        source: 'distribusi_sales',
+        reference_id: sesi.id
       })
     }
     return sesi
@@ -126,9 +132,14 @@ export async function updateSesiPagi(id, data) {
       include: { barangKeluar: true },
     })
     for (const it of old.barangKeluar) {
-      await tx.rokok.update({
-        where: { id: it.rokok_id },
-        data:  { stok: { increment: it.qty } },
+      await mutateStock({
+        tx,
+        rokok_id: it.rokok_id,
+        tanggal: data.tanggal,
+        jenis: 'in',
+        qty: it.qty,
+        source: 'distribusi_sales_edit_revert',
+        reference_id: id
       })
     }
     await tx.sesiBarangKeluar.deleteMany({ where: { sesi_id: id } })
@@ -147,9 +158,14 @@ export async function updateSesiPagi(id, data) {
       },
     })
     for (const it of data.barangKeluar || []) {
-      await tx.rokok.update({
-        where: { id: it.rokok_id },
-        data:  { stok: { decrement: it.qty } },
+      await mutateStock({
+        tx,
+        rokok_id: it.rokok_id,
+        tanggal: data.tanggal,
+        jenis: 'out',
+        qty: it.qty,
+        source: 'distribusi_sales',
+        reference_id: id
       })
     }
   })
@@ -170,9 +186,14 @@ export async function submitLaporanSore(id, data) {
 
     const oldKembali = await tx.sesiBarangKembali.findMany({ where: { sesi_id: id } })
     for (const it of oldKembali) {
-      await tx.rokok.update({
-        where: { id: it.rokok_id },
-        data:  { stok: { decrement: it.qty } },
+      await mutateStock({
+        tx,
+        rokok_id: it.rokok_id,
+        tanggal: data.tanggal,
+        jenis: 'out',
+        qty: it.qty,
+        source: 'retur_sales_edit_revert',
+        reference_id: id
       })
     }
     await tx.sesiBarangKembali.deleteMany({ where: { sesi_id: id } })
@@ -198,9 +219,14 @@ export async function submitLaporanSore(id, data) {
       data: kembali.map((it) => ({ sesi_id: id, rokok_id: it.rokok_id, qty: it.qty })),
     })
     for (const it of kembali) {
-      await tx.rokok.update({
-        where: { id: it.rokok_id },
-        data:  { stok: { increment: it.qty } },
+      await mutateStock({
+        tx,
+        rokok_id: it.rokok_id,
+        tanggal: data.tanggal,
+        jenis: 'in',
+        qty: it.qty,
+        source: 'retur_sales',
+        reference_id: id
       })
     }
 
@@ -233,9 +259,14 @@ export async function submitLaporanSore(id, data) {
           data:  { qty_terjual: it.qty_terjual, qty_kembali: it.qty_kembali },
         })
         if (it.qty_kembali > 0) {
-          await tx.rokok.update({
-            where: { id: it.rokok_id },
-            data:  { stok: { increment: it.qty_kembali } },
+          await mutateStock({
+            tx,
+            rokok_id: it.rokok_id,
+            tanggal: data.tanggal,
+            jenis: 'in',
+            qty: it.qty_kembali,
+            source: 'konsinyasi_kembali',
+            reference_id: p.konsinyasi_id
           })
         }
       }
@@ -275,7 +306,15 @@ export async function editLaporanSore(id, data) {
     // Reverse stok dari barang kembali lama
     const oldKembali = await tx.sesiBarangKembali.findMany({ where: { sesi_id: id } })
     for (const it of oldKembali) {
-      await tx.rokok.update({ where: { id: it.rokok_id }, data: { stok: { decrement: it.qty } } })
+      await mutateStock({
+        tx,
+        rokok_id: it.rokok_id,
+        tanggal: data.tanggal,
+        jenis: 'out',
+        qty: it.qty,
+        source: 'retur_sales_edit_revert',
+        reference_id: id
+      })
     }
 
     // Hapus data laporan lama (penjualan, setoran, barang kembali)
@@ -307,7 +346,15 @@ export async function editLaporanSore(id, data) {
       data: kembali.map((it) => ({ sesi_id: id, rokok_id: it.rokok_id, qty: it.qty })),
     })
     for (const it of kembali) {
-      await tx.rokok.update({ where: { id: it.rokok_id }, data: { stok: { increment: it.qty } } })
+      await mutateStock({
+        tx,
+        rokok_id: it.rokok_id,
+        tanggal: data.tanggal,
+        jenis: 'in',
+        qty: it.qty,
+        source: 'retur_sales',
+        reference_id: id
+      })
     }
 
     // Tambah titip jual baru jika ada
@@ -353,17 +400,27 @@ export async function deleteSesi(id) {
 
     // 1. Revert stok dari barang keluar (pagi)
     for (const it of sesi.barangKeluar) {
-      await tx.rokok.update({
-        where: { id: it.rokok_id },
-        data:  { stok: { increment: it.qty } },
+      await mutateStock({
+        tx,
+        rokok_id: it.rokok_id,
+        tanggal: sesi.tanggal,
+        jenis: 'in',
+        qty: it.qty,
+        source: 'distribusi_sales_delete_revert',
+        reference_id: id
       })
     }
 
     // 2. Revert stok dari barang kembali (sore)
     for (const it of sesi.barangKembali) {
-      await tx.rokok.update({
-        where: { id: it.rokok_id },
-        data:  { stok: { decrement: it.qty } },
+      await mutateStock({
+        tx,
+        rokok_id: it.rokok_id,
+        tanggal: sesi.tanggal,
+        jenis: 'out',
+        qty: it.qty,
+        source: 'retur_sales_delete_revert',
+        reference_id: id
       })
     }
 
@@ -385,9 +442,14 @@ export async function deleteSesi(id) {
         // Kurangi stok yang tadi dikembalikan (karena status batal selesai)
         for (const it of tj.items) {
           if (it.qty_kembali > 0) {
-            await tx.rokok.update({
-              where: { id: it.rokok_id },
-              data: { stok: { decrement: it.qty_kembali } }
+            await mutateStock({
+              tx,
+              rokok_id: it.rokok_id,
+              tanggal: sesi.tanggal,
+              jenis: 'out',
+              qty: it.qty_kembali,
+              source: 'konsinyasi_kembali_delete_revert',
+              reference_id: tjId
             })
           }
         }
@@ -410,9 +472,14 @@ export async function deleteSesi(id) {
     for (const k of sesi.titipJual) {
       for (const it of k.items) {
         if (it.qty_kembali > 0) {
-          await tx.rokok.update({
-            where: { id: it.rokok_id },
-            data:  { stok: { decrement: it.qty_kembali } },
+          await mutateStock({
+            tx,
+            rokok_id: it.rokok_id,
+            tanggal: sesi.tanggal,
+            jenis: 'out',
+            qty: it.qty_kembali,
+            source: 'konsinyasi_kembali_delete_revert',
+            reference_id: k.id
           })
         }
       }

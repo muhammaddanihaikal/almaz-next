@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { mutateStock } from "@/lib/stock"
 
 function serialize(p) {
   const hasKeluar = p.keluarItems.length > 0
@@ -89,16 +90,26 @@ export async function addPenjualan(data) {
       },
     })
     for (const it of masuk) {
-      await tx.rokok.update({
-        where: { id: it.rokok_id },
-        data:  { stok: { decrement: it.qty } },
+      await mutateStock({
+        tx,
+        rokok_id: it.rokok_id,
+        tanggal: data.tanggal,
+        jenis: 'out',
+        qty: it.qty,
+        source: 'penjualan',
+        reference_id: data.id || "new"
       })
     }
     for (const it of samples) {
       if (it.qty_masuk > 0) {
-        await tx.rokok.update({
-          where: { id: it.rokok_id },
-          data:  { stok: { decrement: it.qty_masuk } },
+        await mutateStock({
+          tx,
+          rokok_id: it.rokok_id,
+          tanggal: data.tanggal,
+          jenis: 'out',
+          qty: it.qty_masuk,
+          source: 'penjualan_sample',
+          reference_id: data.id || "new"
         })
       }
     }
@@ -116,16 +127,26 @@ export async function updatePenjualan(id, data) {
       include: { masukItems: true, sampleItems: true },
     })
     for (const it of old.masukItems) {
-      await tx.rokok.update({
-        where: { id: it.rokok_id },
-        data:  { stok: { increment: it.qty } },
+      await mutateStock({
+        tx,
+        rokok_id: it.rokok_id,
+        tanggal: old.tanggal,
+        jenis: 'in',
+        qty: it.qty,
+        source: 'penjualan_edit_revert',
+        reference_id: id
       })
     }
     for (const it of old.sampleItems) {
       if (it.qty_masuk > 0) {
-        await tx.rokok.update({
-          where: { id: it.rokok_id },
-          data:  { stok: { increment: it.qty_masuk } },
+        await mutateStock({
+          tx,
+          rokok_id: it.rokok_id,
+          tanggal: old.tanggal,
+          jenis: 'in',
+          qty: it.qty_masuk,
+          source: 'penjualan_sample_edit_revert',
+          reference_id: id
         })
       }
     }
@@ -164,16 +185,26 @@ export async function updatePenjualan(id, data) {
       },
     })
     for (const it of masuk) {
-      await tx.rokok.update({
-        where: { id: it.rokok_id },
-        data:  { stok: { decrement: it.qty } },
+      await mutateStock({
+        tx,
+        rokok_id: it.rokok_id,
+        tanggal: data.tanggal,
+        jenis: 'out',
+        qty: it.qty,
+        source: 'penjualan',
+        reference_id: id
       })
     }
     for (const it of samples) {
       if (it.qty_masuk > 0) {
-        await tx.rokok.update({
-          where: { id: it.rokok_id },
-          data:  { stok: { decrement: it.qty_masuk } },
+        await mutateStock({
+          tx,
+          rokok_id: it.rokok_id,
+          tanggal: data.tanggal,
+          jenis: 'out',
+          qty: it.qty_masuk,
+          source: 'penjualan_sample',
+          reference_id: id
         })
       }
     }
@@ -189,16 +220,26 @@ export async function deletePenjualan(id) {
       include: { masukItems: true, sampleItems: true },
     })
     for (const it of old.masukItems) {
-      await tx.rokok.update({
-        where: { id: it.rokok_id },
-        data:  { stok: { increment: it.qty } },
+      await mutateStock({
+        tx,
+        rokok_id: it.rokok_id,
+        tanggal: old.tanggal,
+        jenis: 'in',
+        qty: it.qty,
+        source: 'penjualan_delete_revert',
+        reference_id: id
       })
     }
     for (const it of old.sampleItems) {
       if (it.qty_masuk > 0) {
-        await tx.rokok.update({
-          where: { id: it.rokok_id },
-          data:  { stok: { increment: it.qty_masuk } },
+        await mutateStock({
+          tx,
+          rokok_id: it.rokok_id,
+          tanggal: old.tanggal,
+          jenis: 'in',
+          qty: it.qty_masuk,
+          source: 'penjualan_sample_delete_revert',
+          reference_id: id
         })
       }
     }
