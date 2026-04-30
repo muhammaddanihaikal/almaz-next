@@ -181,7 +181,11 @@ export async function getMutasiStok(startDate, endDate) {
   // 2. Get activity in range
   const inRangeMutations = await prisma.stockMutation.findMany({
     where: { tanggal: { gte: start, lte: end } },
-    orderBy: { tanggal: "asc" }
+    include: {
+      user: { select: { name: true, username: true } },
+      rokok: { select: { nama: true } }
+    },
+    orderBy: { createdAt: "desc" }
   })
 
   // 3. Build daily summary
@@ -217,7 +221,8 @@ export async function getMutasiStok(startDate, endDate) {
           akhir,
           detail_masuk,
           detail_kembali,
-          detail_retur
+          detail_retur,
+          details: todayMuts // attach detailed records for this rokok on this day
         })
       }
       currentBalances[r.id] = akhir
