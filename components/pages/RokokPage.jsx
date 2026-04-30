@@ -2,10 +2,10 @@
 
 import { useMemo, useState, useEffect, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { Plus, GripVertical, Save, X, MoveVertical, Loader2 } from "lucide-react"
+import { Plus, GripVertical, Save, X, MoveVertical, Loader2, RotateCcw } from "lucide-react"
 import { fmtIDR } from "@/lib/utils"
 import { addRokok, updateRokok, deleteRokok, toggleAktifRokok, tambahStok, updateRokokOrder } from "@/actions/rokok"
-import { Card, PageHeader, PrimaryButton, RowActions, Field, FormActions, Toggle, inputCls, useConfirm, Button } from "@/components/ui"
+import { Card, PageHeader, PrimaryButton, IconButton, RowActions, Field, FormActions, Toggle, inputCls, useConfirm, Button } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
 
@@ -137,6 +137,13 @@ export default function RokokPage({ rokokList, usedIds }) {
                 >
                   Atur Urutan
                 </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => router.push("/rokok/mutasi")}
+                  icon={RotateCcw}
+                >
+                  Mutasi Stok
+                </Button>
                 <PrimaryButton onClick={() => { setEditing(null); setMode("add") }} icon={Plus}>
                   Tambah Rokok
                 </PrimaryButton>
@@ -188,13 +195,11 @@ export default function RokokPage({ rokokList, usedIds }) {
                 render: (r) => (
                   <div className="flex items-center justify-end gap-2">
                     <span className={`font-semibold tabular-nums ${(r.stok ?? 0) < 50 ? "text-red-600" : (r.stok ?? 0) < 150 ? "text-amber-500" : "text-green-600"}`}>{r.stok ?? 0}</span>
-                    <Button
-                      size="sm"
-                      variant="ghost"
+                    <IconButton
                       onClick={() => setStokTarget(r)}
-                      title="Tambah stok barang masuk"
-                      className="h-6 w-6 border-emerald-100 bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
                       icon={Plus}
+                      label="Tambah stok barang masuk"
+                      className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border-emerald-100"
                     />
                   </div>
                 ),
@@ -249,13 +254,11 @@ export default function RokokPage({ rokokList, usedIds }) {
                   <p className="font-medium text-neutral-900">{r.nama}</p>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <p className="text-xs text-neutral-500">Stok: {r.stok ?? 0}</p>
-                    <Button
-                      size="sm"
-                      variant="ghost"
+                    <IconButton
                       onClick={() => setStokTarget(r)}
-                      title="Tambah stok barang masuk"
-                      className="h-5 w-5 border-emerald-100 bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
                       icon={Plus}
+                      label="Tambah stok barang masuk"
+                      className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border-emerald-100"
                     />
                     <span className="text-xs text-neutral-400">·</span>
                     <p className="text-xs text-neutral-500">Beli: {fmtIDR(r.harga_beli)}</p>
@@ -302,8 +305,8 @@ export default function RokokPage({ rokokList, usedIds }) {
         >
           <TambahStokForm
             rokok={stokTarget}
-            onSubmit={async (qty) => {
-              await tambahStok(stokTarget.id, qty)
+            onSubmit={async (qty, date, ket) => {
+              await tambahStok(stokTarget.id, qty, date, ket)
               setStokTarget(null)
               router.refresh()
             }}
@@ -357,6 +360,8 @@ function SortableRow({ r }) {
 function TambahStokForm({ rokok, onSubmit, onCancel }) {
   const [slop, setSlop]     = useState("")
   const [bungkus, setBungkus] = useState("")
+  const [tanggal, setTanggal] = useState(new Date().toISOString().split("T")[0])
+  const [keterangan, setKeterangan] = useState("")
 
   const totalBungkus = (Number(slop) || 0) * 10 + (Number(bungkus) || 0)
   const valid = totalBungkus > 0
@@ -367,7 +372,7 @@ function TambahStokForm({ rokok, onSubmit, onCancel }) {
     if (!valid || loading) return
     setLoading(true)
     try {
-      await onSubmit(totalBungkus)
+      await onSubmit(totalBungkus, tanggal, keterangan)
     } finally {
       setLoading(false)
     }
@@ -407,6 +412,27 @@ function TambahStokForm({ rokok, onSubmit, onCancel }) {
             />
           </Field>
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Field label="Tanggal Masuk">
+          <input
+            type="date"
+            value={tanggal}
+            onChange={(e) => setTanggal(e.target.value)}
+            className={inputCls}
+            required
+          />
+        </Field>
+        <Field label="Keterangan (Opsional)">
+          <input
+            type="text"
+            value={keterangan}
+            onChange={(e) => setKeterangan(e.target.value)}
+            placeholder="Misal: Stok dari Supplier A"
+            className={inputCls}
+          />
+        </Field>
       </div>
 
       {/* Preview total */}

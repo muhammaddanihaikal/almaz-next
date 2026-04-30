@@ -52,6 +52,19 @@ model Rokok {
   sesiBarangKembali SesiBarangKembali[]
   titipJualItems    TitipJualItem[]
   returItems        ReturItem[]
+  stokMasuk         StokMasuk[]
+}
+
+model StokMasuk {
+  id         String   @id @default(cuid())
+  rokok_id   String
+  tanggal    DateTime @db.Date
+  qty        Int
+  keterangan String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  rokok Rokok @relation(fields: [rokok_id], references: [id], onDelete: Cascade)
 }
 
 model Sales {
