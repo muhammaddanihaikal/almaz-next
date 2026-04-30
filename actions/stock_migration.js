@@ -107,36 +107,7 @@ export async function migrateToStockMutations() {
       }
     }
 
-    // 7. Migrate Penjualan (Direct out & sample out/in)
-    const penjualan = await tx.penjualan.findMany({ include: { masukItems: true, sampleItems: true } });
-    for (const p of penjualan) {
-      for (const item of p.masukItems) {
-        await tx.stockMutation.create({
-          data: {
-            rokok_id: item.rokok_id,
-            tanggal: p.tanggal,
-            jenis: 'out',
-            qty: item.qty,
-            source: 'penjualan',
-            reference_id: p.id
-          }
-        });
-      }
-      for (const item of p.sampleItems) {
-        if (item.qty_masuk > 0) {
-          await tx.stockMutation.create({
-            data: {
-              rokok_id: item.rokok_id,
-              tanggal: p.tanggal,
-              jenis: 'out',
-              qty: item.qty_masuk,
-              source: 'penjualan_sample',
-              reference_id: p.id
-            }
-          });
-        }
-      }
-    }
+    // 7. (Removed: Penjualan is handled by SesiBarangKeluar and SesiBarangKembali in the warehouse ledger)
   });
 
   console.log("Migration complete!");
