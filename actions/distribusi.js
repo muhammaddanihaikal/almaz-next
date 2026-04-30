@@ -348,18 +348,65 @@ export async function deleteSesi(id) {
         titipJual:     { include: { items: true } },
       },
     })
+
+    if (!sesi) return
+
+    // 1. Revert stok dari barang keluar (pagi)
     for (const it of sesi.barangKeluar) {
       await tx.rokok.update({
         where: { id: it.rokok_id },
         data:  { stok: { increment: it.qty } },
       })
     }
+
+    // 2. Revert stok dari barang kembali (sore)
     for (const it of sesi.barangKembali) {
       await tx.rokok.update({
         where: { id: it.rokok_id },
         data:  { stok: { decrement: it.qty } },
       })
     }
+
+    // 3. Revert stok dari penyelesaian konsinyasi (lama) yang dilakukan di sesi ini
+    const setoransPenyelesaian = await tx.titipJualSetoran.findMany({
+      where: { sesi_penyelesaian_id: id }
+    })
+    
+    // Ambil ID titip jual unik yang diselesaikan di sesi ini
+    const completedTjIds = [...new Set(setoransPenyelesaian.map(s => s.titip_jual_id))]
+    
+    for (const tjId of completedTjIds) {
+      const tj = await tx.titipJual.findUnique({
+        where: { id: tjId },
+        include: { items: true }
+      })
+      
+      if (tj) {
+        // Kurangi stok yang tadi dikembalikan (karena status batal selesai)
+        for (const it of tj.items) {
+          if (it.qty_kembali > 0) {
+            await tx.rokok.update({
+              where: { id: it.rokok_id },
+              data: { stok: { decrement: it.qty_kembali } }
+            })
+          }
+        }
+        // Reset item konsinyasi (terjual/kembali jadi 0) dan status jadi aktif
+        await tx.titipJualItem.updateMany({
+          where: { titip_jual_id: tjId },
+          data: { qty_terjual: 0, qty_kembali: 0 }
+        })
+        await tx.titipJual.update({
+          where: { id: tjId },
+          data: { status: "aktif", tanggal_selesai: null }
+        })
+      }
+    }
+
+    // 4. Hapus setoran titip jual yang dibuat di sesi ini (baik untuk penyelesaian maupun titip jual baru)
+    await tx.titipJualSetoran.deleteMany({ where: { sesi_penyelesaian_id: id } })
+
+    // 5. Revert stok dari item titip jual BARU yang mungkin sudah diisi (walaupun jarang di sesi aktif)
     for (const k of sesi.titipJual) {
       for (const it of k.items) {
         if (it.qty_kembali > 0) {
@@ -370,10 +417,14 @@ export async function deleteSesi(id) {
         }
       }
     }
-    // Hapus titip jual (items & setoran cascade) sebelum hapus sesi
+
+    // 6. Hapus titip jual baru yang dibuat di sesi ini
     await tx.titipJual.deleteMany({ where: { sesi_id: id } })
+
+    // 7. Terakhir hapus sesi harian
     await tx.sesiHarian.delete({ where: { id } })
   })
+
   revalidatePath("/distribusi")
   revalidatePath("/titip-jual")
   revalidatePath("/")
