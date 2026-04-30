@@ -949,12 +949,12 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
       ? sesi.setoran.map((s) => ({ metode: s.metode, jumlah: String(s.jumlah) }))
       : [{ metode: "cash", jumlah: "" }]
   )
-  const [konsinyasiBaru,        setKonsinyasiBaru]        = useState([])
+  const [konsinyasiBaru, setKonsinyasiBaru] = useState([
+    { toko_id: "", kategori: "toko", tanggal_jatuh_tempo: "", catatan: "", items: [{ rokok_id: "", qty: "" }] }
+  ])
   const [settlingKonsinyasi,    setSettlingKonsinyasi]    = useState(null)
   const [settledIds,            setSettledIds]            = useState(new Set())
-  const [savedKonsinyasiItems,  setSavedKonsinyasiItems]  = useState([])
   const [newlyCreatedKonsinyasi, setNewlyCreatedKonsinyasi] = useState([])
-  const [savedTokoIds,           setSavedTokoIds]           = useState([])
   const [settledRecords,         setSettledRecords]         = useState([])
   const [editingSettlement,      setEditingSettlement]      = useState(null)
   const [revertedFromSelesaiIds,  setRevertedFromSelesaiIds]  = useState(new Set())
@@ -982,6 +982,10 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
       const validSetoran    = setoran.filter((it) => Number(it.jumlah) > 0)
       const validKonsinyasi = konsinyasiBaru.filter((k) => k.toko_id && k.kategori && k.tanggal_jatuh_tempo && k.items.some((it) => it.rokok_id && Number(it.qty) > 0))
 
+      const savedKonsinyasiItems = newlyCreatedKonsinyasi.flatMap(k => 
+        k.items.map(it => ({ rokok_id: it.rokok_id, qty: it.qty_keluar }))
+      )
+
       const barangKembaliAuto = {}
       for (const keluar of sesi.barangKeluar) {
         barangKembaliAuto[keluar.rokok_id] = keluar.qty
@@ -989,7 +993,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
       for (const pj of validPenjualan) {
         barangKembaliAuto[pj.rokok_id] = (barangKembaliAuto[pj.rokok_id] || 0) - pj.qty
       }
-      for (const k of konsinyasiBaru) {
+      for (const k of validKonsinyasi) {
         for (const it of k.items.filter((i) => i.rokok_id && Number(i.qty) > 0)) {
           barangKembaliAuto[it.rokok_id] = (barangKembaliAuto[it.rokok_id] || 0) - Number(it.qty)
         }
@@ -1015,11 +1019,6 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
   const handleSaveAndSettle = async (kData, idx) => {
     const created = await createTitipJual(sesi.id, sesi.sales_id, kData)
     setKonsinyasiBaru((prev) => prev.filter((_, i) => i !== idx))
-    setSavedKonsinyasiItems((prev) => [
-      ...prev,
-      ...kData.items.filter((it) => it.rokok_id && Number(it.qty) > 0).map((it) => ({ rokok_id: it.rokok_id, qty: Number(it.qty) })),
-    ])
-    setSavedTokoIds((prev) => [...prev, kData.toko_id].filter(Boolean))
     setNewlyCreatedKonsinyasi((prev) => [...prev, created])
   }
 
@@ -1078,11 +1077,18 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
 
   const qtyTitipLama = useMemo(() => {
     const map = {}
-    for (const it of savedKonsinyasiItems) {
-      map[it.rokok_id] = (map[it.rokok_id] || 0) + it.qty
+    for (const k of newlyCreatedKonsinyasi) {
+      for (const it of k.items) {
+        map[it.rokok_id] = (map[it.rokok_id] || 0) + it.qty_keluar
+      }
     }
     return map
-  }, [savedKonsinyasiItems])
+  }, [newlyCreatedKonsinyasi])
+
+  const savedTokoIds = useMemo(() => 
+    newlyCreatedKonsinyasi.map(k => k.toko_id),
+    [newlyCreatedKonsinyasi]
+  )
 
   const qtyTitipBaru = useMemo(() => {
     const map = { ...qtyTitipLama }
