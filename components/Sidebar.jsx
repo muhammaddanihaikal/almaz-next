@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useTransition } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { signOut } from "next-auth/react"
 import {
   LayoutDashboard, Truck, PackageCheck, Cigarette,
@@ -59,6 +59,10 @@ function buildMenus(role, titipJualCounts) {
 
 export default function Sidebar({ role, userName, titipJualCounts }) {
   const pathname    = usePathname()
+  const router      = useRouter()
+  const [isPending, startTransition] = useTransition()
+  const [clickedId, setClickedId]     = useState(null)
+  
   const [mobileOpen, setMobileOpen]       = useState(false)
   const [confirmLogout, setConfirmLogout] = useState(false)
   const [loggingOut, setLoggingOut]       = useState(false)
@@ -80,18 +84,29 @@ export default function Sidebar({ role, userName, titipJualCounts }) {
 
   const navLink = (item) => {
     const active = isActive(item.href)
+    const loading = isPending && clickedId === item.id
+
     return (
-      <Link
+      <button
         key={item.id}
-        href={item.href}
-        onClick={() => setMobileOpen(false)}
+        onClick={() => {
+          setClickedId(item.id)
+          setMobileOpen(false)
+          startTransition(() => {
+            router.push(item.href)
+          })
+        }}
         className={
           "flex w-full items-center gap-3 rounded-lg py-2.5 pl-9 pr-3 text-sm font-medium transition-colors lg:pl-3 " +
           (active ? "bg-neutral-900 text-white" : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900")
         }
       >
         <div className="flex flex-1 items-center gap-3">
-          <item.icon className={`h-4 w-4 shrink-0 ${active ? "text-white" : "text-neutral-400"}`} strokeWidth={2} />
+          {loading ? (
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin text-neutral-400" />
+          ) : (
+            <item.icon className={`h-4 w-4 shrink-0 ${active ? "text-white" : "text-neutral-400"}`} strokeWidth={2} />
+          )}
           <span>{item.label}</span>
         </div>
         {item.badges && (item.badges.red > 0 || item.badges.yellow > 0) && (
@@ -108,7 +123,7 @@ export default function Sidebar({ role, userName, titipJualCounts }) {
             )}
           </div>
         )}
-      </Link>
+      </button>
     )
   }
 

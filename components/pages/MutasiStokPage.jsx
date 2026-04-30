@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { Search, Calendar, ChevronDown, ChevronUp, Box, ArrowLeft, ArrowUpRight, ArrowDownLeft, RotateCcw } from "lucide-react"
+import { Calendar, ChevronDown, ChevronUp, Box, ArrowLeft, ArrowUpRight, ArrowDownLeft, RotateCcw } from "lucide-react"
 import { fmtIDR } from "@/lib/utils"
 import { Card, PageHeader, Field, Button, IconButton, DateFilter, inputCls } from "@/components/ui"
 
@@ -16,18 +16,18 @@ export default function MutasiStokPage({ initialData, startDate, endDate, initia
   })
   const [expandedDate, setExpandedDate] = useState(initialData[0]?.tanggal || null)
 
-  const handleFilter = () => {
-    startTransition(() => {
-      router.push(`/rokok/mutasi?start=${filter.start}&end=${filter.end}&preset=${filter.preset}`)
-    })
-  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2 -mb-2">
         <IconButton 
           icon={ArrowLeft} 
-          onClick={() => router.push("/rokok")} 
+          onClick={() => {
+            startTransition(() => {
+              router.push("/rokok")
+            })
+          }} 
+          loading={isPending}
           label="Kembali ke Master Rokok" 
         />
         <span className="text-sm font-medium text-neutral-500">Master Rokok</span>
@@ -39,15 +39,13 @@ export default function MutasiStokPage({ initialData, startDate, endDate, initia
           <div className="flex flex-wrap items-center gap-3">
             <DateFilter 
               value={filter} 
-              onChange={(val) => setFilter(val)} 
+              onChange={(val) => {
+                setFilter(val)
+                startTransition(() => {
+                  router.push(`/rokok/mutasi?start=${val.start}&end=${val.end}&preset=${val.preset}`)
+                })
+              }} 
             />
-            <Button 
-              onClick={handleFilter} 
-              loading={isPending}
-              icon={Search}
-            >
-              Filter
-            </Button>
           </div>
         }
       />

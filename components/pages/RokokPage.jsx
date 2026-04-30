@@ -139,8 +139,13 @@ export default function RokokPage({ rokokList, usedIds }) {
                 </Button>
                 <Button
                   variant="secondary"
-                  onClick={() => router.push("/rokok/mutasi")}
+                  onClick={() => {
+                    startTransition(() => {
+                      router.push("/rokok/mutasi")
+                    })
+                  }}
                   icon={RotateCcw}
+                  loading={isPending}
                 >
                   Mutasi Stok
                 </Button>
