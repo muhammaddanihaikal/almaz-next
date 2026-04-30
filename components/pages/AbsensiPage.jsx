@@ -43,6 +43,7 @@ export default function AbsensiPage({ absensiList, salesList }) {
   const [editingTanggal, setEditingTanggal] = useState(null)
   const [detail, setDetail] = useState(null)
   const [dateRange, setDateRange] = useState(defaultDateRange("minggu_ini"))
+  const [deletingId, setDeletingId] = useState(null)
 
   const filteredFlat = useMemo(() => filterByDateRange(absensiList, dateRange), [absensiList, dateRange])
   const rows = useMemo(() => sortByDateDesc(groupByDate(filteredFlat)), [filteredFlat])
@@ -68,8 +69,14 @@ export default function AbsensiPage({ absensiList, salesList }) {
   const handleDelete = async (tanggal) => {
     const ok = await confirm(`Hapus semua data absensi tanggal ${fmtTanggal(tanggal)}?`, { title: "Hapus Absensi", variant: "danger", confirmLabel: "Ya, Hapus" })
     if (!ok) return
-    await deleteAbsensi(tanggal)
-    router.refresh()
+    
+    setDeletingId(tanggal)
+    try {
+      await deleteAbsensi(tanggal)
+      router.refresh()
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   return (
@@ -147,7 +154,8 @@ export default function AbsensiPage({ absensiList, salesList }) {
                   <RowActions
                     onDetail={() => setDetail(r)}
                     onEdit={() => { setEditingTanggal(r.tanggal); setMode("edit") }}
-                    onDelete={() => handleDelete(r.tanggal)}
+                    onDelete={() => { handleDelete(r.tanggal) }}
+                    deleteLoading={deletingId === r.tanggal}
                   />
                 </div>
                 <div className="flex flex-wrap gap-1.5">

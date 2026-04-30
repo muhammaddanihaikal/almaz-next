@@ -15,6 +15,7 @@ export default function SalesPage({ salesList, sesiList }) {
   const { confirm, ConfirmModal } = useConfirm()
   const [mode, setMode] = useState(null)
   const [editing, setEditing] = useState(null)
+  const [deletingId, setDeletingId] = useState(null)
 
   const rows = useMemo(
     () => [...salesList].sort((a, b) => a.nama.localeCompare(b.nama, "id")),
@@ -28,8 +29,14 @@ export default function SalesPage({ salesList, sesiList }) {
   const handleDelete = async (s) => {
     const ok = await confirm(`Hapus sales "${s.nama}"?`, { title: "Hapus Sales", variant: "danger", confirmLabel: "Ya, Hapus" })
     if (!ok) return
-    await deleteSales(s.id)
-    router.refresh()
+    
+    setDeletingId(s.id)
+    try {
+      await deleteSales(s.id)
+      router.refresh()
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   const handleToggle = async (id) => {

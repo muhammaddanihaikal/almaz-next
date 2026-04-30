@@ -20,6 +20,7 @@ export default function TokoPage({ tokoList, titipJualList }) {
   const { confirm, ConfirmModal } = useConfirm()
   const [mode,    setMode]    = useState(null)
   const [editing, setEditing] = useState(null)
+  const [deletingId, setDeletingId] = useState(null)
 
   const rows = useMemo(
     () => [...tokoList].sort((a, b) => a.nama.localeCompare(b.nama, "id")),
@@ -33,8 +34,14 @@ export default function TokoPage({ tokoList, titipJualList }) {
   const handleDelete = async (t) => {
     const ok = await confirm(`Hapus toko "${t.nama}"?`, { title: "Hapus Toko", variant: "danger", confirmLabel: "Ya, Hapus" })
     if (!ok) return
-    await deleteToko(t.id)
-    router.refresh()
+    
+    setDeletingId(t.id)
+    try {
+      await deleteToko(t.id)
+      router.refresh()
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   const handleToggle = async (id) => {

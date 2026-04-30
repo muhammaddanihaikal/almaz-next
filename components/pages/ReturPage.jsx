@@ -34,6 +34,7 @@ export default function ReturPage({ retur, rokokList, salesList }) {
   const [detail, setDetail] = useState(null)
   const [dateRange, setDateRange] = useState(defaultDateRange("bulan_ini"))
   const [salesFilter, setSalesFilter] = useState("")
+  const [deletingId, setDeletingId] = useState(null)
 
   const rows = useMemo(() => {
     let filtered = filterByDateRange(retur, dateRange)
@@ -68,8 +69,14 @@ export default function ReturPage({ retur, rokokList, salesList }) {
   const handleDelete = async (r) => {
     const ok = await confirm("Hapus data retur ini?", { title: "Hapus Retur", variant: "danger", confirmLabel: "Ya, Hapus" })
     if (!ok) return
-    await deleteRetur(r.id)
-    router.refresh()
+    
+    setDeletingId(r.id)
+    try {
+      await deleteRetur(r.id)
+      router.refresh()
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   return (
@@ -118,7 +125,7 @@ export default function ReturPage({ retur, rokokList, salesList }) {
             { key: "alasan",    label: "Alasan",    render: (r) => <span className="text-sm text-neutral-500">{r.alasan || "—"}</span> },
             { key: "total_qty", label: "Total Qty", align: "right", render: (r) => r.items.reduce((s, it) => s + it.qty, 0) },
             { key: "actions", label: "", align: "right", render: (r) => (
-              <RowActions onDetail={() => setDetail(r)} onEdit={() => { setEditing(r); setMode("edit") }} onDelete={() => handleDelete(r)} />
+              <RowActions onDetail={() => setDetail(r)} onEdit={() => { setEditing(r); setMode("edit") }} onDelete={() => { handleDelete(r) }} deleteLoading={deletingId === r.id} />
             )},
           ]}
         />

@@ -36,6 +36,7 @@ export default function PenggunaPage({ users, currentUserId, currentUserRole }) 
   const [form, setForm]       = useState(EMPTY_FORM)
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState("")
+  const [deletingId, setDeletingId] = useState(null)
 
   const isSuperadmin = currentUserRole === "superadmin"
 
@@ -91,8 +92,14 @@ export default function PenggunaPage({ users, currentUserId, currentUserRole }) 
       confirmLabel: "Ya, Hapus",
     })
     if (!ok) return
-    await deleteUser(u.id)
-    router.refresh()
+    
+    setDeletingId(u.id)
+    try {
+      await deleteUser(u.id)
+      router.refresh()
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   const roleOptions = [
@@ -134,9 +141,10 @@ export default function PenggunaPage({ users, currentUserId, currentUserRole }) 
       render: (u) => (
         <RowActions
           onEdit={() => openEdit(u)}
-          onDelete={() => handleDelete(u)}
+          onDelete={() => { handleDelete(u) }}
           deleteDisabled={u.id === currentUserId}
           deleteTitle="Tidak bisa menghapus akun sendiri"
+          deleteLoading={deletingId === u.id}
         />
       ),
     },

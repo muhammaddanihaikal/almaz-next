@@ -40,6 +40,7 @@ export default function RokokPage({ rokokList, usedIds }) {
   const [isSorting, setIsSorting] = useState(false)
   const [sortedList, setSortedList] = useState([])
   const [isSaving, setIsSaving] = useState(false)
+  const [deletingId, setDeletingId] = useState(null)
 
   // Initialize sortedList when rokokList changes or isSorting is enabled
   useEffect(() => {
@@ -59,8 +60,14 @@ export default function RokokPage({ rokokList, usedIds }) {
   const handleDelete = async (r) => {
     const ok = await confirm(`Hapus rokok "${r.nama}"? Data distribusi & retur tidak akan ikut terhapus.`, { title: "Hapus Rokok", variant: "danger", confirmLabel: "Ya, Hapus" })
     if (!ok) return
-    await deleteRokok(r.id)
-    router.refresh()
+    
+    setDeletingId(r.id)
+    try {
+      await deleteRokok(r.id)
+      router.refresh()
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   const handleToggle = async (id) => {
@@ -246,9 +253,10 @@ export default function RokokPage({ rokokList, usedIds }) {
                 render: (r) => (
                   <RowActions
                     onEdit={() => { setEditing(r); setMode("edit") }}
-                    onDelete={() => handleDelete(r)}
+                    onDelete={() => { handleDelete(r) }}
                     deleteDisabled={isUsed(r.id)}
                     deleteTitle="Rokok sudah digunakan di data distribusi/retur"
+                    deleteLoading={deletingId === r.id}
                   />
                 ),
               },
@@ -273,9 +281,10 @@ export default function RokokPage({ rokokList, usedIds }) {
                   <Toggle checked={r.aktif ?? true} onChange={() => handleToggle(r.id)} />
                   <RowActions
                     onEdit={() => { setEditing(r); setMode("edit") }}
-                    onDelete={() => handleDelete(r)}
+                    onDelete={() => { handleDelete(r) }}
                     deleteDisabled={isUsed(r.id)}
                     deleteTitle="Rokok sudah digunakan di data distribusi/retur"
+                    deleteLoading={deletingId === r.id}
                   />
                 </div>
               </div>

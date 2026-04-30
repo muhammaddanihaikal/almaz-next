@@ -75,6 +75,7 @@ export default function PenjualanPage({ penjualan, rokokList, salesList, tokoLis
   const [detail,      setDetail]      = useState(null)
   const [dateRange,   setDateRange]   = useState(defaultDateRange("bulan_ini"))
   const [salesFilter, setSalesFilter] = useState("")
+  const [deletingId,  setDeletingId]  = useState(null)
 
   const rows = useMemo(() => {
     let filtered = filterByDateRange(penjualan, dateRange)
@@ -116,8 +117,14 @@ export default function PenjualanPage({ penjualan, rokokList, salesList, tokoLis
   const handleDelete = async (r) => {
     const ok = await confirm("Hapus data penjualan ini?", { title: "Hapus Penjualan", variant: "danger", confirmLabel: "Ya, Hapus" })
     if (!ok) return
-    await deletePenjualan(r.id)
-    router.refresh()
+    
+    setDeletingId(r.id)
+    try {
+      await deletePenjualan(r.id)
+      router.refresh()
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   return (

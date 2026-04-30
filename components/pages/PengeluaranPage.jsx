@@ -17,6 +17,7 @@ export default function PengeluaranPage({ pengeluaranList }) {
   const [mode, setMode] = useState(null)
   const [editing, setEditing] = useState(null)
   const [dateRange, setDateRange] = useState(defaultDateRange("bulan_ini"))
+  const [deletingId, setDeletingId] = useState(null)
 
   const rows = useMemo(
     () => sortByDateDesc(filterByDateRange(pengeluaranList, dateRange)),
@@ -40,8 +41,14 @@ export default function PengeluaranPage({ pengeluaranList }) {
   const handleDelete = async (r) => {
     const ok = await confirm(`Hapus pengeluaran "${r.keterangan}"?`, { title: "Hapus Pengeluaran", variant: "danger", confirmLabel: "Ya, Hapus" })
     if (!ok) return
-    await deletePengeluaran(r.id)
-    router.refresh()
+    
+    setDeletingId(r.id)
+    try {
+      await deletePengeluaran(r.id)
+      router.refresh()
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   return (
