@@ -411,13 +411,20 @@ export function IconButton({ onClick, icon: Icon, label, variant, disabled, load
   )
 }
 
-export function RowActions({ onDetail, onEdit, onDelete, deleteDisabled, deleteTitle }) {
+export function RowActions({ onDetail, onEdit, onDelete, deleteDisabled, deleteTitle, deleteLoading }) {
   return (
     <div className="flex justify-end gap-1">
       {onDetail && <IconButton onClick={onDetail} icon={Eye} label="Detail" />}
       {onEdit && <IconButton onClick={onEdit} icon={Pencil} label="Edit" />}
       {onDelete && (
-        <IconButton onClick={onDelete} icon={Trash2} label={deleteDisabled ? (deleteTitle || "Tidak bisa dihapus") : "Hapus"} variant="danger" disabled={deleteDisabled} />
+        <IconButton 
+          onClick={onDelete} 
+          icon={Trash2} 
+          label={deleteDisabled ? (deleteTitle || "Tidak bisa dihapus") : "Hapus"} 
+          variant="danger" 
+          disabled={deleteDisabled} 
+          loading={deleteLoading}
+        />
       )}
     </div>
   )

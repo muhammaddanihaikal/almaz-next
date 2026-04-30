@@ -360,6 +360,7 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
   const [rokokFilter, setRokokFilter] = useState([])
   const [statusFilter, setStatusFilter] = useState("")
   const [showExportMenu, setShowExportMenu] = useState(false)
+  const [deletingId, setDeletingId] = useState(null)
 
   const rows = useMemo(() => {
     let temp = [...sesiList]
@@ -403,8 +404,14 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
       confirmLabel: "Ya, Hapus"
     })
     if (!ok) return
-    await deleteSesi(r.id)
-    router.refresh()
+    
+    setDeletingId(r.id)
+    try {
+      await deleteSesi(r.id)
+      router.refresh()
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   return (
@@ -579,7 +586,8 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
                   <RowActions
                     onDetail={() => setDetail(r)}
                     onEdit={() => { setEditing(r); setMode("edit") }}
-                    onDelete={() => handleDelete(r)}
+                    onDelete={() => { handleDelete(r) }}
+                    deleteLoading={deletingId === r.id}
                   />
                 </div>
               ),
