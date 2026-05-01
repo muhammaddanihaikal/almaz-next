@@ -80,6 +80,7 @@ export async function addRokok(data) {
     await logAudit({
       tx,
       entity_type: AUDIT_ENTITY.ROKOK,
+      change_type: "Tambah Rokok",
       entity_id:   r.id,
       action:      AUDIT_ACTION.CREATE,
       new_values:  { nama: r.nama, stok: r.stok, harga_beli: r.harga_beli, harga_grosir: r.harga_grosir, harga_toko: r.harga_toko, harga_perorangan: r.harga_perorangan },
@@ -107,6 +108,7 @@ export async function updateRokok(id, data, alasan) {
     await logAudit({
       tx,
       entity_type: AUDIT_ENTITY.ROKOK,
+      change_type: "Edit Harga / Nama",
       entity_id:   id,
       action:      AUDIT_ACTION.UPDATE,
       old_values:  { nama: old.nama, harga_beli: old.harga_beli, harga_grosir: old.harga_grosir, harga_toko: old.harga_toko, harga_perorangan: old.harga_perorangan },
@@ -126,6 +128,7 @@ export async function deleteRokok(id, alasan) {
     await logAudit({
       tx,
       entity_type: AUDIT_ENTITY.ROKOK,
+      change_type: "Hapus Rokok",
       entity_id:   id,
       action:      AUDIT_ACTION.DELETE,
       old_values:  { nama: old.nama, harga_beli: old.harga_beli, harga_grosir: old.harga_grosir, harga_toko: old.harga_toko, harga_perorangan: old.harga_perorangan },
@@ -139,14 +142,29 @@ export async function deleteRokok(id, alasan) {
 }
 
 export async function toggleAktifRokok(id) {
-  const r = await prisma.rokok.findUnique({ where: { id }, select: { aktif: true } })
-  await prisma.rokok.update({ where: { id }, data: { aktif: !r.aktif } })
+  const session = await auth()
+  await prisma.$transaction(async (tx) => {
+    const r = await tx.rokok.findUnique({ where: { id }, select: { aktif: true, nama: true } })
+    await tx.rokok.update({ where: { id }, data: { aktif: !r.aktif } })
+    await logAudit({
+      tx,
+      entity_type: AUDIT_ENTITY.ROKOK,
+      change_type: r.aktif ? "Nonaktifkan Rokok" : "Aktifkan Rokok",
+      entity_id:   id,
+      action:      AUDIT_ACTION.UPDATE,
+      old_values:  { nama: r.nama, aktif: r.aktif },
+      new_values:  { nama: r.nama, aktif: !r.aktif },
+      user_id:     session?.user?.id,
+      user_name:   session?.user?.name,
+    })
+  })
   revalidatePath("/rokok")
 }
 
 export async function tambahStok(id, qty, date, keterangan) {
   const session = await auth()
   await prisma.$transaction(async (tx) => {
+    const rokok = await tx.rokok.findUnique({ where: { id }, select: { nama: true } })
     const sm = await tx.stokMasuk.create({
       data: {
         rokok_id: id,
@@ -165,6 +183,16 @@ export async function tambahStok(id, qty, date, keterangan) {
       reference_id: sm.id,
       keterangan: keterangan || "Stok Masuk dari Supplier",
       user_id: session?.user?.id || null,
+    })
+    await logAudit({
+      tx,
+      entity_type: AUDIT_ENTITY.ROKOK,
+      change_type: "Tambah Stok",
+      entity_id:   id,
+      action:      AUDIT_ACTION.UPDATE,
+      new_values:  { rokok: rokok?.nama, qty, tanggal: date, keterangan: keterangan || "Stok Masuk" },
+      user_id:     session?.user?.id,
+      user_name:   session?.user?.name,
     })
   })
   revalidatePath("/rokok")
@@ -274,6 +302,7 @@ export async function getMutasiStok(startDate, endDate) {
 export async function koreksiStok(id, qty, jenis, keterangan) {
   const session = await auth()
   await prisma.$transaction(async (tx) => {
+    const rokok = await tx.rokok.findUnique({ where: { id }, select: { nama: true } })
     await mutateStock({
       tx,
       rokok_id: id,
@@ -284,6 +313,16 @@ export async function koreksiStok(id, qty, jenis, keterangan) {
       reference_id: "manual",
       keterangan: keterangan || "Koreksi manual admin",
       user_id: session?.user?.id || null,
+    })
+    await logAudit({
+      tx,
+      entity_type: AUDIT_ENTITY.ROKOK,
+      change_type: "Koreksi Stok",
+      entity_id:   id,
+      action:      AUDIT_ACTION.UPDATE,
+      new_values:  { rokok: rokok?.nama, jenis, qty, keterangan: keterangan || "Koreksi manual admin" },
+      user_id:     session?.user?.id,
+      user_name:   session?.user?.name,
     })
   })
   revalidatePath("/rokok")

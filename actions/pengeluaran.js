@@ -28,6 +28,7 @@ export async function addPengeluaran(data) {
     await logAudit({
       tx,
       entity_type: AUDIT_ENTITY.PENGELUARAN,
+      change_type: "Tambah Pengeluaran",
       entity_id:   row.id,
       action:      AUDIT_ACTION.CREATE,
       new_values:  { tanggal: data.tanggal, jumlah: row.jumlah, keterangan: row.keterangan },
@@ -54,6 +55,7 @@ export async function updatePengeluaran(id, data, alasan) {
     await logAudit({
       tx,
       entity_type: AUDIT_ENTITY.PENGELUARAN,
+      change_type: "Edit Pengeluaran",
       entity_id:   id,
       action:      AUDIT_ACTION.UPDATE,
       old_values:  { tanggal: old.tanggal.toISOString().split("T")[0], jumlah: old.jumlah, keterangan: old.keterangan },
@@ -74,6 +76,7 @@ export async function deletePengeluaran(id, alasan) {
     await logAudit({
       tx,
       entity_type: AUDIT_ENTITY.PENGELUARAN,
+      change_type: "Hapus Pengeluaran",
       entity_id:   id,
       action:      AUDIT_ACTION.DELETE,
       old_values:  { tanggal: old.tanggal.toISOString().split("T")[0], jumlah: old.jumlah, keterangan: old.keterangan },

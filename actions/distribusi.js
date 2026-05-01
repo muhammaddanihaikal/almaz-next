@@ -126,6 +126,7 @@ export async function createSesi(data) {
     await logAudit({
       tx,
       entity_type: AUDIT_ENTITY.SESI_HARIAN,
+      change_type: "Laporan Pagi - Buat Sesi",
       entity_id:   sesi.id,
       action:      AUDIT_ACTION.CREATE,
       new_values:  {
@@ -192,6 +193,7 @@ export async function updateSesiPagi(id, data, alasan) {
     await logAudit({
       tx,
       entity_type: AUDIT_ENTITY.SESI_HARIAN,
+      change_type: "Laporan Pagi - Barang Keluar",
       entity_id:   id,
       action:      AUDIT_ACTION.UPDATE,
       old_values:  {
@@ -338,6 +340,7 @@ export async function submitLaporanSore(id, data) {
     await logAudit({
       tx,
       entity_type: AUDIT_ENTITY.SESI_HARIAN,
+      change_type: "Laporan Sore - Submit",
       entity_id:   id,
       action:      AUDIT_ACTION.UPDATE,
       new_values:  {
@@ -444,6 +447,7 @@ export async function editLaporanSore(id, data, alasan) {
     await logAudit({
       tx,
       entity_type: AUDIT_ENTITY.SESI_HARIAN,
+      change_type: "Laporan Sore - Edit",
       entity_id:   id,
       action:      AUDIT_ACTION.UPDATE,
       old_values:  {
@@ -485,6 +489,7 @@ export async function deleteSesi(id, alasan) {
     await logAudit({
       tx,
       entity_type: AUDIT_ENTITY.SESI_HARIAN,
+      change_type: "Hapus Sesi",
       entity_id:   id,
       action:      AUDIT_ACTION.DELETE,
       old_values:  {

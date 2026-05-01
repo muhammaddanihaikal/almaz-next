@@ -130,6 +130,7 @@ export async function settleTitipJual(id, data) {
     await logAudit({
       tx,
       entity_type: AUDIT_ENTITY.TITIP_JUAL,
+      change_type: "Penyelesaian (Settlement)",
       entity_id:   id,
       action:      AUDIT_ACTION.UPDATE,
       old_values:  { status: old.status },
@@ -163,6 +164,7 @@ export async function editTitipJualDetail(id, data, alasan) {
     await logAudit({
       tx,
       entity_type: AUDIT_ENTITY.TITIP_JUAL,
+      change_type: "Perpanjang Jatuh Tempo",
       entity_id:   id,
       action:      AUDIT_ACTION.UPDATE,
       old_values:  { tanggal_jatuh_tempo: old.tanggal_jatuh_tempo.toISOString().split("T")[0], catatan: old.catatan },
@@ -186,6 +188,7 @@ export async function deleteTitipJual(id, alasan) {
     await logAudit({
       tx,
       entity_type: AUDIT_ENTITY.TITIP_JUAL,
+      change_type: "Hapus Titip Jual",
       entity_id:   id,
       action:      AUDIT_ACTION.DELETE,
       old_values:  {
@@ -227,25 +230,45 @@ export async function createTitipJual(sesiId, salesId, k) {
     hargaMap[r.id] = { grosir: r.harga_grosir, toko: r.harga_toko, perorangan: r.harga_perorangan }
   }
 
-  const result = await prisma.titipJual.create({
-    data: {
-      sesi_id:             sesiId,
-      sales_id:            salesId,
-      toko_id:             k.toko_id,
-      kategori:            k.kategori,
-      tanggal_jatuh_tempo: new Date(k.tanggal_jatuh_tempo),
-      catatan:             k.catatan || null,
-      items: {
-        create: k.items
-          .filter((it) => it.rokok_id && Number(it.qty) > 0)
-          .map((it) => ({
-            rokok_id:   it.rokok_id,
-            qty_keluar: Number(it.qty),
-            harga:      hargaMap[it.rokok_id]?.[k.kategori] || 0,
-          })),
+  const session = await auth()
+  const result = await prisma.$transaction(async (tx) => {
+    const created = await tx.titipJual.create({
+      data: {
+        sesi_id:             sesiId,
+        sales_id:            salesId,
+        toko_id:             k.toko_id,
+        kategori:            k.kategori,
+        tanggal_jatuh_tempo: new Date(k.tanggal_jatuh_tempo),
+        catatan:             k.catatan || null,
+        items: {
+          create: k.items
+            .filter((it) => it.rokok_id && Number(it.qty) > 0)
+            .map((it) => ({
+              rokok_id:   it.rokok_id,
+              qty_keluar: Number(it.qty),
+              harga:      hargaMap[it.rokok_id]?.[k.kategori] || 0,
+            })),
+        },
       },
-    },
-    include,
+      include,
+    })
+    await logAudit({
+      tx,
+      entity_type: AUDIT_ENTITY.TITIP_JUAL,
+      change_type: "Buat Titip Jual",
+      entity_id:   created.id,
+      action:      AUDIT_ACTION.CREATE,
+      new_values:  {
+        sales_id:            salesId,
+        toko_id:             k.toko_id,
+        kategori:            k.kategori,
+        tanggal_jatuh_tempo: k.tanggal_jatuh_tempo,
+        items: k.items.filter(it => it.rokok_id && Number(it.qty) > 0).map(it => ({ rokok_id: it.rokok_id, qty: Number(it.qty) })),
+      },
+      user_id:   session?.user?.id,
+      user_name: session?.user?.name,
+    })
+    return created
   })
 
   revalidatePath("/distribusi")
@@ -314,6 +337,7 @@ export async function editSettlement(id, data, alasan) {
     await logAudit({
       tx,
       entity_type: AUDIT_ENTITY.TITIP_JUAL,
+      change_type: "Edit Settlement",
       entity_id:   id,
       action:      AUDIT_ACTION.UPDATE,
       old_values:  {
@@ -366,6 +390,7 @@ export async function revertSettlement(id, alasan) {
     await logAudit({
       tx,
       entity_type: AUDIT_ENTITY.TITIP_JUAL,
+      change_type: "Batalkan Settlement",
       entity_id:   id,
       action:      AUDIT_ACTION.UPDATE,
       old_values:  {

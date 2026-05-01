@@ -32,6 +32,7 @@ export async function getAuditLogs({ startDate, endDate, entity_type, user_id } 
   return rows.map((r) => ({
     id:          r.id,
     entity_type: r.entity_type,
+    change_type: r.change_type,
     entity_id:   r.entity_id,
     action:      r.action,
     old_values:  r.old_values,
