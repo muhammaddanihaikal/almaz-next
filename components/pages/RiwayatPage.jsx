@@ -89,7 +89,12 @@ export default function RiwayatPage({ initialLogs, users }) {
             { key: "createdAt",   label: "Waktu",  render: r => <span className="tabular-nums text-xs">{r.createdAt}</span> },
             {
               key: "entity_type", label: "Data",
-              render: r => <span className="font-medium">{ENTITY_LABELS[r.entity_type] ?? r.entity_type}</span>,
+              render: r => (
+                <div className="flex flex-col gap-1">
+                  <span className="font-medium">{ENTITY_LABELS[r.entity_type] ?? r.entity_type}</span>
+                  {r.change_type && <span className="text-xs text-neutral-500">{r.change_type}</span>}
+                </div>
+              ),
             },
             {
               key: "action", label: "Aksi",
@@ -113,13 +118,16 @@ export default function RiwayatPage({ initialLogs, users }) {
             },
           ]}
           mobileRender={(r) => (
-            <div className="space-y-1">
+            <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${ACTION_LABELS[r.action]?.cls ?? "bg-neutral-100 text-neutral-700"}`}>
-                    {ACTION_LABELS[r.action]?.label ?? r.action}
-                  </span>
-                  <span className="text-sm font-medium">{ENTITY_LABELS[r.entity_type] ?? r.entity_type}</span>
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${ACTION_LABELS[r.action]?.cls ?? "bg-neutral-100 text-neutral-700"}`}>
+                      {ACTION_LABELS[r.action]?.label ?? r.action}
+                    </span>
+                    <span className="text-sm font-medium">{ENTITY_LABELS[r.entity_type] ?? r.entity_type}</span>
+                  </div>
+                  {r.change_type && <span className="text-xs text-neutral-500">{r.change_type}</span>}
                 </div>
                 <button
                   className="text-xs font-medium text-neutral-500 underline"

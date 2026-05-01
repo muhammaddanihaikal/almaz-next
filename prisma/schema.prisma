@@ -282,6 +282,7 @@ model ClosingHarian {
 model AuditLog {
   id          String   @id @default(cuid())
   entity_type String   // "SesiHarian" | "TitipJual" | "Pengeluaran" | "Rokok"
+  change_type String?  // misal: "Laporan Sore - Setoran", "Perpanjang JT", dll
   entity_id   String
   action      String   // "CREATE" | "UPDATE" | "DELETE"
   old_values  Json?

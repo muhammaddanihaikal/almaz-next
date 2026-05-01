@@ -446,6 +446,7 @@ async function main() {
       data: [
         {
           entity_type: "Pengeluaran",
+          change_type: "Pembelian Alat",
           entity_id:   "seed-sample-1",
           action:      "CREATE",
           new_values:  { tanggal: "2026-04-24", jumlah: 200000, keterangan: "Pembelian Alat Tulis Kantor" },
@@ -455,6 +456,7 @@ async function main() {
         },
         {
           entity_type: "Rokok",
+          change_type: "Harga Toko & Perorangan",
           entity_id:   rokok["Dji Sam Soe 234"].id,
           action:      "UPDATE",
           old_values:  { harga_toko: 28000, harga_perorangan: 29500 },
@@ -466,6 +468,7 @@ async function main() {
         },
         {
           entity_type: "Pengeluaran",
+          change_type: "Penghapusan (Input Salah)",
           entity_id:   "seed-sample-deleted",
           action:      "DELETE",
           old_values:  { tanggal: "2026-04-25", jumlah: 300000, keterangan: "Pembelian AC Gudang" },
@@ -476,6 +479,7 @@ async function main() {
         },
         {
           entity_type: "SesiHarian",
+          change_type: "Laporan Sore - Setoran",
           entity_id:   s3.id,
           action:      "UPDATE",
           old_values:  { setoran_cash: 2000000, setoran_transfer: 0 },
@@ -487,6 +491,7 @@ async function main() {
         },
         {
           entity_type: "TitipJual",
+          change_type: "Perpanjang Jatuh Tempo",
           entity_id:   tj5.id,
           action:      "UPDATE",
           old_values:  { tanggal_jatuh_tempo: "2026-04-25" },
@@ -498,6 +503,7 @@ async function main() {
         },
         {
           entity_type: "Rokok",
+          change_type: "Penghapusan Produk",
           entity_id:   "seed-rokok-deleted",
           action:      "DELETE",
           old_values:  { nama: "Marlboro Light", harga_beli: 28000, stok: 0 },
