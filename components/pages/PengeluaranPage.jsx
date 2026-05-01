@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Plus } from "lucide-react"
 import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc, downloadExcel } from "@/lib/utils"
 import { addPengeluaran, updatePengeluaran, deletePengeluaran } from "@/actions/pengeluaran"
-import { Card, PageHeader, DateFilter, DownloadButton, PrimaryButton, Field, FormActions, RowActions, inputCls, useConfirm } from "@/components/ui"
+import { Card, PageHeader, DateFilter, DownloadButton, PrimaryButton, Field, FormActions, RowActions, inputCls, useConfirmWithReason } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
 
@@ -13,11 +13,10 @@ const PAGE_SIZE = 10
 
 export default function PengeluaranPage({ pengeluaranList }) {
   const router = useRouter()
-  const { confirm, ConfirmModal } = useConfirm()
+  const { confirmWithReason, ConfirmWithReasonModal } = useConfirmWithReason()
   const [mode, setMode] = useState(null)
   const [editing, setEditing] = useState(null)
   const [dateRange, setDateRange] = useState(defaultDateRange("bulan_ini"))
-  const [deletingId, setDeletingId] = useState(null)
 
   const rows = useMemo(
     () => sortByDateDesc(filterByDateRange(pengeluaranList, dateRange)),
@@ -39,16 +38,10 @@ export default function PengeluaranPage({ pengeluaranList }) {
   const close = () => { setMode(null); setEditing(null) }
 
   const handleDelete = async (r) => {
-    const ok = await confirm(`Hapus pengeluaran "${r.keterangan}"?`, { title: "Hapus Pengeluaran", variant: "danger", confirmLabel: "Ya, Hapus" })
-    if (!ok) return
-    
-    setDeletingId(r.id)
-    try {
-      await deletePengeluaran(r.id)
-      router.refresh()
-    } finally {
-      setDeletingId(null)
-    }
+    const alasan = await confirmWithReason(`Hapus pengeluaran "${r.keterangan}"?`, { title: "Hapus Pengeluaran", variant: "danger", confirmLabel: "Ya, Hapus" })
+    if (!alasan) return
+    await deletePengeluaran(r.id, alasan)
+    router.refresh()
   }
 
   return (
@@ -122,16 +115,23 @@ export default function PengeluaranPage({ pengeluaranList }) {
           <PengeluaranForm
             initial={editing}
             onSubmit={async (data) => {
-              if (mode === "add") await addPengeluaran(data)
-              else await updatePengeluaran(editing.id, data)
-              close()
-              router.refresh()
+              if (mode === "add") {
+                await addPengeluaran(data)
+                close()
+                router.refresh()
+              } else {
+                close()
+                const alasan = await confirmWithReason(`Edit pengeluaran "${editing.keterangan}"?`, { title: "Edit Pengeluaran", confirmLabel: "Ya, Simpan" })
+                if (!alasan) return
+                await updatePengeluaran(editing.id, data, alasan)
+                router.refresh()
+              }
             }}
             onCancel={close}
           />
         </Modal>
       )}
-      {ConfirmModal}
+      {ConfirmWithReasonModal}
     </div>
   )
 }

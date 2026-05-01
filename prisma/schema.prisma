@@ -20,6 +20,7 @@ model User {
   updatedAt DateTime @updatedAt
 
   stockMutations StockMutation[]
+  auditLogs      AuditLog[]
 }
 
 // ─── MASTER DATA ─────────────────────────────────────────────────────────────
@@ -274,4 +275,24 @@ model ClosingHarian {
   rokok Rokok @relation(fields: [rokok_id], references: [id], onDelete: Cascade)
 
   @@unique([tanggal, rokok_id])
+}
+
+// ─── AUDIT LOG ───────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  entity_type String   // "SesiHarian" | "TitipJual" | "Pengeluaran" | "Rokok"
+  entity_id   String
+  action      String   // "CREATE" | "UPDATE" | "DELETE"
+  old_values  Json?
+  new_values  Json?
+  alasan      String?
+  user_id     String?
+  user_name   String?  // disimpan langsung agar tetap ada meski user dihapus
+  createdAt   DateTime @default(now())
+
+  user User? @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@index([entity_type, entity_id])
+  @@index([createdAt])
 }

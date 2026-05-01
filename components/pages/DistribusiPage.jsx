@@ -10,7 +10,7 @@ import { addToko } from "@/actions/toko"
 import SettlementForm from "@/components/SettlementForm"
 import {
   Card, PageHeader, DateFilter, PrimaryButton, Field, FormActions,
-  MultiSearchableSelect, SearchableSelect, SelectInput, inputCls, MoneyInput, RowActions, IconButton, useConfirm, Button
+  MultiSearchableSelect, SearchableSelect, SelectInput, inputCls, MoneyInput, RowActions, IconButton, useConfirm, useConfirmWithReason, Button
 } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
@@ -349,6 +349,7 @@ function exportToExcelBySales(rows, rokokList, dateRange, onNoData) {
 export default function DistribusiPage({ sesiList, rokokList, salesList, tokoList }) {
   const router  = useRouter()
   const { confirm, ConfirmModal } = useConfirm()
+  const { confirmWithReason, ConfirmWithReasonModal } = useConfirmWithReason()
 
   const [mode,      setMode]      = useState(null)
   const [editing,   setEditing]   = useState(null)
@@ -360,7 +361,6 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
   const [rokokFilter, setRokokFilter] = useState([])
   const [statusFilter, setStatusFilter] = useState("")
   const [showExportMenu, setShowExportMenu] = useState(false)
-  const [deletingId, setDeletingId] = useState(null)
 
   const rows = useMemo(() => {
     let temp = [...sesiList]
@@ -398,20 +398,14 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
   const close = () => { setMode(null); setEditing(null) }
 
   const handleDelete = async (r) => {
-    const ok = await confirm(`Hapus sesi ${r.sales} — ${fmtTanggal(r.tanggal)}?`, {
+    const alasan = await confirmWithReason(`Hapus sesi ${r.sales} — ${fmtTanggal(r.tanggal)}?`, {
       title: "Hapus Sesi",
       variant: "danger",
       confirmLabel: "Ya, Hapus"
     })
-    if (!ok) return
-    
-    setDeletingId(r.id)
-    try {
-      await deleteSesi(r.id)
-      router.refresh()
-    } finally {
-      setDeletingId(null)
-    }
+    if (!alasan) return
+    await deleteSesi(r.id, alasan)
+    router.refresh()
   }
 
   return (
@@ -587,7 +581,6 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
                     onDetail={() => setDetail(r)}
                     onEdit={() => { setEditing(r); setMode("edit") }}
                     onDelete={() => { handleDelete(r) }}
-                    deleteLoading={deletingId === r.id}
                   />
                 </div>
               ),
@@ -610,10 +603,17 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
             salesList={salesList}
             sesiList={sesiList}
             onSubmit={async (data) => {
-              if (mode === "add") await createSesi(data)
-              else await updateSesiPagi(editing.id, data)
-              close()
-              router.refresh()
+              if (mode === "add") {
+                await createSesi(data)
+                close()
+                router.refresh()
+              } else {
+                close()
+                const alasan = await confirmWithReason(`Edit distribusi pagi ${editing.sales}?`, { title: "Edit Distribusi Pagi", confirmLabel: "Ya, Simpan" })
+                if (!alasan) return
+                await updateSesiPagi(editing.id, data, alasan)
+                router.refresh()
+              }
             }}
             onCancel={close}
           />
@@ -644,8 +644,11 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
             tokoList={tokoList}
             isEdit
             onSubmit={async (data) => {
-              await editLaporanSore(editLaporan.id, { ...data, sales_id: editLaporan.sales_id, tanggal: editLaporan.tanggal })
+              const captured = editLaporan
               setEditLaporan(null)
+              const alasan = await confirmWithReason(`Edit laporan sore ${captured.sales}?`, { title: "Edit Laporan Sore", confirmLabel: "Ya, Simpan" })
+              if (!alasan) return
+              await editLaporanSore(captured.id, { ...data, sales_id: captured.sales_id, tanggal: captured.tanggal }, alasan)
               router.refresh()
             }}
             onCancel={() => setEditLaporan(null)}
@@ -653,6 +656,7 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
         </Modal>
       )}
       {ConfirmModal}
+      {ConfirmWithReasonModal}
     </div>
   )
 }
@@ -946,7 +950,7 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, onSubmit, onCan
 // ─── Form Laporan Sore ────────────────────────────────────────────────────────
 
 function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = false, onSubmit, onCancel }) {
-  const { confirm, ConfirmModal: LaporanConfirmModal } = useConfirm()
+  const { confirmWithReason, ConfirmWithReasonModal: LaporanConfirmModal } = useConfirmWithReason()
   const [activeTab, setActiveTab] = useState("penjualan")
   const [tokoList, setTokoList]   = useState(tokoListProp ?? [])
 
@@ -1042,24 +1046,24 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, isEdit = fal
   }
 
   const handleRevertSettlement = async (record) => {
-    const ok = await confirm(`Batalkan penyelesaian titip jual "${record.konsinyasi.nama_toko}"? Status akan kembali ke Aktif.`, { title: "Batalkan Penyelesaian", variant: "danger", confirmLabel: "Ya, Batalkan" })
-    if (!ok) return
-    await revertSettlement(record.konsinyasi.id)
+    const alasan = await confirmWithReason(`Batalkan penyelesaian titip jual "${record.konsinyasi.nama_toko}"? Status akan kembali ke Aktif.`, { title: "Batalkan Penyelesaian", variant: "danger", confirmLabel: "Ya, Batalkan" })
+    if (!alasan) return
+    await revertSettlement(record.konsinyasi.id, alasan)
     setSettledIds((prev) => { const s = new Set(prev); s.delete(record.konsinyasi.id); return s })
     setSettledRecords((prev) => prev.filter((r) => r.konsinyasi.id !== record.konsinyasi.id))
   }
 
   const handleRevertPreexistingSettlement = async (k) => {
-    const ok = await confirm(`Batalkan penyelesaian titip jual "${k.nama_toko}"? Status akan kembali ke Aktif.`, { title: "Batalkan Penyelesaian", variant: "danger", confirmLabel: "Ya, Batalkan" })
-    if (!ok) return
-    await revertSettlement(k.id)
+    const alasan = await confirmWithReason(`Batalkan penyelesaian titip jual "${k.nama_toko}"? Status akan kembali ke Aktif.`, { title: "Batalkan Penyelesaian", variant: "danger", confirmLabel: "Ya, Batalkan" })
+    if (!alasan) return
+    await revertSettlement(k.id, alasan)
     setRevertedFromSelesaiIds((prev) => new Set([...prev, k.id]))
   }
 
   const handleHapusKonsinyasi = async (k) => {
-    const ok = await confirm(`Hapus titip jual "${k.nama_toko}"? Stok akan dikembalikan.`, { title: "Hapus Titip Jual", variant: "danger", confirmLabel: "Ya, Hapus" })
-    if (!ok) return
-    await deleteTitipJual(k.id)
+    const alasan = await confirmWithReason(`Hapus titip jual "${k.nama_toko}"? Stok akan dikembalikan.`, { title: "Hapus Titip Jual", variant: "danger", confirmLabel: "Ya, Hapus" })
+    if (!alasan) return
+    await deleteTitipJual(k.id, alasan)
     setNewlyCreatedKonsinyasi((prev) => prev.filter((x) => x.id !== k.id))
   }
 

@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react"
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100]
 
-export default function DataTable({ columns, rows, empty, pageSize: defaultPageSize, mobileRender }) {
+export default function DataTable({ columns, rows, empty, pageSize: defaultPageSize, mobileRender, rowExtra }) {
   const hasPagination = !!defaultPageSize
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(defaultPageSize || 9999)
@@ -95,14 +95,18 @@ export default function DataTable({ columns, rows, empty, pageSize: defaultPageS
             <tbody>
               {visible.map((row, visIdx) => {
                 const rowIndex = (page - 1) * pageSize + visIdx
+                const extra = rowExtra?.(row, rowIndex)
                 return (
-                  <tr key={row.id ?? visIdx} className="border-b border-neutral-100 last:border-0 hover:bg-neutral-50/60">
-                    {columns.map((c) => (
-                      <td key={c.key} className={"px-3 py-3 text-neutral-800 " + (c.align === "right" ? "text-right tabular-nums" : "") + (c.align === "center" ? " text-center" : "")}>
-                        {c.render ? c.render(row, rowIndex) : row[c.key]}
-                      </td>
-                    ))}
-                  </tr>
+                  <>
+                    <tr key={row.id ?? visIdx} className="border-b border-neutral-100 last:border-0 hover:bg-neutral-50/60">
+                      {columns.map((c) => (
+                        <td key={c.key} className={"px-3 py-3 text-neutral-800 " + (c.align === "right" ? "text-right tabular-nums" : "") + (c.align === "center" ? " text-center" : "")}>
+                          {c.render ? c.render(row, rowIndex) : row[c.key]}
+                        </td>
+                      ))}
+                    </tr>
+                    {extra}
+                  </>
                 )
               })}
             </tbody>
@@ -129,14 +133,18 @@ export default function DataTable({ columns, rows, empty, pageSize: defaultPageS
           <tbody>
             {visible.map((row, visIdx) => {
               const rowIndex = (page - 1) * pageSize + visIdx
+              const extra = rowExtra?.(row, rowIndex)
               return (
-                <tr key={row.id} className="border-b border-neutral-100 last:border-0 hover:bg-neutral-50/60">
-                  {columns.map((c) => (
-                    <td key={c.key} className={"px-3 py-3 text-neutral-800 " + (c.align === "right" ? "text-right tabular-nums" : "") + (c.align === "center" ? " text-center" : "")}>
-                      {c.render ? c.render(row, rowIndex) : row[c.key]}
-                    </td>
-                  ))}
-                </tr>
+                <>
+                  <tr key={row.id} className="border-b border-neutral-100 last:border-0 hover:bg-neutral-50/60">
+                    {columns.map((c) => (
+                      <td key={c.key} className={"px-3 py-3 text-neutral-800 " + (c.align === "right" ? "text-right tabular-nums" : "") + (c.align === "center" ? " text-center" : "")}>
+                        {c.render ? c.render(row, rowIndex) : row[c.key]}
+                      </td>
+                    ))}
+                  </tr>
+                  {extra}
+                </>
               )
             })}
           </tbody>

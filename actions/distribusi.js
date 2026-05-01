@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { mutateStock, MUTATION_SOURCE } from "@/lib/stock"
 import { auth } from "@/lib/auth"
+import { logAudit, AUDIT_ACTION, AUDIT_ENTITY } from "@/lib/audit"
 
 const include = {
   sales: true,
@@ -94,6 +95,7 @@ export async function getSesi(id) {
 }
 
 export async function createSesi(data) {
+  const session = await auth()
   await prisma.$transaction(async (tx) => {
     const sesi = await tx.sesiHarian.create({
       data: {
@@ -109,7 +111,6 @@ export async function createSesi(data) {
         },
       },
     })
-    const session = await auth()
     for (const it of data.barangKeluar || []) {
       await mutateStock({
         tx,
@@ -122,19 +123,32 @@ export async function createSesi(data) {
         user_id: session?.user?.id
       })
     }
+    await logAudit({
+      tx,
+      entity_type: AUDIT_ENTITY.SESI_HARIAN,
+      entity_id:   sesi.id,
+      action:      AUDIT_ACTION.CREATE,
+      new_values:  {
+        tanggal:      data.tanggal,
+        sales_id:     data.sales_id,
+        barangKeluar: (data.barangKeluar || []).map(it => ({ rokok_id: it.rokok_id, qty: it.qty })),
+      },
+      user_id:   session?.user?.id,
+      user_name: session?.user?.name,
+    })
     return sesi
   })
   revalidatePath("/distribusi")
   revalidatePath("/")
 }
 
-export async function updateSesiPagi(id, data) {
+export async function updateSesiPagi(id, data, alasan) {
+  const session = await auth()
   await prisma.$transaction(async (tx) => {
     const old = await tx.sesiHarian.findUnique({
       where: { id },
-      include: { barangKeluar: true },
+      include: { barangKeluar: { include: { rokok: true } } },
     })
-    const session = await auth()
     for (const it of old.barangKeluar) {
       await mutateStock({
         tx,
@@ -175,6 +189,25 @@ export async function updateSesiPagi(id, data) {
         user_id: session?.user?.id
       })
     }
+    await logAudit({
+      tx,
+      entity_type: AUDIT_ENTITY.SESI_HARIAN,
+      entity_id:   id,
+      action:      AUDIT_ACTION.UPDATE,
+      old_values:  {
+        tanggal:      old.tanggal.toISOString().split("T")[0],
+        sales_id:     old.sales_id,
+        barangKeluar: old.barangKeluar.map(it => ({ rokok: it.rokok?.nama, qty: it.qty })),
+      },
+      new_values:  {
+        tanggal:      data.tanggal,
+        sales_id:     data.sales_id,
+        barangKeluar: (data.barangKeluar || []).map(it => ({ rokok_id: it.rokok_id, qty: it.qty })),
+      },
+      alasan,
+      user_id:   session?.user?.id,
+      user_name: session?.user?.name,
+    })
   })
   revalidatePath("/distribusi")
   revalidatePath("/")
@@ -187,11 +220,11 @@ export async function submitLaporanSore(id, data) {
     hargaMap[r.id] = { grosir: r.harga_grosir, toko: r.harga_toko, perorangan: r.harga_perorangan }
   }
 
+  const session = await auth()
   await prisma.$transaction(async (tx) => {
     await tx.sesiPenjualan.deleteMany({ where: { sesi_id: id } })
     await tx.sesiSetoran.deleteMany({   where: { sesi_id: id } })
 
-    const session = await auth()
     const oldKembali = await tx.sesiBarangKembali.findMany({ where: { sesi_id: id } })
     for (const it of oldKembali) {
       await mutateStock({
@@ -301,23 +334,41 @@ export async function submitLaporanSore(id, data) {
       where: { id },
       data:  { status: "selesai" },
     })
+
+    await logAudit({
+      tx,
+      entity_type: AUDIT_ENTITY.SESI_HARIAN,
+      entity_id:   id,
+      action:      AUDIT_ACTION.UPDATE,
+      new_values:  {
+        status:       "selesai",
+        penjualan:    penjualan.map(it => ({ rokok_id: it.rokok_id, kategori: it.kategori, qty: it.qty })),
+        setoran:      setoran.map(it => ({ metode: it.metode, jumlah: it.jumlah })),
+        barangKembali: kembali.map(it => ({ rokok_id: it.rokok_id, qty: it.qty })),
+      },
+      alasan:    "Submit laporan sore",
+      user_id:   session?.user?.id,
+      user_name: session?.user?.name,
+    })
   })
   revalidatePath("/distribusi")
   revalidatePath("/titip-jual")
   revalidatePath("/")
 }
 
-export async function editLaporanSore(id, data) {
+export async function editLaporanSore(id, data, alasan) {
   const rokokList = await prisma.rokok.findMany()
   const hargaMap  = {}
   for (const r of rokokList) {
     hargaMap[r.id] = { grosir: r.harga_grosir, toko: r.harga_toko, perorangan: r.harga_perorangan }
   }
 
+  const session = await auth()
   await prisma.$transaction(async (tx) => {
-    // Reverse stok dari barang kembali lama
-    const session = await auth()
-    const oldKembali = await tx.sesiBarangKembali.findMany({ where: { sesi_id: id } })
+    const oldKembali  = await tx.sesiBarangKembali.findMany({ where: { sesi_id: id }, include: { rokok: true } })
+    const oldPenjualan = await tx.sesiPenjualan.findMany({ where: { sesi_id: id }, include: { rokok: true } })
+    const oldSetoran  = await tx.sesiSetoran.findMany({ where: { sesi_id: id } })
+
     for (const it of oldKembali) {
       await mutateStock({
         tx,
@@ -332,12 +383,10 @@ export async function editLaporanSore(id, data) {
       })
     }
 
-    // Hapus data laporan lama (penjualan, setoran, barang kembali)
     await tx.sesiPenjualan.deleteMany({ where: { sesi_id: id } })
     await tx.sesiSetoran.deleteMany({   where: { sesi_id: id } })
     await tx.sesiBarangKembali.deleteMany({ where: { sesi_id: id } })
 
-    // Insert penjualan baru
     const penjualan = data.penjualan || []
     await tx.sesiPenjualan.createMany({
       data: penjualan.map((it) => ({
@@ -349,13 +398,11 @@ export async function editLaporanSore(id, data) {
       })),
     })
 
-    // Insert setoran baru
     const setoran = data.setoran || []
     await tx.sesiSetoran.createMany({
       data: setoran.map((it) => ({ sesi_id: id, metode: it.metode, jumlah: it.jumlah })),
     })
 
-    // Insert barang kembali baru & update stok
     const kembali = data.barangKembali || []
     await tx.sesiBarangKembali.createMany({
       data: kembali.map((it) => ({ sesi_id: id, rokok_id: it.rokok_id, qty: it.qty })),
@@ -373,7 +420,6 @@ export async function editLaporanSore(id, data) {
       })
     }
 
-    // Tambah titip jual baru jika ada
     const konsinyasiBaru = data.konsinyasiBaru || []
     for (const k of konsinyasiBaru) {
       await tx.titipJual.create({
@@ -394,28 +440,67 @@ export async function editLaporanSore(id, data) {
         },
       })
     }
-    // Tidak mengubah status sesi (tetap "selesai")
+
+    await logAudit({
+      tx,
+      entity_type: AUDIT_ENTITY.SESI_HARIAN,
+      entity_id:   id,
+      action:      AUDIT_ACTION.UPDATE,
+      old_values:  {
+        penjualan:    oldPenjualan.map(it => ({ rokok: it.rokok?.nama, kategori: it.kategori, qty: it.qty, harga: it.harga })),
+        setoran:      oldSetoran.map(it => ({ metode: it.metode, jumlah: it.jumlah })),
+        barangKembali: oldKembali.map(it => ({ rokok: it.rokok?.nama, qty: it.qty })),
+      },
+      new_values:  {
+        penjualan:    penjualan.map(it => ({ rokok_id: it.rokok_id, kategori: it.kategori, qty: it.qty })),
+        setoran:      setoran.map(it => ({ metode: it.metode, jumlah: it.jumlah })),
+        barangKembali: kembali.map(it => ({ rokok_id: it.rokok_id, qty: it.qty })),
+      },
+      alasan,
+      user_id:   session?.user?.id,
+      user_name: session?.user?.name,
+    })
   })
   revalidatePath("/distribusi")
   revalidatePath("/titip-jual")
   revalidatePath("/")
 }
 
-export async function deleteSesi(id) {
+export async function deleteSesi(id, alasan) {
+  const session = await auth()
   await prisma.$transaction(async (tx) => {
     const sesi = await tx.sesiHarian.findUnique({
       where: { id },
       include: {
-        barangKeluar:  true,
-        barangKembali: true,
+        barangKeluar:  { include: { rokok: true } },
+        barangKembali: { include: { rokok: true } },
+        penjualan:     true,
+        setoran:       true,
         titipJual:     { include: { items: true } },
       },
     })
 
     if (!sesi) return
 
-    // 1. Revert stok dari barang keluar (pagi)
-    const session = await auth()
+    await logAudit({
+      tx,
+      entity_type: AUDIT_ENTITY.SESI_HARIAN,
+      entity_id:   id,
+      action:      AUDIT_ACTION.DELETE,
+      old_values:  {
+        tanggal:      sesi.tanggal.toISOString().split("T")[0],
+        sales_id:     sesi.sales_id,
+        status:       sesi.status,
+        barangKeluar: sesi.barangKeluar.map(it => ({ rokok: it.rokok?.nama, qty: it.qty })),
+        penjualan:    sesi.penjualan.map(it => ({ rokok_id: it.rokok_id, qty: it.qty, harga: it.harga })),
+        setoran:      sesi.setoran.map(it => ({ metode: it.metode, jumlah: it.jumlah })),
+        barangKembali: sesi.barangKembali.map(it => ({ rokok: it.rokok?.nama, qty: it.qty })),
+      },
+      alasan,
+      user_id:   session?.user?.id,
+      user_name: session?.user?.name,
+    })
+
     for (const it of sesi.barangKeluar) {
       await mutateStock({
         tx,
@@ -430,7 +515,6 @@ export async function deleteSesi(id) {
       })
     }
 
-    // 2. Revert stok dari barang kembali (sore)
     for (const it of sesi.barangKembali) {
       await mutateStock({
         tx,
@@ -445,22 +529,19 @@ export async function deleteSesi(id) {
       })
     }
 
-    // 3. Revert stok dari penyelesaian konsinyasi (lama) yang dilakukan di sesi ini
     const setoransPenyelesaian = await tx.titipJualSetoran.findMany({
       where: { sesi_penyelesaian_id: id }
     })
-    
-    // Ambil ID titip jual unik yang diselesaikan di sesi ini
+
     const completedTjIds = [...new Set(setoransPenyelesaian.map(s => s.titip_jual_id))]
-    
+
     for (const tjId of completedTjIds) {
       const tj = await tx.titipJual.findUnique({
         where: { id: tjId },
         include: { items: true }
       })
-      
+
       if (tj) {
-        // Kurangi stok yang tadi dikembalikan (karena status batal selesai)
         for (const it of tj.items) {
           if (it.qty_kembali > 0) {
             await mutateStock({
@@ -476,7 +557,6 @@ export async function deleteSesi(id) {
             })
           }
         }
-        // Reset item konsinyasi (terjual/kembali jadi 0) dan status jadi aktif
         await tx.titipJualItem.updateMany({
           where: { titip_jual_id: tjId },
           data: { qty_terjual: 0, qty_kembali: 0 }
@@ -488,10 +568,8 @@ export async function deleteSesi(id) {
       }
     }
 
-    // 4. Hapus setoran titip jual yang dibuat di sesi ini (baik untuk penyelesaian maupun titip jual baru)
     await tx.titipJualSetoran.deleteMany({ where: { sesi_penyelesaian_id: id } })
 
-    // 5. Revert stok dari item titip jual BARU yang mungkin sudah diisi (walaupun jarang di sesi aktif)
     for (const k of sesi.titipJual) {
       for (const it of k.items) {
         if (it.qty_kembali > 0) {
@@ -510,10 +588,7 @@ export async function deleteSesi(id) {
       }
     }
 
-    // 6. Hapus titip jual baru yang dibuat di sesi ini
     await tx.titipJual.deleteMany({ where: { sesi_id: id } })
-
-    // 7. Terakhir hapus sesi harian
     await tx.sesiHarian.delete({ where: { id } })
   })
 

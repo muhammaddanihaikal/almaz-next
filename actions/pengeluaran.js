@@ -2,6 +2,8 @@
 
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { auth } from "@/lib/auth"
+import { logAudit, AUDIT_ACTION, AUDIT_ENTITY } from "@/lib/audit"
 
 export async function getPengeluaran() {
   const rows = await prisma.pengeluaran.findMany({ orderBy: { tanggal: "desc" } })
@@ -14,32 +16,73 @@ export async function getPengeluaran() {
 }
 
 export async function addPengeluaran(data) {
-  await prisma.pengeluaran.create({
-    data: {
-      tanggal: new Date(data.tanggal),
-      jumlah: Number(data.jumlah),
-      keterangan: data.keterangan,
-    },
+  const session = await auth()
+  await prisma.$transaction(async (tx) => {
+    const row = await tx.pengeluaran.create({
+      data: {
+        tanggal: new Date(data.tanggal),
+        jumlah: Number(data.jumlah),
+        keterangan: data.keterangan,
+      },
+    })
+    await logAudit({
+      tx,
+      entity_type: AUDIT_ENTITY.PENGELUARAN,
+      entity_id:   row.id,
+      action:      AUDIT_ACTION.CREATE,
+      new_values:  { tanggal: data.tanggal, jumlah: row.jumlah, keterangan: row.keterangan },
+      user_id:     session?.user?.id,
+      user_name:   session?.user?.name,
+    })
   })
   revalidatePath("/pengeluaran")
   revalidatePath("/")
 }
 
-export async function updatePengeluaran(id, data) {
-  await prisma.pengeluaran.update({
-    where: { id },
-    data: {
-      tanggal: new Date(data.tanggal),
-      jumlah: Number(data.jumlah),
-      keterangan: data.keterangan,
-    },
+export async function updatePengeluaran(id, data, alasan) {
+  const session = await auth()
+  await prisma.$transaction(async (tx) => {
+    const old = await tx.pengeluaran.findUnique({ where: { id } })
+    await tx.pengeluaran.update({
+      where: { id },
+      data: {
+        tanggal: new Date(data.tanggal),
+        jumlah: Number(data.jumlah),
+        keterangan: data.keterangan,
+      },
+    })
+    await logAudit({
+      tx,
+      entity_type: AUDIT_ENTITY.PENGELUARAN,
+      entity_id:   id,
+      action:      AUDIT_ACTION.UPDATE,
+      old_values:  { tanggal: old.tanggal.toISOString().split("T")[0], jumlah: old.jumlah, keterangan: old.keterangan },
+      new_values:  { tanggal: data.tanggal, jumlah: Number(data.jumlah), keterangan: data.keterangan },
+      alasan,
+      user_id:     session?.user?.id,
+      user_name:   session?.user?.name,
+    })
   })
   revalidatePath("/pengeluaran")
   revalidatePath("/")
 }
 
-export async function deletePengeluaran(id) {
-  await prisma.pengeluaran.delete({ where: { id } })
+export async function deletePengeluaran(id, alasan) {
+  const session = await auth()
+  await prisma.$transaction(async (tx) => {
+    const old = await tx.pengeluaran.findUnique({ where: { id } })
+    await logAudit({
+      tx,
+      entity_type: AUDIT_ENTITY.PENGELUARAN,
+      entity_id:   id,
+      action:      AUDIT_ACTION.DELETE,
+      old_values:  { tanggal: old.tanggal.toISOString().split("T")[0], jumlah: old.jumlah, keterangan: old.keterangan },
+      alasan,
+      user_id:     session?.user?.id,
+      user_name:   session?.user?.name,
+    })
+    await tx.pengeluaran.delete({ where: { id } })
+  })
   revalidatePath("/pengeluaran")
   revalidatePath("/")
 }

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { mutateStock, MUTATION_SOURCE } from "@/lib/stock"
 import { auth } from "@/lib/auth"
+import { logAudit, AUDIT_ACTION, AUDIT_ENTITY } from "@/lib/audit"
 
 const include = {
   sales: true,
@@ -85,9 +86,11 @@ export async function getTitipJualJatuhTempo() {
 
 export async function settleTitipJual(id, data) {
   const today = new Date(data.tanggal || new Date().toISOString().split("T")[0])
+  const session = await auth()
 
   await prisma.$transaction(async (tx) => {
-    const session = await auth()
+    const old = await tx.titipJual.findUnique({ where: { id }, include: { items: { include: { rokok: true } } } })
+
     for (const it of data.items) {
       await tx.titipJualItem.update({
         where: { id: it.id },
@@ -123,6 +126,22 @@ export async function settleTitipJual(id, data) {
       where: { id },
       data:  { status: "selesai", tanggal_selesai: today },
     })
+
+    await logAudit({
+      tx,
+      entity_type: AUDIT_ENTITY.TITIP_JUAL,
+      entity_id:   id,
+      action:      AUDIT_ACTION.UPDATE,
+      old_values:  { status: old.status },
+      new_values:  {
+        status:  "selesai",
+        items:   data.items.map(it => ({ id: it.id, qty_terjual: it.qty_terjual, qty_kembali: it.qty_kembali })),
+        setoran: validSetoran.map(s => ({ metode: s.metode, jumlah: s.jumlah })),
+      },
+      alasan:    "Penyelesaian titip jual",
+      user_id:   session?.user?.id,
+      user_name: session?.user?.name,
+    })
   })
 
   revalidatePath("/titip-jual")
@@ -130,29 +149,62 @@ export async function settleTitipJual(id, data) {
   revalidatePath("/")
 }
 
-export async function editTitipJualDetail(id, data) {
-  await prisma.titipJual.update({
-    where: { id },
-    data: {
-      tanggal_jatuh_tempo: new Date(data.tanggal_jatuh_tempo),
-      catatan:             data.catatan || null,
-    },
-  })
-  revalidatePath("/titip-jual")
-  revalidatePath("/distribusi")
-  revalidatePath("/")
-}
-
-export async function deleteTitipJual(id) {
+export async function editTitipJualDetail(id, data, alasan) {
+  const session = await auth()
   await prisma.$transaction(async (tx) => {
-    const k = await tx.titipJual.findUnique({ where: { id }, include: { items: true } })
+    const old = await tx.titipJual.findUnique({ where: { id } })
+    await tx.titipJual.update({
+      where: { id },
+      data: {
+        tanggal_jatuh_tempo: new Date(data.tanggal_jatuh_tempo),
+        catatan:             data.catatan || null,
+      },
+    })
+    await logAudit({
+      tx,
+      entity_type: AUDIT_ENTITY.TITIP_JUAL,
+      entity_id:   id,
+      action:      AUDIT_ACTION.UPDATE,
+      old_values:  { tanggal_jatuh_tempo: old.tanggal_jatuh_tempo.toISOString().split("T")[0], catatan: old.catatan },
+      new_values:  { tanggal_jatuh_tempo: data.tanggal_jatuh_tempo, catatan: data.catatan || null },
+      alasan,
+      user_id:     session?.user?.id,
+      user_name:   session?.user?.name,
+    })
+  })
+  revalidatePath("/titip-jual")
+  revalidatePath("/distribusi")
+  revalidatePath("/")
+}
+
+export async function deleteTitipJual(id, alasan) {
+  const session = await auth()
+  await prisma.$transaction(async (tx) => {
+    const k = await tx.titipJual.findUnique({ where: { id }, include: { items: { include: { rokok: true } }, toko: true, sales: true } })
     if (k.status !== "aktif") throw new Error("Hanya titip jual aktif yang bisa dihapus")
-    const session = await auth()
+
+    await logAudit({
+      tx,
+      entity_type: AUDIT_ENTITY.TITIP_JUAL,
+      entity_id:   id,
+      action:      AUDIT_ACTION.DELETE,
+      old_values:  {
+        sales:               k.sales.nama,
+        toko:                k.toko.nama,
+        kategori:            k.kategori,
+        tanggal_jatuh_tempo: k.tanggal_jatuh_tempo.toISOString().split("T")[0],
+        items: k.items.map(it => ({ rokok: it.rokok?.nama, qty_keluar: it.qty_keluar, harga: it.harga })),
+      },
+      alasan,
+      user_id:   session?.user?.id,
+      user_name: session?.user?.name,
+    })
+
     for (const it of k.items) {
       await mutateStock({
         tx,
         rokok_id: it.rokok_id,
-        tanggal: k.createdAt, // Or today
+        tanggal: k.createdAt,
         jenis: 'in',
         qty: it.qty_keluar,
         source: MUTATION_SOURCE.REVERT,
@@ -201,12 +253,15 @@ export async function createTitipJual(sesiId, salesId, k) {
   return serialize(result)
 }
 
-export async function editSettlement(id, data) {
+export async function editSettlement(id, data, alasan) {
   const today = new Date(data.tanggal || new Date().toISOString().split("T")[0])
+  const session = await auth()
 
   await prisma.$transaction(async (tx) => {
-    const session = await auth()
-    const old = await tx.titipJual.findUnique({ where: { id }, include: { items: true } })
+    const old = await tx.titipJual.findUnique({
+      where: { id },
+      include: { items: { include: { rokok: true } }, setoran: true },
+    })
 
     for (const it of old.items) {
       if (it.qty_kembali > 0) {
@@ -255,6 +310,24 @@ export async function editSettlement(id, data) {
         })),
       })
     }
+
+    await logAudit({
+      tx,
+      entity_type: AUDIT_ENTITY.TITIP_JUAL,
+      entity_id:   id,
+      action:      AUDIT_ACTION.UPDATE,
+      old_values:  {
+        items:   old.items.map(it => ({ rokok: it.rokok?.nama, qty_terjual: it.qty_terjual, qty_kembali: it.qty_kembali })),
+        setoran: old.setoran.map(s => ({ metode: s.metode, jumlah: s.jumlah })),
+      },
+      new_values:  {
+        items:   data.items.map(it => ({ id: it.id, qty_terjual: it.qty_terjual, qty_kembali: it.qty_kembali })),
+        setoran: validSetoran.map(s => ({ metode: s.metode, jumlah: s.jumlah })),
+      },
+      alasan,
+      user_id:   session?.user?.id,
+      user_name: session?.user?.name,
+    })
   })
 
   revalidatePath("/titip-jual")
@@ -262,10 +335,10 @@ export async function editSettlement(id, data) {
   revalidatePath("/")
 }
 
-export async function revertSettlement(id) {
+export async function revertSettlement(id, alasan) {
+  const session = await auth()
   await prisma.$transaction(async (tx) => {
-    const session = await auth()
-    const old = await tx.titipJual.findUnique({ where: { id }, include: { items: true } })
+    const old = await tx.titipJual.findUnique({ where: { id }, include: { items: { include: { rokok: true } }, setoran: true } })
 
     for (const it of old.items) {
       if (it.qty_kembali > 0) {
@@ -289,16 +362,33 @@ export async function revertSettlement(id) {
 
     await tx.titipJualSetoran.deleteMany({ where: { titip_jual_id: id } })
     await tx.titipJual.update({ where: { id }, data: { status: "aktif", tanggal_selesai: null } })
+
+    await logAudit({
+      tx,
+      entity_type: AUDIT_ENTITY.TITIP_JUAL,
+      entity_id:   id,
+      action:      AUDIT_ACTION.UPDATE,
+      old_values:  {
+        status: "selesai",
+        items:  old.items.map(it => ({ rokok: it.rokok?.nama, qty_terjual: it.qty_terjual, qty_kembali: it.qty_kembali })),
+        setoran: old.setoran.map(s => ({ metode: s.metode, jumlah: s.jumlah })),
+      },
+      new_values:  { status: "aktif", items: "direset ke 0", setoran: "dihapus" },
+      alasan,
+      user_id:   session?.user?.id,
+      user_name: session?.user?.name,
+    })
   })
 
   revalidatePath("/titip-jual")
   revalidatePath("/distribusi")
   revalidatePath("/")
 }
+
 export async function getTitipJualNotificationCounts() {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  
+
   const tigaHariLagi = new Date(today)
   tigaHariLagi.setDate(today.getDate() + 3)
 

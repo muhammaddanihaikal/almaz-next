@@ -500,6 +500,67 @@ export function Badge({ children }) {
   )
 }
 
+export function useConfirmWithReason() {
+  const [dialog, setDialog] = useState(null)
+
+  const confirmWithReason = useCallback((message, options = {}) =>
+    new Promise((resolve) => setDialog({ message, options, resolve }))
+  , [])
+
+  const handleClose = (result) => {
+    setDialog((d) => { d?.resolve(result); return null })
+  }
+
+  const ConfirmWithReasonModal = dialog ? (
+    <ConfirmWithReasonDialog dialog={dialog} onClose={handleClose} />
+  ) : null
+
+  return { confirmWithReason, ConfirmWithReasonModal }
+}
+
+function ConfirmWithReasonDialog({ dialog, onClose }) {
+  const [alasan, setAlasan] = useState("")
+  const valid = alasan.trim().length >= 5
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-black/40" onClick={() => onClose(null)} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm space-y-4 p-6">
+        {dialog.options?.title && (
+          <h3 className="text-base font-semibold text-neutral-900">{dialog.options.title}</h3>
+        )}
+        <p className="text-sm text-neutral-600 leading-relaxed">{dialog.message}</p>
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-medium text-neutral-600">
+            Alasan Perubahan <span className="text-red-500">*</span>
+          </span>
+          <textarea
+            className={inputCls + " resize-none"}
+            rows={3}
+            autoFocus
+            placeholder="Tuliskan alasan perubahan ini..."
+            value={alasan}
+            onChange={(e) => setAlasan(e.target.value)}
+          />
+          {alasan.trim().length > 0 && alasan.trim().length < 5 && (
+            <p className="mt-1 text-xs text-red-500">Alasan minimal 5 karakter</p>
+          )}
+        </label>
+        <div className="flex justify-end gap-2.5 pt-1">
+          <Button variant="secondary" onClick={() => onClose(null)}>Batal</Button>
+          <Button
+            variant={dialog.options?.variant === "danger" ? "danger" : "primary"}
+            disabled={!valid}
+            onClick={() => onClose(alasan.trim())}
+          >
+            {dialog.options?.confirmLabel ?? "Ya, Lanjutkan"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function useConfirm() {
   const [dialog, setDialog] = useState(null)
 

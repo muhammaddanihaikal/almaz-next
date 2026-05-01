@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Plus, GripVertical, Save, X, MoveVertical, RotateCcw } from "lucide-react"
 import { fmtIDR } from "@/lib/utils"
 import { addRokok, updateRokok, deleteRokok, toggleAktifRokok, tambahStok, updateRokokOrder } from "@/actions/rokok"
-import { Card, PageHeader, PrimaryButton, IconButton, RowActions, Field, FormActions, Toggle, inputCls, useConfirm, Button } from "@/components/ui"
+import { Card, PageHeader, PrimaryButton, IconButton, RowActions, Field, FormActions, Toggle, inputCls, useConfirmWithReason, Button } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
 import { useLoading } from "@/components/LoadingProvider"
@@ -33,14 +33,13 @@ export default function RokokPage({ rokokList, usedIds }) {
   const router = useRouter()
   const [isLocalPending, startLocalTransition] = useTransition()
   const { isPending, navigate } = useLoading()
-  const { confirm, ConfirmModal } = useConfirm()
+  const { confirmWithReason, ConfirmWithReasonModal } = useConfirmWithReason()
   const [mode, setMode] = useState(null)
   const [editing, setEditing] = useState(null)
   const [stokTarget, setStokTarget] = useState(null)
   const [isSorting, setIsSorting] = useState(false)
   const [sortedList, setSortedList] = useState([])
   const [isSaving, setIsSaving] = useState(false)
-  const [deletingId, setDeletingId] = useState(null)
 
   // Initialize sortedList when rokokList changes or isSorting is enabled
   useEffect(() => {
@@ -58,16 +57,10 @@ export default function RokokPage({ rokokList, usedIds }) {
   const close = () => { setMode(null); setEditing(null) }
 
   const handleDelete = async (r) => {
-    const ok = await confirm(`Hapus rokok "${r.nama}"? Data distribusi & retur tidak akan ikut terhapus.`, { title: "Hapus Rokok", variant: "danger", confirmLabel: "Ya, Hapus" })
-    if (!ok) return
-    
-    setDeletingId(r.id)
-    try {
-      await deleteRokok(r.id)
-      router.refresh()
-    } finally {
-      setDeletingId(null)
-    }
+    const alasan = await confirmWithReason(`Hapus rokok "${r.nama}"? Data distribusi & retur tidak akan ikut terhapus.`, { title: "Hapus Rokok", variant: "danger", confirmLabel: "Ya, Hapus" })
+    if (!alasan) return
+    await deleteRokok(r.id, alasan)
+    router.refresh()
   }
 
   const handleToggle = async (id) => {
@@ -300,10 +293,17 @@ export default function RokokPage({ rokokList, usedIds }) {
             initial={editing}
             rokokList={rokokList}
             onSubmit={async (data) => {
-              if (mode === "add") await addRokok(data)
-              else await updateRokok(editing.id, data)
-              close()
-              router.refresh()
+              if (mode === "add") {
+                await addRokok(data)
+                close()
+                router.refresh()
+              } else {
+                close()
+                const alasan = await confirmWithReason(`Edit rokok "${editing.nama}"?`, { title: "Edit Rokok", confirmLabel: "Ya, Simpan" })
+                if (!alasan) return
+                await updateRokok(editing.id, data, alasan)
+                router.refresh()
+              }
             }}
             onCancel={close}
           />
@@ -328,7 +328,7 @@ export default function RokokPage({ rokokList, usedIds }) {
           />
         </Modal>
       )}
-      {ConfirmModal}
+      {ConfirmWithReasonModal}
     </div>
   )
 }

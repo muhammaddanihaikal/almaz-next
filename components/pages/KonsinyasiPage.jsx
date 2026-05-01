@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { AlertCircle, Clock, Search, CheckCircle, ChevronDown } from "lucide-react"
 import { fmtIDR, fmtTanggal, defaultDateRange } from "@/lib/utils"
 import { settleTitipJual, editSettlement, revertSettlement, editTitipJualDetail, deleteTitipJual } from "@/actions/titip_jual"
-import { Card, PageHeader, SelectInput, Field, FormActions, inputCls, useConfirm, DateFilter, Button, IconButton } from "@/components/ui"
+import { Card, PageHeader, SelectInput, Field, FormActions, inputCls, useConfirmWithReason, DateFilter, Button, IconButton } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
 import SettlementForm from "@/components/SettlementForm"
@@ -57,7 +57,7 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
   const [dateRange, setDateRange] = useState(defaultDateRange("semua"))
   const [expandedHariIni, setExpandedHariIni] = useState(false)
   const [expandedSegera,  setExpandedSegera]  = useState(false)
-  const { confirm, ConfirmModal } = useConfirm()
+  const { confirmWithReason, ConfirmWithReasonModal } = useConfirmWithReason()
   const [settling,          setSettling]          = useState(null)
   const [editingSettlement, setEditingSettlement] = useState(null)
   const [editingDetail,     setEditingDetail]     = useState(null)
@@ -290,9 +290,9 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
                         size="sm"
                         variant="ghost"
                         onClick={async () => {
-                          const ok = await confirm(`Hapus titip jual "${r.nama_toko}"? Stok akan dikembalikan.`, { title: "Hapus Titip Jual", variant: "danger", confirmLabel: "Ya, Hapus" })
-                          if (!ok) return
-                          await deleteTitipJual(r.id)
+                          const alasan = await confirmWithReason(`Hapus titip jual "${r.nama_toko}"? Stok akan dikembalikan.`, { title: "Hapus Titip Jual", variant: "danger", confirmLabel: "Ya, Hapus" })
+                          if (!alasan) return
+                          await deleteTitipJual(r.id, alasan)
                           router.refresh()
                         }}
                         className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
@@ -315,9 +315,9 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
                         size="sm"
                         variant="ghost"
                         onClick={async () => {
-                          const ok = await confirm(`Batalkan penyelesaian titip jual "${r.nama_toko}"? Status akan kembali ke Aktif.`, { title: "Batalkan Penyelesaian", variant: "danger", confirmLabel: "Ya, Batalkan" })
-                          if (!ok) return
-                          await revertSettlement(r.id)
+                          const alasan = await confirmWithReason(`Batalkan penyelesaian titip jual "${r.nama_toko}"? Status akan kembali ke Aktif.`, { title: "Batalkan Penyelesaian", variant: "danger", confirmLabel: "Ya, Batalkan" })
+                          if (!alasan) return
+                          await revertSettlement(r.id, alasan)
                           router.refresh()
                         }}
                         className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
@@ -368,8 +368,11 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
           <KonsinyasiDetailForm
             record={editingDetail}
             onSubmit={async (data) => {
-              await editTitipJualDetail(editingDetail.id, data)
+              const captured = editingDetail
               setEditingDetail(null)
+              const alasan = await confirmWithReason(`Edit detail titip jual "${captured.nama_toko}"?`, { title: "Edit Titip Jual", confirmLabel: "Ya, Simpan" })
+              if (!alasan) return
+              await editTitipJualDetail(captured.id, data, alasan)
               router.refresh()
             }}
             onCancel={() => setEditingDetail(null)}
@@ -384,15 +387,18 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
             konsinyasi={editingSettlement}
             initialSetoran={editingSettlement.setoran}
             onSubmit={async (data) => {
-              await editSettlement(editingSettlement.id, data)
+              const captured = editingSettlement
               setEditingSettlement(null)
+              const alasan = await confirmWithReason(`Edit penyelesaian titip jual "${captured.nama_toko}"?`, { title: "Edit Penyelesaian", confirmLabel: "Ya, Simpan" })
+              if (!alasan) return
+              await editSettlement(captured.id, data, alasan)
               router.refresh()
             }}
             onCancel={() => setEditingSettlement(null)}
           />
         </Modal>
       )}
-      {ConfirmModal}
+      {ConfirmWithReasonModal}
     </div>
   )
 }

@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Truck, PackageCheck, Cigarette,
   Users, CalendarCheck, Menu, X, ChevronDown, ChevronRight,
   Folder, Database, LogOut, ArrowDownCircle, Store,
-  UserCog, HardDrive, ShieldCheck, Loader2,
+  UserCog, HardDrive, ShieldCheck, History, Loader2,
 } from "lucide-react"
 
 import { useLoading } from "./LoadingProvider"
@@ -46,6 +46,7 @@ function buildMenus(role, titipJualCounts) {
     if (role === "superadmin") {
       adminItems.push({ id: "pengguna", href: "/pengguna", label: "Pengguna", icon: UserCog })
     }
+    adminItems.push({ id: "riwayat", href: "/riwayat", label: "Riwayat", icon: History })
     adminItems.push({ id: "backup", href: "/backup", label: "Backup DB", icon: HardDrive })
 
     menus.push({

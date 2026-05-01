@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { mutateStock, MUTATION_SOURCE } from "@/lib/stock"
 import { auth } from "@/lib/auth"
+import { logAudit, AUDIT_ACTION, AUDIT_ENTITY } from "@/lib/audit"
 
 export async function getRokokList() {
   try {
@@ -41,6 +42,7 @@ export async function addRokok(data) {
     _max: { urutan: true },
   })
   const nextUrutan = (maxUrutan._max.urutan ?? -1) + 1
+  const session = await auth()
 
   await prisma.$transaction(async (tx) => {
     const r = await tx.rokok.create({
@@ -63,7 +65,6 @@ export async function addRokok(data) {
           keterangan: "Stok Awal",
         },
       })
-      const session = await auth()
       await mutateStock({
         tx,
         rokok_id: r.id,
@@ -76,27 +77,64 @@ export async function addRokok(data) {
         user_id: session?.user?.id || null,
       })
     }
+    await logAudit({
+      tx,
+      entity_type: AUDIT_ENTITY.ROKOK,
+      entity_id:   r.id,
+      action:      AUDIT_ACTION.CREATE,
+      new_values:  { nama: r.nama, stok: r.stok, harga_beli: r.harga_beli, harga_grosir: r.harga_grosir, harga_toko: r.harga_toko, harga_perorangan: r.harga_perorangan },
+      user_id:     session?.user?.id,
+      user_name:   session?.user?.name,
+    })
   })
   revalidatePath("/rokok")
 }
 
-export async function updateRokok(id, data) {
-  await prisma.rokok.update({
-    where: { id },
-    data: {
-      nama: data.nama,
-      // stok: Number(data.stok) || 0, // Dihapus: stok diatur oleh stock_mutations
-      harga_beli: Number(data.harga_beli),
-      harga_grosir: Number(data.harga_grosir),
-      harga_toko: Number(data.harga_toko),
-      harga_perorangan: Number(data.harga_perorangan),
-    },
+export async function updateRokok(id, data, alasan) {
+  const session = await auth()
+  await prisma.$transaction(async (tx) => {
+    const old = await tx.rokok.findUnique({ where: { id } })
+    await tx.rokok.update({
+      where: { id },
+      data: {
+        nama: data.nama,
+        harga_beli: Number(data.harga_beli),
+        harga_grosir: Number(data.harga_grosir),
+        harga_toko: Number(data.harga_toko),
+        harga_perorangan: Number(data.harga_perorangan),
+      },
+    })
+    await logAudit({
+      tx,
+      entity_type: AUDIT_ENTITY.ROKOK,
+      entity_id:   id,
+      action:      AUDIT_ACTION.UPDATE,
+      old_values:  { nama: old.nama, harga_beli: old.harga_beli, harga_grosir: old.harga_grosir, harga_toko: old.harga_toko, harga_perorangan: old.harga_perorangan },
+      new_values:  { nama: data.nama, harga_beli: Number(data.harga_beli), harga_grosir: Number(data.harga_grosir), harga_toko: Number(data.harga_toko), harga_perorangan: Number(data.harga_perorangan) },
+      alasan,
+      user_id:     session?.user?.id,
+      user_name:   session?.user?.name,
+    })
   })
   revalidatePath("/rokok")
 }
 
-export async function deleteRokok(id) {
-  await prisma.rokok.delete({ where: { id } })
+export async function deleteRokok(id, alasan) {
+  const session = await auth()
+  await prisma.$transaction(async (tx) => {
+    const old = await tx.rokok.findUnique({ where: { id } })
+    await logAudit({
+      tx,
+      entity_type: AUDIT_ENTITY.ROKOK,
+      entity_id:   id,
+      action:      AUDIT_ACTION.DELETE,
+      old_values:  { nama: old.nama, harga_beli: old.harga_beli, harga_grosir: old.harga_grosir, harga_toko: old.harga_toko, harga_perorangan: old.harga_perorangan },
+      alasan,
+      user_id:     session?.user?.id,
+      user_name:   session?.user?.name,
+    })
+    await tx.rokok.delete({ where: { id } })
+  })
   revalidatePath("/rokok")
 }
 
@@ -107,6 +145,7 @@ export async function toggleAktifRokok(id) {
 }
 
 export async function tambahStok(id, qty, date, keterangan) {
+  const session = await auth()
   await prisma.$transaction(async (tx) => {
     const sm = await tx.stokMasuk.create({
       data: {
@@ -116,8 +155,6 @@ export async function tambahStok(id, qty, date, keterangan) {
         keterangan: keterangan || "Stok Masuk",
       },
     })
-    
-    const session = await auth()
     await mutateStock({
       tx,
       rokok_id: id,
@@ -147,12 +184,13 @@ export async function updateRokokOrder(items) {
     return { success: true }
   } catch (error) {
     console.error("DETAIL ERROR SIMPAN URUTAN:", error)
-    return { 
-      success: false, 
-      error: `Gagal: ${error.message || "Unknown error"}` 
+    return {
+      success: false,
+      error: `Gagal: ${error.message || "Unknown error"}`
     }
   }
 }
+
 export async function getUsedRokokIds() {
   const mutations = await prisma.stockMutation.findMany({ select: { rokok_id: true }, distinct: ["rokok_id"] })
   return mutations.map(m => m.rokok_id)
@@ -164,7 +202,6 @@ export async function getMutasiStok(startDate, endDate) {
 
   const rokokList = await prisma.rokok.findMany({ orderBy: { urutan: "asc" } })
 
-  // 1. Get initial balance before startDate
   const preMutations = await prisma.stockMutation.groupBy({
     by: ["rokok_id", "jenis"],
     where: { tanggal: { lt: start } },
@@ -178,7 +215,6 @@ export async function getMutasiStok(startDate, endDate) {
     initialBalances[r.id] = inQty - outQty
   }
 
-  // 2. Get activity in range
   const inRangeMutations = await prisma.stockMutation.findMany({
     where: { tanggal: { gte: start, lte: end } },
     include: {
@@ -188,7 +224,6 @@ export async function getMutasiStok(startDate, endDate) {
     orderBy: { createdAt: "desc" }
   })
 
-  // 3. Build daily summary
   const report = []
   let currentDate = new Date(start)
   const currentBalances = { ...initialBalances }
@@ -199,11 +234,10 @@ export async function getMutasiStok(startDate, endDate) {
 
     for (const r of rokokList) {
       const todayMuts = inRangeMutations.filter(m => m.rokok_id === r.id && m.tanggal.toISOString().split("T")[0] === dStr)
-      
+
       const totalMasuk = todayMuts.filter(m => m.jenis === 'in').reduce((s, m) => s + m.qty, 0)
       const totalKeluar = todayMuts.filter(m => m.jenis === 'out').reduce((s, m) => s + m.qty, 0)
-      
-      // Keep old detail mapping for UI compatibility (supplier=masuk, retur_sales=kembali, retur=retur)
+
       const detail_masuk = todayMuts.filter(m => m.jenis === 'in' && m.source === 'supplier').reduce((s, m) => s + m.qty, 0)
       const detail_kembali = todayMuts.filter(m => m.jenis === 'in' && m.source === 'retur_sales').reduce((s, m) => s + m.qty, 0)
       const detail_retur = todayMuts.filter(m => m.jenis === 'in' && m.source === 'retur').reduce((s, m) => s + m.qty, 0)
@@ -222,7 +256,7 @@ export async function getMutasiStok(startDate, endDate) {
           detail_masuk,
           detail_kembali,
           detail_retur,
-          details: todayMuts // attach detailed records for this rokok on this day
+          details: todayMuts
         })
       }
       currentBalances[r.id] = akhir
@@ -244,7 +278,7 @@ export async function koreksiStok(id, qty, jenis, keterangan) {
       tx,
       rokok_id: id,
       tanggal: new Date(),
-      jenis, // 'in' or 'out'
+      jenis,
       qty,
       source: MUTATION_SOURCE.KOREKSI,
       reference_id: "manual",
