@@ -43,6 +43,13 @@ export async function addRokok(data) {
   })
   const nextUrutan = (maxUrutan._max.urutan ?? -1) + 1
   const session = await auth()
+  let userId = session?.user?.id
+  if (!userId && session?.user?.name) {
+    const u = await prisma.user.findFirst({
+      where: { OR: [{ name: session.user.name }, { username: session.user.name }] }
+    })
+    userId = u?.id
+  }
 
   await prisma.$transaction(async (tx) => {
     const r = await tx.rokok.create({
@@ -74,7 +81,7 @@ export async function addRokok(data) {
         source: MUTATION_SOURCE.STOK_AWAL,
         reference_id: sm.id,
         keterangan: `Stok awal saat data rokok dibuat`,
-        user_id: session?.user?.id || null,
+        user_id: userId || null,
       })
     }
     await logAudit({
@@ -84,7 +91,7 @@ export async function addRokok(data) {
       entity_id:   r.id,
       action:      AUDIT_ACTION.CREATE,
       new_values:  { nama: r.nama, stok: r.stok, harga_beli: r.harga_beli, harga_grosir: r.harga_grosir, harga_toko: r.harga_toko, harga_perorangan: r.harga_perorangan },
-      user_id:     session?.user?.id,
+      user_id:     userId,
       user_name:   session?.user?.name,
     })
   })
@@ -93,28 +100,56 @@ export async function addRokok(data) {
 
 export async function updateRokok(id, data, alasan) {
   const session = await auth()
+  let userId = session?.user?.id
+  if (!userId && session?.user?.name) {
+    const u = await prisma.user.findFirst({
+      where: { OR: [{ name: session.user.name }, { username: session.user.name }] }
+    })
+    userId = u?.id
+  }
+
   await prisma.$transaction(async (tx) => {
     const old = await tx.rokok.findUnique({ where: { id } })
     await tx.rokok.update({
       where: { id },
       data: {
-        nama: data.nama,
-        harga_beli: Number(data.harga_beli),
-        harga_grosir: Number(data.harga_grosir),
-        harga_toko: Number(data.harga_toko),
+        nama:             data.nama,
+        harga_beli:       Number(data.harga_beli),
+        harga_grosir:     Number(data.harga_grosir),
+        harga_toko:       Number(data.harga_toko),
         harga_perorangan: Number(data.harga_perorangan),
       },
     })
+
+    // Jika stok berubah, buat koreksi mutation agar ledger tetap akurat
+    const newStok = data.stok !== undefined ? Number(data.stok) : null
+    if (newStok !== null && newStok !== old.stok) {
+      const diff  = newStok - old.stok
+      const jenis = diff > 0 ? "in" : "out"
+      const qty   = Math.abs(diff)
+      await mutateStock({
+        tx,
+        rokok_id:     id,
+        tanggal:      new Date(),
+        jenis,
+        qty,
+        source:       MUTATION_SOURCE.KOREKSI,
+        reference_id: "manual",
+        keterangan:   `Koreksi stok dari edit: ${old.stok} → ${newStok}`,
+        user_id:      userId || null,
+      })
+    }
+
     await logAudit({
       tx,
       entity_type: AUDIT_ENTITY.ROKOK,
       change_type: "Edit Harga / Nama",
       entity_id:   id,
       action:      AUDIT_ACTION.UPDATE,
-      old_values:  { nama: old.nama, harga_beli: old.harga_beli, harga_grosir: old.harga_grosir, harga_toko: old.harga_toko, harga_perorangan: old.harga_perorangan },
-      new_values:  { nama: data.nama, harga_beli: Number(data.harga_beli), harga_grosir: Number(data.harga_grosir), harga_toko: Number(data.harga_toko), harga_perorangan: Number(data.harga_perorangan) },
+      old_values:  { nama: old.nama, stok: old.stok, harga_beli: old.harga_beli, harga_grosir: old.harga_grosir, harga_toko: old.harga_toko, harga_perorangan: old.harga_perorangan },
+      new_values:  { nama: data.nama, stok: newStok ?? old.stok, harga_beli: Number(data.harga_beli), harga_grosir: Number(data.harga_grosir), harga_toko: Number(data.harga_toko), harga_perorangan: Number(data.harga_perorangan) },
       alasan,
-      user_id:     session?.user?.id,
+      user_id:     userId,
       user_name:   session?.user?.name,
     })
   })
@@ -123,6 +158,13 @@ export async function updateRokok(id, data, alasan) {
 
 export async function deleteRokok(id, alasan) {
   const session = await auth()
+  let userId = session?.user?.id
+  if (!userId && session?.user?.name) {
+    const u = await prisma.user.findFirst({
+      where: { OR: [{ name: session.user.name }, { username: session.user.name }] }
+    })
+    userId = u?.id
+  }
   await prisma.$transaction(async (tx) => {
     const old = await tx.rokok.findUnique({ where: { id } })
     await logAudit({
@@ -133,7 +175,7 @@ export async function deleteRokok(id, alasan) {
       action:      AUDIT_ACTION.DELETE,
       old_values:  { nama: old.nama, harga_beli: old.harga_beli, harga_grosir: old.harga_grosir, harga_toko: old.harga_toko, harga_perorangan: old.harga_perorangan },
       alasan,
-      user_id:     session?.user?.id,
+      user_id:     userId,
       user_name:   session?.user?.name,
     })
     await tx.rokok.delete({ where: { id } })
@@ -143,6 +185,13 @@ export async function deleteRokok(id, alasan) {
 
 export async function toggleAktifRokok(id) {
   const session = await auth()
+  let userId = session?.user?.id
+  if (!userId && session?.user?.name) {
+    const u = await prisma.user.findFirst({
+      where: { OR: [{ name: session.user.name }, { username: session.user.name }] }
+    })
+    userId = u?.id
+  }
   await prisma.$transaction(async (tx) => {
     const r = await tx.rokok.findUnique({ where: { id }, select: { aktif: true, nama: true } })
     await tx.rokok.update({ where: { id }, data: { aktif: !r.aktif } })
@@ -154,7 +203,7 @@ export async function toggleAktifRokok(id) {
       action:      AUDIT_ACTION.UPDATE,
       old_values:  { nama: r.nama, aktif: r.aktif },
       new_values:  { nama: r.nama, aktif: !r.aktif },
-      user_id:     session?.user?.id,
+      user_id:     userId,
       user_name:   session?.user?.name,
     })
   })
@@ -163,6 +212,14 @@ export async function toggleAktifRokok(id) {
 
 export async function tambahStok(id, qty, date, keterangan) {
   const session = await auth()
+  let userId = session?.user?.id
+  if (!userId && session?.user?.name) {
+    const u = await prisma.user.findFirst({
+      where: { OR: [{ name: session.user.name }, { username: session.user.name }] }
+    })
+    userId = u?.id
+  }
+
   await prisma.$transaction(async (tx) => {
     const rokok = await tx.rokok.findUnique({ where: { id }, select: { nama: true } })
     const sm = await tx.stokMasuk.create({
@@ -182,7 +239,7 @@ export async function tambahStok(id, qty, date, keterangan) {
       source: MUTATION_SOURCE.SUPPLIER,
       reference_id: sm.id,
       keterangan: keterangan || "Stok Masuk dari Supplier",
-      user_id: session?.user?.id || null,
+      user_id: userId || null,
     })
     await logAudit({
       tx,
@@ -191,7 +248,7 @@ export async function tambahStok(id, qty, date, keterangan) {
       entity_id:   id,
       action:      AUDIT_ACTION.UPDATE,
       new_values:  { rokok: rokok?.nama, qty, tanggal: date, keterangan: keterangan || "Stok Masuk" },
-      user_id:     session?.user?.id,
+      user_id:     userId,
       user_name:   session?.user?.name,
     })
   })
@@ -284,7 +341,10 @@ export async function getMutasiStok(startDate, endDate) {
           detail_masuk,
           detail_kembali,
           detail_retur,
-          details: todayMuts
+          details: todayMuts.map(m => ({
+            ...m,
+            user_name: m.user?.name || m.user?.username || "Sistem"
+          }))
         })
       }
       currentBalances[r.id] = akhir
@@ -299,8 +359,39 @@ export async function getMutasiStok(startDate, endDate) {
   return report.reverse()
 }
 
+export async function getMutasiHariIni() {
+  const now   = new Date()
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0)
+  const end   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
+
+  const rows = await prisma.stockMutation.findMany({
+    where:   { tanggal: { gte: start, lte: end } },
+    include: { user: { select: { name: true, username: true } } },
+    orderBy: { createdAt: "desc" },
+  })
+
+  return rows.map((m) => ({
+    id:           m.id,
+    rokok_id:     m.rokok_id,
+    jenis:        m.jenis,
+    qty:          m.qty,
+    source:       m.source,
+    keterangan:   m.keterangan,
+    user_name:    m.user?.name || m.user?.username || "Sistem",
+    createdAt:    new Date(m.createdAt.getTime() + 7 * 60 * 60 * 1000)
+                    .toISOString().replace("T", " ").slice(0, 16),
+  }))
+}
+
 export async function koreksiStok(id, qty, jenis, keterangan) {
   const session = await auth()
+  let userId = session?.user?.id
+  if (!userId && session?.user?.name) {
+    const u = await prisma.user.findFirst({
+      where: { OR: [{ name: session.user.name }, { username: session.user.name }] }
+    })
+    userId = u?.id
+  }
   await prisma.$transaction(async (tx) => {
     const rokok = await tx.rokok.findUnique({ where: { id }, select: { nama: true } })
     await mutateStock({
@@ -312,7 +403,7 @@ export async function koreksiStok(id, qty, jenis, keterangan) {
       source: MUTATION_SOURCE.KOREKSI,
       reference_id: "manual",
       keterangan: keterangan || "Koreksi manual admin",
-      user_id: session?.user?.id || null,
+      user_id: userId || null,
     })
     await logAudit({
       tx,
@@ -321,7 +412,7 @@ export async function koreksiStok(id, qty, jenis, keterangan) {
       entity_id:   id,
       action:      AUDIT_ACTION.UPDATE,
       new_values:  { rokok: rokok?.nama, jenis, qty, keterangan: keterangan || "Koreksi manual admin" },
-      user_id:     session?.user?.id,
+      user_id:     userId,
       user_name:   session?.user?.name,
     })
   })
