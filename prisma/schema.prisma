@@ -201,6 +201,7 @@ model Pengeluaran {
   tanggal    DateTime @db.Date
   jumlah     Int
   keterangan String
+  sumber     String   @default("penjualan") // "penjualan" | "lainnya"
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }

@@ -30,7 +30,7 @@ export default function DashboardPage({ sesiList, titipJualList, titipJualJatuhT
       s + sesi.setoran.reduce((ss, it) => ss + it.jumlah, 0), 0) + 
       titipJualF.reduce((s, k) => s + k.totalSetoran, 0)
 
-    const totalPengeluaran = pengeluaranF.reduce((s, p) => s + p.jumlah, 0)
+    const totalPengeluaran = pengeluaranF.filter((p) => p.sumber === "penjualan").reduce((s, p) => s + p.jumlah, 0)
 
     const totalTerjualSesi = sesiF.reduce((s, sesi) =>
       s + sesi.penjualan.reduce((ss, it) => ss + it.qty, 0), 0)

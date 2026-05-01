@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react"
 import { getAuditLogs } from "@/actions/audit"
 import { Card, PageHeader, DateFilter, Field, SelectInput, Button } from "@/components/ui"
-import { defaultDateRange } from "@/lib/utils"
+import { defaultDateRange, fmtIDR } from "@/lib/utils"
 import DataTable from "@/components/DataTable"
 
 const ENTITY_LABELS = {
@@ -175,15 +175,15 @@ function DiffView({ old_values, new_values }) {
         <tbody>
           {keys.map(k => (
             <tr key={k} className="border-b border-neutral-100 last:border-0">
-              <td className="py-1 pr-4 font-medium text-neutral-700">{k}</td>
+              <td className="py-1 pr-4 font-medium text-neutral-700">{formatKey(k)}</td>
               {old_values && (
                 <td className="py-1 pr-4 text-red-700 font-mono">
-                  {formatVal(old_values[k])}
+                  {formatVal(k, old_values[k])}
                 </td>
               )}
               {new_values && (
                 <td className="py-1 text-emerald-700 font-mono">
-                  {formatVal(new_values[k])}
+                  {formatVal(k, new_values[k])}
                 </td>
               )}
             </tr>
@@ -194,8 +194,26 @@ function DiffView({ old_values, new_values }) {
   )
 }
 
-function formatVal(v) {
+function formatKey(k) {
+  const labels = {
+    uang_penjualan_tersedia: "Uang Penjualan Tersedia",
+    pengeluaran_dikurangkan: "Pengeluaran Dikurangkan",
+    sisa_uang_penjualan: "Sisa Uang Penjualan",
+    tanggal: "Tanggal",
+    jumlah: "Jumlah",
+    keterangan: "Keterangan",
+    sumber: "Sumber",
+  }
+  return labels[k] ?? k
+}
+
+function formatVal(k, v) {
   if (v === null || v === undefined) return <span className="text-neutral-400">-</span>
   if (typeof v === "object") return <span className="break-all">{JSON.stringify(v)}</span>
+  
+  if (typeof v === "number" && (k === "jumlah" || k.includes("uang_") || k.includes("pengeluaran_") || k.includes("harga") || k.includes("nilai"))) {
+    return fmtIDR(v)
+  }
+  
   return String(v)
 }
