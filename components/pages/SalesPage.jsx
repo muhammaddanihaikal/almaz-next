@@ -77,6 +77,7 @@ export default function SalesPage({ salesList, sesiList }) {
                   onDelete={() => handleDelete(r)}
                   deleteDisabled={isUsed(r.id)}
                   deleteTitle="Sales sudah digunakan di data distribusi/retur"
+                  deleteLoading={deletingId === r.id}
                 />
               ),
             },
@@ -94,6 +95,7 @@ export default function SalesPage({ salesList, sesiList }) {
                   onDelete={() => handleDelete(r)}
                   deleteDisabled={isUsed(r.id)}
                   deleteTitle="Sales sudah digunakan di data distribusi/retur"
+                  deleteLoading={deletingId === r.id}
                 />
               </div>
             </div>

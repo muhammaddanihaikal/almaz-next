@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, Fragment } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100]
@@ -97,8 +97,8 @@ export default function DataTable({ columns, rows, empty, pageSize: defaultPageS
                 const rowIndex = (page - 1) * pageSize + visIdx
                 const extra = rowExtra?.(row, rowIndex)
                 return (
-                  <>
-                    <tr key={row.id ?? visIdx} className="border-b border-neutral-100 last:border-0 hover:bg-neutral-50/60">
+                  <Fragment key={row.id ?? visIdx}>
+                    <tr className="border-b border-neutral-100 last:border-0 hover:bg-neutral-50/60">
                       {columns.map((c) => (
                         <td key={c.key} className={"px-3 py-3 text-neutral-800 " + (c.align === "right" ? "text-right tabular-nums" : "") + (c.align === "center" ? " text-center" : "")}>
                           {c.render ? c.render(row, rowIndex) : row[c.key]}
@@ -106,7 +106,7 @@ export default function DataTable({ columns, rows, empty, pageSize: defaultPageS
                       ))}
                     </tr>
                     {extra}
-                  </>
+                  </Fragment>
                 )
               })}
             </tbody>
@@ -135,8 +135,8 @@ export default function DataTable({ columns, rows, empty, pageSize: defaultPageS
               const rowIndex = (page - 1) * pageSize + visIdx
               const extra = rowExtra?.(row, rowIndex)
               return (
-                <>
-                  <tr key={row.id} className="border-b border-neutral-100 last:border-0 hover:bg-neutral-50/60">
+                <Fragment key={row.id ?? visIdx}>
+                  <tr className="border-b border-neutral-100 last:border-0 hover:bg-neutral-50/60">
                     {columns.map((c) => (
                       <td key={c.key} className={"px-3 py-3 text-neutral-800 " + (c.align === "right" ? "text-right tabular-nums" : "") + (c.align === "center" ? " text-center" : "")}>
                         {c.render ? c.render(row, rowIndex) : row[c.key]}
@@ -144,7 +144,7 @@ export default function DataTable({ columns, rows, empty, pageSize: defaultPageS
                     ))}
                   </tr>
                   {extra}
-                </>
+                </Fragment>
               )
             })}
           </tbody>

@@ -90,6 +90,7 @@ export default function TokoPage({ tokoList, titipJualList }) {
                   onDelete={() => handleDelete(r)}
                   deleteDisabled={isUsed(r.id)}
                   deleteTitle="Toko sudah digunakan di data konsinyasi"
+                  deleteLoading={deletingId === r.id}
                 />
               ),
             },

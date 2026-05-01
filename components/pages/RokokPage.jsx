@@ -40,6 +40,7 @@ export default function RokokPage({ rokokList, usedIds }) {
   const [isSorting, setIsSorting] = useState(false)
   const [sortedList, setSortedList] = useState([])
   const [isSaving, setIsSaving] = useState(false)
+  const [deletingId, setDeletingId] = useState(null)
 
   // Initialize sortedList when rokokList changes or isSorting is enabled
   useEffect(() => {
@@ -59,8 +60,13 @@ export default function RokokPage({ rokokList, usedIds }) {
   const handleDelete = async (r) => {
     const alasan = await confirmWithReason(`Hapus rokok "${r.nama}"? Data distribusi & retur tidak akan ikut terhapus.`, { title: "Hapus Rokok", variant: "danger", confirmLabel: "Ya, Hapus" })
     if (!alasan) return
-    await deleteRokok(r.id, alasan)
-    router.refresh()
+    setDeletingId(r.id)
+    try {
+      await deleteRokok(r.id, alasan)
+      router.refresh()
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   const handleToggle = async (id) => {

@@ -135,6 +135,7 @@ export default function AbsensiPage({ absensiList, salesList }) {
                   onDetail={() => setDetail(r)}
                   onEdit={() => { setEditingTanggal(r.tanggal); setMode("edit") }}
                   onDelete={() => handleDelete(r.tanggal)}
+                  deleteLoading={deletingId === r.tanggal}
                 />
               ),
             },
