@@ -50,11 +50,11 @@ export default function RiwayatPage({ initialLogs, users }) {
 
       {/* Filter */}
       <Card>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="flex flex-wrap items-end gap-3">
           <Field label="Rentang Waktu">
             <DateFilter value={dateRange} onChange={setDateRange} />
           </Field>
-          <Field label="Jenis Data">
+          <Field label="Jenis Data" className="w-44">
             <SelectInput value={entityType} onChange={e => setEntityType(e.target.value)}>
               <option value="">Semua</option>
               {Object.entries(ENTITY_LABELS).map(([k, v]) => (
@@ -62,7 +62,7 @@ export default function RiwayatPage({ initialLogs, users }) {
               ))}
             </SelectInput>
           </Field>
-          <Field label="Diubah Oleh">
+          <Field label="Diubah Oleh" className="w-48">
             <SelectInput value={userId} onChange={e => setUserId(e.target.value)}>
               <option value="">Semua User</option>
               {users.map(u => (
@@ -70,11 +70,11 @@ export default function RiwayatPage({ initialLogs, users }) {
               ))}
             </SelectInput>
           </Field>
-          <Field label=" ">
-            <Button onClick={handleFilter} loading={isPending} className="w-full">
+          <div className="flex items-end">
+            <Button loading={isPending} onClick={handleFilter}>
               Tampilkan
             </Button>
-          </Field>
+          </div>
         </div>
       </Card>
 
