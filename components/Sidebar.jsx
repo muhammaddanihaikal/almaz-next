@@ -62,8 +62,7 @@ function buildMenus(role, titipJualCounts) {
 
 export default function Sidebar({ role, userName, titipJualCounts }) {
   const pathname    = usePathname()
-  const { isPending, loadingPath, navigate } = useLoading()
-  const [clickedId, setClickedId]     = useState(null)
+  const { isPending, loadingPath } = useLoading()
   
   const [mobileOpen, setMobileOpen]       = useState(false)
   const [confirmLogout, setConfirmLogout] = useState(false)
@@ -86,16 +85,13 @@ export default function Sidebar({ role, userName, titipJualCounts }) {
 
   const navLink = (item) => {
     const active = isActive(item.href)
-    const loading = isPending && (clickedId === item.id || loadingPath === item.href)
+    const loading = isPending && loadingPath === item.href
 
     return (
-      <button
+      <Link
         key={item.id}
-        onClick={() => {
-          setClickedId(item.id)
-          setMobileOpen(false)
-          navigate(item.href)
-        }}
+        href={item.href}
+        onClick={() => setMobileOpen(false)}
         className={
           "flex w-full items-center gap-3 rounded-lg py-2.5 pl-9 pr-3 text-sm font-medium transition-colors lg:pl-3 " +
           (active ? "bg-neutral-900 text-white" : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900")
@@ -123,7 +119,7 @@ export default function Sidebar({ role, userName, titipJualCounts }) {
             )}
           </div>
         )}
-      </button>
+      </Link>
     )
   }
 
