@@ -4,11 +4,8 @@ const bcrypt = require("bcryptjs")
 const prisma = new PrismaClient()
 
 async function main() {
-  console.log("Memulai proses seeding data yang komprehensif...")
-  
   await prisma.$transaction(async (tx) => {
     // ─── Clear Data ───────────────────────────────────────────────────────────
-    console.log("Membersihkan data lama...")
     await tx.auditLog.deleteMany({})
     await tx.closingHarian.deleteMany({})
     await tx.stockMutation.deleteMany({})
@@ -30,27 +27,34 @@ async function main() {
     await tx.rokok.deleteMany({})
 
     // ─── Users ────────────────────────────────────────────────────────────────
-    console.log("Memasukkan data pengguna (5)...")
     const pass = await bcrypt.hash("admin123", 10)
-    const users = [
-      { username: "mdanihaikal", name: "M. Dani Haikal", role: "superadmin" },
-      { username: "bossalmaz",   name: "Boss Almaz",     role: "admin"      },
-      { username: "manager01",   name: "Manager Gudang", role: "admin"      },
-      { username: "kasir01",     name: "Kasir Satu",     role: "staff"      },
-      { username: "staff02",     name: "Staff Dua",      role: "staff"      },
-    ]
-    
-    const userMap = {}
-    for (const u of users) {
-      userMap[u.username] = await tx.user.upsert({
-        where:  { username: u.username },
-        update: { role: u.role, name: u.name },
-        create: { username: u.username, password: pass, name: u.name, role: u.role },
-      })
-    }
+    const superadmin = await tx.user.upsert({
+      where:  { username: "mdanihaikal" },
+      update: { role: "superadmin", name: "M. Dani Haikal" },
+      create: { username: "mdanihaikal", password: pass, name: "M. Dani Haikal", role: "superadmin" },
+    })
+    const admin = await tx.user.upsert({
+      where:  { username: "bossalmaz" },
+      update: { role: "admin", name: "Boss Almaz" },
+      create: { username: "bossalmaz", password: pass, name: "Boss Almaz", role: "admin" },
+    })
+    await tx.user.upsert({
+      where:  { username: "kasir01" },
+      update: { role: "staff", name: "Kasir Satu" },
+      create: { username: "kasir01", password: pass, name: "Kasir Satu", role: "staff" },
+    })
+    await tx.user.upsert({
+      where:  { username: "manager01" },
+      update: { role: "admin", name: "Manager Gudang" },
+      create: { username: "manager01", password: pass, name: "Manager Gudang", role: "admin" },
+    })
+    await tx.user.upsert({
+      where:  { username: "staff02" },
+      update: { role: "staff", name: "Staff Dua" },
+      create: { username: "staff02", password: pass, name: "Staff Dua", role: "staff" },
+    })
 
     // ─── Rokok ────────────────────────────────────────────────────────────────
-    console.log("Memasukkan data rokok (13)...")
     const rokokData = [
       { nama: "Gudang Garam Surya 12", harga_beli: 20000, harga_grosir: 22000, harga_toko: 23000, harga_perorangan: 25000, urutan: 1, stok_awal: 1000 },
       { nama: "Sampoerna A Mild 16",   harga_beli: 22000, harga_grosir: 24500, harga_toko: 25500, harga_perorangan: 27500, urutan: 2, stok_awal: 800  },
@@ -60,11 +64,6 @@ async function main() {
       { nama: "Gudang Garam Merah",    harga_beli: 17500, harga_grosir: 19500, harga_toko: 20500, harga_perorangan: 22500, urutan: 6, stok_awal: 1200 },
       { nama: "Camel Filter",          harga_beli: 24000, harga_grosir: 26000, harga_toko: 27000, harga_perorangan: 29000, urutan: 7, stok_awal: 300  },
       { nama: "Dunhill Filter",        harga_beli: 26000, harga_grosir: 28000, harga_toko: 29500, harga_perorangan: 32000, urutan: 8, stok_awal: 350  },
-      { nama: "Djarum Super 12",       harga_beli: 21000, harga_grosir: 23000, harga_toko: 24000, harga_perorangan: 26000, urutan: 9, stok_awal: 400  },
-      { nama: "Djarum 76",             harga_beli: 16000, harga_grosir: 18000, harga_toko: 19000, harga_perorangan: 21000, urutan: 10, stok_awal: 500 },
-      { nama: "Juara Teh Manis",       harga_beli: 14000, harga_grosir: 16000, harga_toko: 17000, harga_perorangan: 19000, urutan: 11, stok_awal: 300 },
-      { nama: "Esse Change",           harga_beli: 28000, harga_grosir: 30000, harga_toko: 31500, harga_perorangan: 34000, urutan: 12, stok_awal: 250 },
-      { nama: "Gudang Garam Surya 16", harga_beli: 25500, harga_grosir: 27500, harga_toko: 28500, harga_perorangan: 31000, urutan: 13, stok_awal: 400 },
     ]
 
     const rokok = {}
@@ -82,112 +81,167 @@ async function main() {
         data: { rokok_id: item.id, qty: r.stok_awal, tanggal: new Date("2026-04-01"), keterangan: "Saldo Awal" },
       })
       await tx.stockMutation.create({
-        data: { rokok_id: item.id, tanggal: new Date("2026-04-01"), jenis: "in", qty: r.stok_awal, source: "stok_awal", reference_id: sm.id, keterangan: "Saldo awal sistem", user_id: userMap["mdanihaikal"].id },
+        data: { rokok_id: item.id, tanggal: new Date("2026-04-01"), jenis: "in", qty: r.stok_awal, source: "stok_awal", reference_id: sm.id, keterangan: "Saldo awal sistem", user_id: superadmin.id },
+      })
+    }
+
+    // ─── Stok Masuk Supplier ──────────────────────────────────────────────────
+    // Batch Apr 10
+    for (const [nama, qty] of [
+      ["Gudang Garam Surya 12", 500],
+      ["Sampoerna A Mild 16",   400],
+      ["LA Bold",               200],
+      ["Gudang Garam Merah",    600],
+    ]) {
+      const sm = await tx.stokMasuk.create({
+        data: { rokok_id: rokok[nama].id, qty, tanggal: new Date("2026-04-10"), keterangan: "Pembelian Supplier - Batch April I" },
+      })
+      await tx.stockMutation.create({
+        data: { rokok_id: rokok[nama].id, tanggal: new Date("2026-04-10"), jenis: "in", qty, source: "stok_awal", reference_id: sm.id, keterangan: "Batch April I", user_id: superadmin.id },
+      })
+    }
+
+    // Batch Apr 20
+    for (const [nama, qty] of [
+      ["Dji Sam Soe 234", 200],
+      ["Marlboro Merah",  150],
+      ["Camel Filter",    200],
+      ["Dunhill Filter",  200],
+    ]) {
+      const sm = await tx.stokMasuk.create({
+        data: { rokok_id: rokok[nama].id, qty, tanggal: new Date("2026-04-20"), keterangan: "Pembelian Supplier - Batch April II" },
+      })
+      await tx.stockMutation.create({
+        data: { rokok_id: rokok[nama].id, tanggal: new Date("2026-04-20"), jenis: "in", qty, source: "stok_awal", reference_id: sm.id, keterangan: "Batch April II", user_id: superadmin.id },
       })
     }
 
     // ─── Sales ────────────────────────────────────────────────────────────────
-    console.log("Memasukkan data sales (6)...")
-    const salesNames = [
+    const salesMap = {}
+    for (const [nama, no_hp] of [
       ["Budi Santoso",  "081234567890"],
       ["Agus Prasetyo", "081234567891"],
       ["Siti Rahayu",   "081234567892"],
       ["Hendra Kusuma", "081234567893"],
       ["Dian Safitri",  "081234567894"],
-      ["Rizky Ramadhan", "081234567895"],
-    ]
-    const salesMap = {}
-    for (const [nama, no_hp] of salesNames) {
+    ]) {
       salesMap[nama] = await tx.sales.create({ data: { nama, no_hp } })
     }
 
     // ─── Toko ─────────────────────────────────────────────────────────────────
-    console.log("Memasukkan data toko (11)...")
-    const tokoData = [
+    const tokoMap = {}
+    for (const t of [
       { nama: "Toko Berkah",       alamat: "Jl. Merdeka No. 10",     kategori: "toko"   },
       { nama: "Grosir Jaya",       alamat: "Pasar Baru Blok A-12",   kategori: "grosir" },
       { nama: "Warung Bu Siti",    alamat: "Jl. Mawar No. 5",        kategori: "toko"   },
       { nama: "Minimarket Almaz",  alamat: "Jl. Almaz Raya No. 1",   kategori: "toko"   },
       { nama: "Toko Murah Meriah", alamat: "Jl. Pahlawan No. 22",    kategori: "toko"   },
       { nama: "Grosir Sentral",    alamat: "Pasar Induk Blok D-3",   kategori: "grosir" },
-      { nama: "Warung Pak Haji",   alamat: "Jl. Kebon Jeruk No. 8",  kategori: "toko"   },
-      { nama: "Toko Barokah",      alamat: "Jl. Melati No. 15",      kategori: "toko"   },
-      { nama: "Minimarket Sejahtera", alamat: "Jl. Damai No. 3",      kategori: "toko"   },
-      { nama: "Grosir Maju",       alamat: "Pasar Lama Blok C-5",    kategori: "grosir" },
-      { nama: "Toko Serbaguna",    alamat: "Jl. Kenanga No. 12",     kategori: "toko"   },
-    ]
-    const tokoMap = {}
-    for (const t of tokoData) {
+    ]) {
       tokoMap[t.nama] = await tx.toko.create({ data: t })
     }
 
-    // ─── Absensi ──────────────────────────────────────────────────────────────
-    console.log("Memasukkan data absensi (6 sales x 14 hari)...")
-    const startDate = new Date("2026-04-18")
-    const endDate = new Date("2026-05-01")
+    // ─── Absensi (Apr 18 – May 1, 5 sales) ───────────────────────────────────
+    const exceptions = {
+      "Budi Santoso":   { "2026-04-20": "izin",  "2026-04-23": "izin",  "2026-04-27": "sakit" },
+      "Agus Prasetyo":  { "2026-04-20": "sakit", "2026-04-22": "izin",  "2026-04-25": "sakit" },
+      "Siti Rahayu":    { "2026-04-22": "izin",  "2026-04-23": "alpha", "2026-04-29": "izin"  },
+      "Hendra Kusuma":  { "2026-04-19": "sakit", "2026-04-25": "izin",  "2026-04-27": "izin", "2026-04-29": "alpha" },
+      "Dian Safitri":   { "2026-04-21": "izin",  "2026-04-26": "sakit" },
+    }
     for (const salesNama of Object.keys(salesMap)) {
-      for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      const exc = exceptions[salesNama] || {}
+      for (let d = new Date("2026-04-18"); d <= new Date("2026-05-01"); d.setDate(d.getDate() + 1)) {
         const key = d.toISOString().split("T")[0]
-        // Acak status absensi
-        const rand = Math.random()
-        let status = "hadir"
-        if (rand > 0.95) status = "alpha"
-        else if (rand > 0.90) status = "sakit"
-        else if (rand > 0.85) status = "izin"
-
         await tx.absensi.create({
-          data: { tanggal: new Date(key), sales_id: salesMap[salesNama].id, status },
+          data: { tanggal: new Date(key), sales_id: salesMap[salesNama].id, status: exc[key] || "hadir" },
         })
       }
     }
 
     // ─── Pengeluaran ──────────────────────────────────────────────────────────
-    console.log("Memasukkan data pengeluaran (15)...")
-    const expData = [
-      ["2026-04-18", 50000, "Bensin Motor Budi"],
-      ["2026-04-19", 150000, "Makan Siang Tim"],
-      ["2026-04-20", 25000, "Parkir & Tol"],
-      ["2026-04-21", 500000, "Maintenance Gudang"],
-      ["2026-04-22", 75000, "Bensin Agus"],
-      ["2026-04-24", 200000, "Alat Tulis Kantor"],
-      ["2026-04-25", 120000, "Servis AC Kantor"],
-      ["2026-04-26", 35000, "Bensin Siti"],
-      ["2026-04-27", 80000, "Listrik Kantor"],
-      ["2026-04-28", 1200000, "Gaji Staff Gudang"],
-      ["2026-04-29", 45000, "Parkir & Tol"],
-      ["2026-04-30", 85000, "Bensin Hendra"],
-      ["2026-05-01", 100000, "Pembelian Air Galon"],
-      ["2026-05-01", 50000, "Bensin Dian"],
-      ["2026-04-23", 60000, "Konsumsi Rapat Internal"],
-    ]
-    for (const [tgl, jumlah, keterangan] of expData) {
+    for (const [tgl, jumlah, keterangan] of [
+      ["2026-04-18",   50000, "Bensin Motor Budi Santoso"],
+      ["2026-04-19",  150000, "Makan Siang Tim Sales"],
+      ["2026-04-20",   25000, "Parkir & Tol Distribusi"],
+      ["2026-04-21",  500000, "Biaya Maintenance Gudang"],
+      ["2026-04-22",   75000, "Bensin Motor Agus Prasetyo"],
+      ["2026-04-24",  200000, "Pembelian Alat Tulis Kantor"],
+      ["2026-04-26",   35000, "Bensin Motor Siti Rahayu"],
+      ["2026-04-28", 1200000, "Gaji Harian Staff Gudang (4 orang)"],
+      ["2026-04-29",   45000, "Parkir & Tol Distribusi"],
+      ["2026-04-30",   85000, "Bensin Motor Hendra Kusuma"],
+    ]) {
       await tx.pengeluaran.create({ data: { tanggal: new Date(tgl), jumlah, keterangan } })
     }
 
     // ─── Retur ────────────────────────────────────────────────────────────────
-    console.log("Memasukkan data retur (5)...")
-    const returData = [
-      { tgl: "2026-04-20", sales: "Budi Santoso", item: "Gudang Garam Surya 12", qty: 10, alasan: "Bungkus rusak" },
-      { tgl: "2026-04-25", sales: "Agus Prasetyo", item: "Sampoerna A Mild 16", qty: 5, alasan: "Hampir kadaluarsa" },
-      { tgl: "2026-04-27", sales: "Siti Rahayu", item: "LA Bold", qty: 3, alasan: "Kena air hujan" },
-      { tgl: "2026-04-29", sales: "Hendra Kusuma", item: "Dji Sam Soe 234", qty: 2, alasan: "Salah pengiriman" },
-      { tgl: "2026-04-30", sales: "Dian Safitri", item: "Djarum Super 12", qty: 4, alasan: "Bungkus penyok" },
-    ]
-    for (const r of returData) {
-      const ret = await tx.retur.create({
-        data: {
-          tanggal: new Date(r.tgl),
-          sales_id: salesMap[r.sales].id,
-          alasan: r.alasan,
-          items: { create: [{ rokok_id: rokok[r.item].id, qty: r.qty }] }
-        }
-      })
-      await tx.stockMutation.create({
-        data: { rokok_id: rokok[r.item].id, tanggal: new Date(r.tgl), jenis: "in", qty: r.qty, source: "retur", reference_id: ret.id, keterangan: `Retur: ${r.alasan}`, user_id: userMap["mdanihaikal"].id }
-      })
-    }
+    // Retur 1: Apr 20, Budi – GG Surya 10
+    const retur1 = await tx.retur.create({
+      data: {
+        tanggal:  new Date("2026-04-20"),
+        sales_id: salesMap["Budi Santoso"].id,
+        alasan:   "Bungkus rusak / penyok",
+        items:    { create: [{ rokok_id: rokok["Gudang Garam Surya 12"].id, qty: 10 }] },
+      },
+    })
+    await tx.stockMutation.create({
+      data: { rokok_id: rokok["Gudang Garam Surya 12"].id, tanggal: new Date("2026-04-20"), jenis: "in", qty: 10, source: "retur", reference_id: retur1.id, keterangan: "Retur dari toko - bungkus rusak", user_id: superadmin.id },
+    })
 
-    // ─── Helper: Sesi Harian ──────────────────────────────────────────────────
+    // Retur 2: Apr 25, Agus – SA Mild 5
+    const retur2 = await tx.retur.create({
+      data: {
+        tanggal:  new Date("2026-04-25"),
+        sales_id: salesMap["Agus Prasetyo"].id,
+        alasan:   "Produk hampir kadaluarsa",
+        items:    { create: [{ rokok_id: rokok["Sampoerna A Mild 16"].id, qty: 5 }] },
+      },
+    })
+    await tx.stockMutation.create({
+      data: { rokok_id: rokok["Sampoerna A Mild 16"].id, tanggal: new Date("2026-04-25"), jenis: "in", qty: 5, source: "retur", reference_id: retur2.id, keterangan: "Retur dari toko - hampir kadaluarsa", user_id: superadmin.id },
+    })
+
+    // Retur 3: Apr 27, Siti – LA Bold 3
+    const retur3 = await tx.retur.create({
+      data: {
+        tanggal:  new Date("2026-04-27"),
+        sales_id: salesMap["Siti Rahayu"].id,
+        alasan:   "Kena air hujan",
+        items:    { create: [{ rokok_id: rokok["LA Bold"].id, qty: 3 }] },
+      },
+    })
+    await tx.stockMutation.create({
+      data: { rokok_id: rokok["LA Bold"].id, tanggal: new Date("2026-04-27"), jenis: "in", qty: 3, source: "retur", reference_id: retur3.id, keterangan: "Retur dari toko - kena air hujan", user_id: superadmin.id },
+    })
+
+    // Retur 4: Apr 29, Hendra – DSS 234 2
+    const retur4 = await tx.retur.create({
+      data: {
+        tanggal:  new Date("2026-04-29"),
+        sales_id: salesMap["Hendra Kusuma"].id,
+        alasan:   "Salah pengiriman",
+        items:    { create: [{ rokok_id: rokok["Dji Sam Soe 234"].id, qty: 2 }] },
+      },
+    })
+    await tx.stockMutation.create({
+      data: { rokok_id: rokok["Dji Sam Soe 234"].id, tanggal: new Date("2026-04-29"), jenis: "in", qty: 2, source: "retur", reference_id: retur4.id, keterangan: "Retur dari toko - salah pengiriman", user_id: superadmin.id },
+    })
+
+    // Retur 5: Apr 30, Dian – Camel Filter 4
+    const retur5 = await tx.retur.create({
+      data: {
+        tanggal:  new Date("2026-04-30"),
+        sales_id: salesMap["Dian Safitri"].id,
+        alasan:   "Bungkus penyok",
+        items:    { create: [{ rokok_id: rokok["Camel Filter"].id, qty: 4 }] },
+      },
+    })
+    await tx.stockMutation.create({
+      data: { rokok_id: rokok["Camel Filter"].id, tanggal: new Date("2026-04-30"), jenis: "in", qty: 4, source: "retur", reference_id: retur5.id, keterangan: "Retur dari toko - bungkus penyok", user_id: superadmin.id },
+    })
+
+    // ─── Helper: buat sesi selesai ────────────────────────────────────────────
     async function buatSesiSelesai({ tgl, salesNama, keluar, penjualan, kembali, setoran }) {
       const sesi = await tx.sesiHarian.create({
         data: {
@@ -201,167 +255,261 @@ async function main() {
         },
       })
       for (const k of keluar) {
-        await tx.stockMutation.create({ data: { rokok_id: rokok[k.nama].id, tanggal: new Date(tgl), jenis: "out", qty: k.qty, source: "distribusi_sales", reference_id: sesi.id, user_id: userMap["mdanihaikal"].id } })
+        await tx.stockMutation.create({ data: { rokok_id: rokok[k.nama].id, tanggal: new Date(tgl), jenis: "out", qty: k.qty, source: "distribusi_sales", reference_id: sesi.id, user_id: superadmin.id } })
       }
       for (const k of kembali) {
-        await tx.stockMutation.create({ data: { rokok_id: rokok[k.nama].id, tanggal: new Date(tgl), jenis: "in",  qty: k.qty, source: "retur_sales",      reference_id: sesi.id, user_id: userMap["mdanihaikal"].id } })
+        await tx.stockMutation.create({ data: { rokok_id: rokok[k.nama].id, tanggal: new Date(tgl), jenis: "in",  qty: k.qty, source: "retur_sales",      reference_id: sesi.id, user_id: superadmin.id } })
       }
       return sesi
     }
 
-    // ─── Distribusi: 15 Selesai (Campuran Produk) ─────────────────────────────
-    console.log("Memasukkan data distribusi selesai (15 dengan campuran produk)...")
-    const rNames = Object.keys(rokok)
-    const sesiSelesaiData = [
-      { tgl: "2026-04-18", sales: "Budi Santoso",  items: [{ n: rNames[0], q: 80 }, { n: rNames[5], q: 100 }] },
-      { tgl: "2026-04-18", sales: "Agus Prasetyo", items: [{ n: rNames[1], q: 60 }, { n: rNames[4], q: 50 }] },
-      { tgl: "2026-04-19", sales: "Siti Rahayu",   items: [{ n: rNames[4], q: 70 }, { n: rNames[2], q: 40 }] },
-      { tgl: "2026-04-19", sales: "Hendra Kusuma", items: [{ n: rNames[5], q: 120 }, { n: rNames[0], q: 50 }] },
-      { tgl: "2026-04-20", sales: "Dian Safitri",  items: [{ n: rNames[2], q: 30 }, { n: rNames[3], q: 20 }, { n: rNames[8], q: 30 }] },
-      { tgl: "2026-04-21", sales: "Budi Santoso",  items: [{ n: rNames[6], q: 50 }, { n: rNames[7], q: 40 }] },
-      { tgl: "2026-04-22", sales: "Agus Prasetyo", items: [{ n: rNames[7], q: 40 }, { n: rNames[1], q: 30 }] },
-      { tgl: "2026-04-23", sales: "Siti Rahayu",   items: [{ n: rNames[8], q: 60 }, { n: rNames[9], q: 50 }] },
-      { tgl: "2026-04-24", sales: "Hendra Kusuma", items: [{ n: rNames[9], q: 80 }, { n: rNames[5], q: 60 }] },
-      { tgl: "2026-04-25", sales: "Dian Safitri",  items: [{ n: rNames[11], q: 25 }, { n: rNames[4], q: 30 }] },
-      { tgl: "2026-04-26", sales: "Budi Santoso",  items: [{ n: rNames[12], q: 50 }, { n: rNames[0], q: 40 }] },
-      { tgl: "2026-04-27", sales: "Agus Prasetyo", items: [{ n: rNames[0], q: 70 }, { n: rNames[5], q: 80 }] },
-      { tgl: "2026-04-28", sales: "Siti Rahayu",   items: [{ n: rNames[1], q: 50 }, { n: rNames[2], q: 30 }, { n: rNames[4], q: 40 }] },
-      { tgl: "2026-04-29", sales: "Hendra Kusuma", items: [{ n: rNames[4], q: 90 }, { n: rNames[6], q: 30 }] },
-      { tgl: "2026-04-30", sales: "Dian Safitri",  items: [{ n: rNames[5], q: 110 }, { n: rNames[3], q: 40 }] },
-    ]
+    // ─── Distribusi: 7 Selesai ────────────────────────────────────────────────
 
-    const sesiMap = []
-    for (const s of sesiSelesaiData) {
-      const keluar = s.items.map(it => ({ nama: it.n, qty: it.q }))
-      const penjualan = s.items.map(it => {
-        const prod = rokok[it.n]
-        const terjual = Math.floor(it.q * 0.9)
-        return { nama: it.n, kategori: "toko", qty: terjual, harga: prod.harga_toko }
-      })
-      const kembali = s.items.map(it => {
-        const terjual = Math.floor(it.q * 0.9)
-        return { nama: it.n, qty: it.q - terjual }
-      })
-      
-      const totalPendapatan = penjualan.reduce((sum, p) => sum + (p.qty * p.harga), 0)
-      
-      const sesi = await buatSesiSelesai({
-        tgl: s.tgl, salesNama: s.sales,
-        keluar, penjualan, kembali,
-        setoran: [{ metode: "cash", jumlah: totalPendapatan }]
-      })
-      sesiMap.push(sesi)
-    }
+    // S1 Apr 18 – Budi
+    const s1 = await buatSesiSelesai({
+      tgl: "2026-04-18", salesNama: "Budi Santoso",
+      keluar:    [{ nama: "Gudang Garam Surya 12", qty: 80  }, { nama: "Gudang Garam Merah", qty: 100 }],
+      penjualan: [{ nama: "Gudang Garam Surya 12", kategori: "toko",   qty: 75, harga: 23000 },
+                  { nama: "Gudang Garam Merah",    kategori: "grosir", qty: 95, harga: 19500 }],
+      kembali:   [{ nama: "Gudang Garam Surya 12", qty: 5 }, { nama: "Gudang Garam Merah", qty: 5 }],
+      setoran:   [{ metode: "cash", jumlah: 75 * 23000 + 95 * 19500 }],
+    })
 
-    // ─── Distribusi: 5 Aktif (Campuran Produk) ───────────────────────────────
-    console.log("Memasukkan data distribusi aktif (5 dengan campuran produk)...")
-    const salesAktif = ["Budi Santoso", "Agus Prasetyo", "Siti Rahayu", "Hendra Kusuma", "Dian Safitri"]
-    for (const sn of salesAktif) {
-      const i1 = Math.floor(Math.random() * rNames.length)
-      const i2 = (i1 + 1) % rNames.length
-      const items = [
-        { rokok_id: rokok[rNames[i1]].id, qty: 100 },
-        { rokok_id: rokok[rNames[i2]].id, qty: 50 }
-      ]
-      
-      const sesi = await tx.sesiHarian.create({
-        data: {
-          tanggal: new Date("2026-05-01"),
-          sales_id: salesMap[sn].id,
-          status: "aktif",
-          barangKeluar: { create: items }
-        }
-      })
-      
-      for (const it of items) {
-        await tx.stockMutation.create({ 
-          data: { 
-            rokok_id: it.rokok_id, 
-            tanggal: new Date("2026-05-01"), 
-            jenis: "out", 
-            qty: it.qty, 
-            source: "distribusi_sales", 
-            reference_id: sesi.id, 
-            user_id: userMap["mdanihaikal"].id 
-          } 
-        })
-      }
-    }
+    // S2 Apr 19 – Agus
+    const s2 = await buatSesiSelesai({
+      tgl: "2026-04-19", salesNama: "Agus Prasetyo",
+      keluar:    [{ nama: "Sampoerna A Mild 16", qty: 60 }, { nama: "LA Bold", qty: 50 }],
+      penjualan: [{ nama: "Sampoerna A Mild 16", kategori: "toko", qty: 55, harga: 25500 },
+                  { nama: "LA Bold",             kategori: "toko", qty: 45, harga: 22500 }],
+      kembali:   [{ nama: "Sampoerna A Mild 16", qty: 5 }, { nama: "LA Bold", qty: 5 }],
+      setoran:   [{ metode: "transfer", jumlah: 55 * 25500 + 45 * 22500 }],
+    })
+
+    // S3 Apr 21 – Siti
+    const s3 = await buatSesiSelesai({
+      tgl: "2026-04-21", salesNama: "Siti Rahayu",
+      keluar:    [{ nama: "Dji Sam Soe 234", qty: 40 }, { nama: "Marlboro Merah", qty: 30 }],
+      penjualan: [{ nama: "Dji Sam Soe 234", kategori: "perorangan", qty: 38, harga: 30000 },
+                  { nama: "Marlboro Merah",  kategori: "perorangan", qty: 28, harga: 35000 }],
+      kembali:   [{ nama: "Dji Sam Soe 234", qty: 2 }, { nama: "Marlboro Merah", qty: 2 }],
+      setoran:   [{ metode: "cash", jumlah: 38 * 30000 + 28 * 35000 }],
+    })
+
+    // S4 Apr 22 – Hendra
+    const s4 = await buatSesiSelesai({
+      tgl: "2026-04-22", salesNama: "Hendra Kusuma",
+      keluar:    [{ nama: "Gudang Garam Surya 12", qty: 100 }, { nama: "Camel Filter", qty: 30 }],
+      penjualan: [{ nama: "Gudang Garam Surya 12", kategori: "grosir", qty: 92, harga: 22000 },
+                  { nama: "Camel Filter",          kategori: "toko",   qty: 25, harga: 27000 }],
+      kembali:   [{ nama: "Gudang Garam Surya 12", qty: 8 }, { nama: "Camel Filter", qty: 5 }],
+      setoran:   [{ metode: "cash", jumlah: 1619400 }, { metode: "transfer", jumlah: 1079600 }],
+    })
+
+    // S5 Apr 24 – Budi
+    const s5 = await buatSesiSelesai({
+      tgl: "2026-04-24", salesNama: "Budi Santoso",
+      keluar:    [{ nama: "Gudang Garam Merah", qty: 120 }, { nama: "Sampoerna A Mild 16", qty: 50 }],
+      penjualan: [{ nama: "Gudang Garam Merah", kategori: "grosir", qty: 110, harga: 19500 },
+                  { nama: "Sampoerna A Mild 16", kategori: "toko",   qty: 48,  harga: 25500 }],
+      kembali:   [{ nama: "Gudang Garam Merah", qty: 10 }, { nama: "Sampoerna A Mild 16", qty: 2 }],
+      setoran:   [{ metode: "transfer", jumlah: 110 * 19500 + 48 * 25500 }],
+    })
+
+    // S6 Apr 26 – Agus
+    const s6 = await buatSesiSelesai({
+      tgl: "2026-04-26", salesNama: "Agus Prasetyo",
+      keluar:    [{ nama: "Dunhill Filter", qty: 40 }, { nama: "Marlboro Merah", qty: 30 }],
+      penjualan: [{ nama: "Dunhill Filter", kategori: "perorangan", qty: 36, harga: 32000 },
+                  { nama: "Marlboro Merah", kategori: "toko",       qty: 27, harga: 32500 }],
+      kembali:   [{ nama: "Dunhill Filter", qty: 4 }, { nama: "Marlboro Merah", qty: 3 }],
+      setoran:   [{ metode: "cash", jumlah: 36 * 32000 + 27 * 32500 }],
+    })
+
+    // S7 Apr 28 – Siti
+    const s7 = await buatSesiSelesai({
+      tgl: "2026-04-28", salesNama: "Siti Rahayu",
+      keluar:    [{ nama: "LA Bold", qty: 60 }, { nama: "Gudang Garam Surya 12", qty: 70 }],
+      penjualan: [{ nama: "LA Bold",             kategori: "toko", qty: 55, harga: 22500 },
+                  { nama: "Gudang Garam Surya 12", kategori: "toko", qty: 65, harga: 23000 }],
+      kembali:   [{ nama: "LA Bold", qty: 5 }, { nama: "Gudang Garam Surya 12", qty: 5 }],
+      setoran:   [{ metode: "cash", jumlah: 55 * 22500 + 65 * 23000 }],
+    })
+
+    // ─── Distribusi: 2 Aktif ──────────────────────────────────────────────────
+
+    // S8 Apr 30 – Hendra
+    const s8 = await tx.sesiHarian.create({
+      data: {
+        tanggal:  new Date("2026-04-30"),
+        sales_id: salesMap["Hendra Kusuma"].id,
+        status:   "aktif",
+        barangKeluar: { create: [
+          { rokok_id: rokok["Gudang Garam Merah"].id, qty: 80 },
+          { rokok_id: rokok["Camel Filter"].id,       qty: 20 },
+        ]},
+      },
+    })
+    await tx.stockMutation.create({ data: { rokok_id: rokok["Gudang Garam Merah"].id, tanggal: new Date("2026-04-30"), jenis: "out", qty: 80, source: "distribusi_sales", reference_id: s8.id, user_id: superadmin.id } })
+    await tx.stockMutation.create({ data: { rokok_id: rokok["Camel Filter"].id,       tanggal: new Date("2026-04-30"), jenis: "out", qty: 20, source: "distribusi_sales", reference_id: s8.id, user_id: superadmin.id } })
+
+    // S9 May 1 – Budi
+    const s9 = await tx.sesiHarian.create({
+      data: {
+        tanggal:  new Date("2026-05-01"),
+        sales_id: salesMap["Budi Santoso"].id,
+        status:   "aktif",
+        barangKeluar: { create: [
+          { rokok_id: rokok["Sampoerna A Mild 16"].id, qty: 40 },
+          { rokok_id: rokok["Dunhill Filter"].id,      qty: 30 },
+        ]},
+      },
+    })
+    await tx.stockMutation.create({ data: { rokok_id: rokok["Sampoerna A Mild 16"].id, tanggal: new Date("2026-05-01"), jenis: "out", qty: 40, source: "distribusi_sales", reference_id: s9.id, user_id: superadmin.id } })
+    await tx.stockMutation.create({ data: { rokok_id: rokok["Dunhill Filter"].id,      tanggal: new Date("2026-05-01"), jenis: "out", qty: 30, source: "distribusi_sales", reference_id: s9.id, user_id: superadmin.id } })
 
     // ─── Titip Jual ────────────────────────────────────────────────────────────
-    console.log("Memasukkan data titip jual (10)...")
-    const tjData = [
-      { sIdx: 0, sales: "Budi Santoso", toko: "Toko Berkah", r: "Dji Sam Soe 234", q: 20, tglOut: "2026-04-18", status: "selesai" },
-      { sIdx: 2, sales: "Siti Rahayu", toko: "Grosir Jaya", r: "Gudang Garam Merah", q: 50, tglOut: "2026-04-19", status: "selesai" },
-      { sIdx: 4, sales: "Dian Safitri", toko: "Warung Bu Siti", r: "LA Bold", q: 30, tglOut: "2026-04-20", status: "aktif", due: "2026-05-05" },
-      { sIdx: 5, sales: "Budi Santoso", toko: "Minimarket Almaz", r: "Camel Filter", q: 25, tglOut: "2026-04-21", status: "aktif", due: "2026-04-28" }, // Overdue
-      { sIdx: 6, sales: "Agus Prasetyo", toko: "Toko Murah Meriah", r: "Dunhill Filter", q: 15, tglOut: "2026-04-22", status: "aktif", due: "2026-05-01" }, // Today
-      { sIdx: 7, sales: "Siti Rahayu", toko: "Grosir Sentral", r: "Djarum Super 12", q: 40, tglOut: "2026-04-23", status: "aktif", due: "2026-05-10" },
-      { sIdx: 8, sales: "Hendra Kusuma", toko: "Warung Pak Haji", r: "Djarum 76", q: 20, tglOut: "2026-04-24", status: "aktif", due: "2026-05-08" },
-      { sIdx: 9, sales: "Dian Safitri", toko: "Toko Barokah", r: "Esse Change", q: 10, tglOut: "2026-04-25", status: "aktif", due: "2026-05-05" },
-      { sIdx: 10, sales: "Budi Santoso", toko: "Minimarket Sejahtera", r: "Gudang Garam Surya 16", q: 30, tglOut: "2026-04-26", status: "aktif", due: "2026-05-15" },
-      { sIdx: 11, sales: "Agus Prasetyo", toko: "Grosir Maju", r: "Gudang Garam Surya 12", q: 60, tglOut: "2026-04-27", status: "aktif", due: "2026-05-20" },
-    ]
 
-    for (const tj of tjData) {
-      const prod = rokok[tj.r]
-      const tjRec = await tx.titipJual.create({
-        data: {
-          sesi_id: sesiMap[tj.sIdx].id,
-          sales_id: salesMap[tj.sales].id,
-          toko_id: tokoMap[tj.toko].id,
-          kategori: tokoMap[tj.toko].kategori,
-          tanggal_jatuh_tempo: new Date(tj.due || "2026-04-30"),
-          status: tj.status,
-          items: { create: [{ rokok_id: prod.id, qty_keluar: tj.q, harga: prod.harga_toko }] }
-        }
-      })
-      await tx.stockMutation.create({ data: { rokok_id: prod.id, tanggal: new Date(tj.tglOut), jenis: "out", qty: tj.q, source: "distribusi_sales", reference_id: tjRec.id, user_id: userMap["mdanihaikal"].id } })
-      
-      if (tj.status === "selesai") {
-        await tx.titipJualSetoran.create({
-          data: { titip_jual_id: tjRec.id, metode: "transfer", jumlah: tj.q * prod.harga_toko, tanggal: new Date("2026-04-28") }
-        })
-      }
-    }
+    // TJ1 – S1 Apr 18, Budi → Toko Berkah
+    const tj1 = await tx.titipJual.create({
+      data: {
+        sesi_id: s1.id, sales_id: salesMap["Budi Santoso"].id,
+        toko_id: tokoMap["Toko Berkah"].id, kategori: "toko",
+        tanggal_jatuh_tempo: new Date("2026-04-25"),
+        tanggal_selesai:     new Date("2026-04-22"),
+        status: "selesai",
+        items:   { create: [{ rokok_id: rokok["Dji Sam Soe 234"].id, qty_keluar: 20, qty_terjual: 18, qty_kembali: 2, harga: 28500 }] },
+        setoran: { create: [{ metode: "transfer", jumlah: 18 * 28500, tanggal: new Date("2026-04-22") }] },
+      },
+    })
+    await tx.stockMutation.create({ data: { rokok_id: rokok["Dji Sam Soe 234"].id, tanggal: new Date("2026-04-18"), jenis: "out", qty: 20, source: "distribusi_sales",    reference_id: tj1.id, user_id: superadmin.id } })
+    await tx.stockMutation.create({ data: { rokok_id: rokok["Dji Sam Soe 234"].id, tanggal: new Date("2026-04-22"), jenis: "in",  qty: 2,  source: "konsinyasi_kembali", reference_id: tj1.id, user_id: superadmin.id } })
+
+    // TJ2 – S3 Apr 21, Siti → Grosir Jaya
+    const tj2 = await tx.titipJual.create({
+      data: {
+        sesi_id: s3.id, sales_id: salesMap["Siti Rahayu"].id,
+        toko_id: tokoMap["Grosir Jaya"].id, kategori: "grosir",
+        tanggal_jatuh_tempo: new Date("2026-04-30"),
+        tanggal_selesai:     new Date("2026-04-28"),
+        status: "selesai",
+        items: { create: [
+          { rokok_id: rokok["Gudang Garam Merah"].id,  qty_keluar: 50, qty_terjual: 47, qty_kembali: 3, harga: 19500 },
+          { rokok_id: rokok["Sampoerna A Mild 16"].id, qty_keluar: 30, qty_terjual: 28, qty_kembali: 2, harga: 24500 },
+        ]},
+        setoran: { create: [{ metode: "transfer", jumlah: 47 * 19500 + 28 * 24500, tanggal: new Date("2026-04-28") }] },
+      },
+    })
+    await tx.stockMutation.create({ data: { rokok_id: rokok["Gudang Garam Merah"].id,  tanggal: new Date("2026-04-21"), jenis: "out", qty: 50, source: "distribusi_sales",    reference_id: tj2.id, user_id: superadmin.id } })
+    await tx.stockMutation.create({ data: { rokok_id: rokok["Sampoerna A Mild 16"].id, tanggal: new Date("2026-04-21"), jenis: "out", qty: 30, source: "distribusi_sales",    reference_id: tj2.id, user_id: superadmin.id } })
+    await tx.stockMutation.create({ data: { rokok_id: rokok["Gudang Garam Merah"].id,  tanggal: new Date("2026-04-28"), jenis: "in",  qty: 3,  source: "konsinyasi_kembali", reference_id: tj2.id, user_id: superadmin.id } })
+    await tx.stockMutation.create({ data: { rokok_id: rokok["Sampoerna A Mild 16"].id, tanggal: new Date("2026-04-28"), jenis: "in",  qty: 2,  source: "konsinyasi_kembali", reference_id: tj2.id, user_id: superadmin.id } })
+
+    // TJ3 – S6 Apr 26, Agus → Grosir Sentral
+    const tj3 = await tx.titipJual.create({
+      data: {
+        sesi_id: s6.id, sales_id: salesMap["Agus Prasetyo"].id,
+        toko_id: tokoMap["Grosir Sentral"].id, kategori: "grosir",
+        tanggal_jatuh_tempo: new Date("2026-05-05"),
+        status: "aktif",
+        items: { create: [{ rokok_id: rokok["Marlboro Merah"].id, qty_keluar: 20, harga: 31000 }] },
+      },
+    })
+    await tx.stockMutation.create({ data: { rokok_id: rokok["Marlboro Merah"].id, tanggal: new Date("2026-04-26"), jenis: "out", qty: 20, source: "distribusi_sales", reference_id: tj3.id, user_id: superadmin.id } })
+
+    // TJ4 – S7 Apr 28, Siti → Minimarket Almaz
+    const tj4 = await tx.titipJual.create({
+      data: {
+        sesi_id: s7.id, sales_id: salesMap["Siti Rahayu"].id,
+        toko_id: tokoMap["Minimarket Almaz"].id, kategori: "toko",
+        tanggal_jatuh_tempo: new Date("2026-05-01"),
+        status: "aktif",
+        items: { create: [{ rokok_id: rokok["LA Bold"].id, qty_keluar: 15, harga: 22500 }] },
+      },
+    })
+    await tx.stockMutation.create({ data: { rokok_id: rokok["LA Bold"].id, tanggal: new Date("2026-04-28"), jenis: "out", qty: 15, source: "distribusi_sales", reference_id: tj4.id, user_id: superadmin.id } })
+
+    // TJ5 – S5 Apr 24, Budi → Warung Bu Siti (OVERDUE)
+    const tj5 = await tx.titipJual.create({
+      data: {
+        sesi_id: s5.id, sales_id: salesMap["Budi Santoso"].id,
+        toko_id: tokoMap["Warung Bu Siti"].id, kategori: "toko",
+        tanggal_jatuh_tempo: new Date("2026-04-28"),
+        status: "aktif",
+        catatan: "Pemilik toko minta perpanjangan, belum ada kabar",
+        items: { create: [{ rokok_id: rokok["Camel Filter"].id, qty_keluar: 25, harga: 27000 }] },
+      },
+    })
+    await tx.stockMutation.create({ data: { rokok_id: rokok["Camel Filter"].id, tanggal: new Date("2026-04-24"), jenis: "out", qty: 25, source: "distribusi_sales", reference_id: tj5.id, user_id: superadmin.id } })
 
     // ─── Audit Log ────────────────────────────────────────────────────────────
-    console.log("Memasukkan data audit log (15)...")
-    const auditData = []
-    const actions = ["CREATE", "UPDATE", "DELETE"]
-    const entities = ["Rokok", "Toko", "Sales", "Pengeluaran", "TitipJual"]
-    
-    for (let i = 0; i < 15; i++) {
-      const user = Object.values(userMap)[i % 5]
-      auditData.push({
-        entity_type: entities[i % 5],
-        entity_id: `seed-id-${i}`,
-        action: actions[i % 3],
-        alasan: "Data dummy untuk pengujian sistem",
-        user_id: user.id,
-        user_name: user.name,
-        createdAt: new Date(`2026-04-${10 + i}T10:00:00Z`)
-      })
-    }
-    await tx.auditLog.createMany({ data: auditData })
-
-    // ─── Closing Harian ───────────────────────────────────────────────────────
-    console.log("Memasukkan data closing harian (30 hari)...")
-    for (const rNama of Object.keys(rokok)) {
-      const rId = rokok[rNama].id
-      const closings = []
-      for (let i = 1; i <= 30; i++) {
-        closings.push({
-          tanggal: new Date(`2026-04-${i < 10 ? '0'+i : i}`),
-          rokok_id: rId,
-          stok_akhir: 500 + Math.floor(Math.random() * 500)
-        })
-      }
-      await tx.closingHarian.createMany({ data: closings })
-    }
+    await tx.auditLog.createMany({
+      data: [
+        {
+          entity_type: "Pengeluaran",
+          entity_id:   "seed-sample-1",
+          action:      "CREATE",
+          new_values:  { tanggal: "2026-04-24", jumlah: 200000, keterangan: "Pembelian Alat Tulis Kantor" },
+          user_id:     admin.id,
+          user_name:   admin.name,
+          createdAt:   new Date("2026-04-24T09:15:00Z"),
+        },
+        {
+          entity_type: "Rokok",
+          entity_id:   rokok["Dji Sam Soe 234"].id,
+          action:      "UPDATE",
+          old_values:  { harga_toko: 28000, harga_perorangan: 29500 },
+          new_values:  { harga_toko: 28500, harga_perorangan: 30000 },
+          alasan:      "Penyesuaian harga sesuai kenaikan harga dari supplier",
+          user_id:     superadmin.id,
+          user_name:   superadmin.name,
+          createdAt:   new Date("2026-04-25T10:30:00Z"),
+        },
+        {
+          entity_type: "Pengeluaran",
+          entity_id:   "seed-sample-deleted",
+          action:      "DELETE",
+          old_values:  { tanggal: "2026-04-25", jumlah: 300000, keterangan: "Pembelian AC Gudang" },
+          alasan:      "Input salah, bukan pengeluaran bulan ini",
+          user_id:     admin.id,
+          user_name:   admin.name,
+          createdAt:   new Date("2026-04-26T08:00:00Z"),
+        },
+        {
+          entity_type: "SesiHarian",
+          entity_id:   s3.id,
+          action:      "UPDATE",
+          old_values:  { setoran_cash: 2000000, setoran_transfer: 0 },
+          new_values:  { setoran_cash: 2120000, setoran_transfer: 0 },
+          alasan:      "Koreksi setoran laporan sore – ada selisih Rp 120.000",
+          user_id:     admin.id,
+          user_name:   admin.name,
+          createdAt:   new Date("2026-04-28T14:20:00Z"),
+        },
+        {
+          entity_type: "TitipJual",
+          entity_id:   tj5.id,
+          action:      "UPDATE",
+          old_values:  { tanggal_jatuh_tempo: "2026-04-25" },
+          new_values:  { tanggal_jatuh_tempo: "2026-04-28" },
+          alasan:      "Perpanjangan jatuh tempo atas permintaan pemilik Warung Bu Siti",
+          user_id:     admin.id,
+          user_name:   admin.name,
+          createdAt:   new Date("2026-04-25T11:45:00Z"),
+        },
+        {
+          entity_type: "Rokok",
+          entity_id:   "seed-rokok-deleted",
+          action:      "DELETE",
+          old_values:  { nama: "Marlboro Light", harga_beli: 28000, stok: 0 },
+          alasan:      "Produk tidak tersedia lagi dari supplier, stok habis dan tidak akan direstok",
+          user_id:     superadmin.id,
+          user_name:   superadmin.name,
+          createdAt:   new Date("2026-04-30T09:00:00Z"),
+        },
+      ],
+    })
 
     // ─── Re-Sync Cache Stok ───────────────────────────────────────────────────
-    console.log("Sinkronisasi cache stok...")
     const allRokok = await tx.rokok.findMany()
     for (const r of allRokok) {
       const muts = await tx.stockMutation.groupBy({
@@ -373,9 +521,15 @@ async function main() {
       const totalOut = muts.find(m => m.jenis === "out")?._sum.qty || 0
       await tx.rokok.update({ where: { id: r.id }, data: { stok: totalIn - totalOut } })
     }
+  }, { timeout: 30000 })
 
-    console.log("Seed data berhasil dibuat!")
-  }, { timeout: 60000 })
+  console.log("✅ Seed data berhasil dibuat!")
+  console.log("   Users   : 5 (2 superadmin/admin, 3 staff)")
+  console.log("   Rokok   : 8 jenis")
+  console.log("   Sales   : 5 orang | Toko: 6")
+  console.log("   Distribusi: 7 selesai, 2 aktif")
+  console.log("   Titip Jual: 2 selesai, 3 aktif (1 hari ini, 1 overdue)")
+  console.log("   Pengeluaran: 10 | Retur: 5 | Audit Log: 6")
 }
 
 main()
