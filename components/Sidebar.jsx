@@ -15,7 +15,8 @@ import { useLoading } from "./LoadingProvider"
 
 const ROLE_LABELS = { superadmin: "Super Admin", admin: "Admin", staff: "Staff" }
 
-function buildMenus(role, titipJualCounts) {
+function buildMenus(role, titipJualCounts, tukarAktifCount) {
+  const tukarBadge = tukarAktifCount > 0 ? { neutral: tukarAktifCount } : null
   const menus = [
     { id: "dashboard", href: "/", label: "Dashboard", icon: LayoutDashboard },
     {
@@ -25,7 +26,7 @@ function buildMenus(role, titipJualCounts) {
       items: [
         { id: "distribusi",   href: "/distribusi",   label: "Distribusi",   icon: Truck           },
         { id: "titip-jual",   href: "/titip-jual",   label: "Titip Jual",   icon: PackageCheck, badges: titipJualCounts },
-        { id: "tukar-barang", href: "/tukar-barang", label: "Tukar Barang", icon: Repeat          },
+        { id: "tukar-barang", href: "/tukar-barang", label: "Tukar Barang", icon: Repeat,       badges: tukarBadge },
         { id: "pengeluaran",  href: "/pengeluaran",  label: "Pengeluaran",  icon: ArrowDownCircle },
       ],
     },
@@ -61,7 +62,7 @@ function buildMenus(role, titipJualCounts) {
   return menus
 }
 
-export default function Sidebar({ role, userName, titipJualCounts }) {
+export default function Sidebar({ role, userName, titipJualCounts, tukarAktifCount = 0 }) {
   const pathname    = usePathname()
   const { isPending, loadingPath } = useLoading()
   
@@ -79,7 +80,7 @@ export default function Sidebar({ role, userName, titipJualCounts }) {
     "group-admin":       true,
   })
 
-  const MENUS = buildMenus(role, titipJualCounts)
+  const MENUS = buildMenus(role, titipJualCounts, tukarAktifCount)
 
   const isActive    = (href) => (href === "/" ? pathname === "/" : pathname.startsWith(href))
   const toggleGroup = (id) => setOpenGroups((prev) => ({ ...prev, [id]: !prev[id] }))
@@ -106,7 +107,7 @@ export default function Sidebar({ role, userName, titipJualCounts }) {
           )}
           <span>{item.label}</span>
         </div>
-        {item.badges && (item.badges.red > 0 || item.badges.yellow > 0) && (
+        {item.badges && (item.badges.red > 0 || item.badges.yellow > 0 || item.badges.neutral > 0) && (
           <div className="flex gap-1">
             {item.badges.red > 0 && (
               <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-100 px-1 text-[10px] font-bold text-red-700">
@@ -116,6 +117,11 @@ export default function Sidebar({ role, userName, titipJualCounts }) {
             {item.badges.yellow > 0 && (
               <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-amber-100 px-1 text-[10px] font-bold text-amber-700">
                 {item.badges.yellow}
+              </span>
+            )}
+            {item.badges.neutral > 0 && (
+              <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-blue-100 px-1 text-[10px] font-bold text-blue-700">
+                {item.badges.neutral}
               </span>
             )}
           </div>

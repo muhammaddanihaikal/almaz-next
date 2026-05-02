@@ -32,8 +32,8 @@ async function getPosisiUang(tx, tanggalDate, excludeId = null) {
   })
   const totalTitip = titipList.reduce((acc, t) => acc + t.items.reduce((ss, it) => ss + (it.qty_terjual * it.harga), 0), 0)
 
-  // Selisih + dari tukar barang (toko bayar tambahan) dihitung sebagai pemasukan tambahan.
-  // Selisih - sudah otomatis tercatat sebagai Pengeluaran sumber "penjualan" oleh actions/tukar-barang.
+  // Selisih dari tukar barang (toko bayar tambahan ke sales, ≥ 0) dihitung sebagai pemasukan tambahan.
+  // Dihitung berdasarkan tanggal tukar dibuat (hari-1, saat uang diserahkan).
   const tukarList = await tx.tukarBarang.findMany({
     where: {
       tanggal: { gte: startOfMonth, lte: tgl },
