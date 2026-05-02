@@ -130,12 +130,12 @@ export async function createTukarBarangInSesi(tx, sesi, data, session, langsungS
   const itemsMasuk  = (data.itemsMasuk  || []).filter((it) => it.rokok_id && Number(it.qty) > 0)
   const itemsKeluar = (data.itemsKeluar || []).filter((it) => it.rokok_id && Number(it.qty) > 0)
   if (itemsMasuk.length === 0)  throw new Error("Minimal 1 rokok dari toko harus diisi.")
-  if (itemsKeluar.length === 0) throw new Error("Minimal 1 rokok pengganti dari sales harus direncanakan.")
+  if (langsungSelesai && itemsKeluar.length === 0) throw new Error("Tukar Selesai: Barang pengganti harus diisi.")
 
   const totalMasuk  = itemsMasuk.reduce((s, it)  => s + Number(it.qty) * Number(it.harga_satuan || 0), 0)
   const totalKeluar = itemsKeluar.reduce((s, it) => s + Number(it.qty) * Number(it.harga_satuan || 0), 0)
   const selisih = totalKeluar - totalMasuk
-  if (selisih < 0) throw new Error("Nilai rokok dari sales harus lebih besar atau sama dengan nilai dari toko (sales tidak kasih kembalian).")
+  if (langsungSelesai && selisih < 0) throw new Error("Nilai rokok dari sales harus lebih besar atau sama dengan nilai dari toko (sales tidak kasih kembalian).")
 
   const tukar = await tx.tukarBarang.create({
     data: {
@@ -182,7 +182,6 @@ export async function createTukarBarangInSesi(tx, sesi, data, session, langsungS
     new_values: {
       tanggal:      tukar.tanggal.toISOString().split("T")[0],
       status:       tukar.status,
-      toko:         toko.nama,
       itemsMasuk:   itemsMasuk.map((it) => ({ rokok_id: it.rokok_id, qty: Number(it.qty), harga_satuan: Number(it.harga_satuan) })),
       itemsKeluar:  itemsKeluar.map((it) => ({ rokok_id: it.rokok_id, qty: Number(it.qty), harga_satuan: Number(it.harga_satuan) })),
       selisih_uang: selisih,
@@ -202,7 +201,7 @@ export async function createTukarBarangInSesi(tx, sesi, data, session, langsungS
 export async function selesaikanTukarBarangInSesi(tx, sesi, tukar_id, session) {
   const tukar = await tx.tukarBarang.findUnique({
     where: { id: tukar_id },
-    include: { toko: true, itemsKeluar: true },
+    include: { itemsKeluar: true },
   })
   if (!tukar) throw new Error("Data tukar barang tidak ditemukan.")
   if (tukar.status === "selesai") throw new Error("Tukar barang sudah selesai sebelumnya.")
@@ -255,4 +254,64 @@ export async function revertSelesaiTukarBarangInSesi(tx, tukar_id, session) {
     user_id:     session?.user?.id,
     user_name:   session?.user?.name,
   })
+}
+
+export async function selesaikanTukarBarang(tukar_id, itemsKeluarData) {
+  const session = await auth()
+  await prisma.$transaction(async (tx) => {
+    const tukar = await tx.tukarBarang.findUnique({
+      where: { id: tukar_id },
+      include: { itemsKeluar: true }
+    })
+    if (!tukar) throw new Error("Data tukar barang tidak ditemukan.")
+    if (tukar.status === "selesai") throw new Error("Tukar barang sudah selesai sebelumnya.")
+
+    const itemsKeluar = (itemsKeluarData || []).filter((it) => it.rokok_id && Number(it.qty) > 0)
+    if (itemsKeluar.length === 0) throw new Error("Minimal 1 rokok pengganti harus diisi.")
+
+    await tx.tukarBarang.update({
+      where: { id: tukar_id },
+      data: {
+        status: "selesai",
+        tanggal_selesai: new Date(),
+        itemsKeluar: {
+          create: itemsKeluar.map((it) => ({
+            rokok_id: it.rokok_id,
+            qty: Number(it.qty),
+            harga_satuan: Number(it.harga_satuan) || 0,
+          }))
+        }
+      }
+    })
+
+    // Create mutasi stock out for itemsKeluar
+    for (const it of itemsKeluar) {
+      await mutateStock({
+        tx,
+        rokok_id: it.rokok_id,
+        tanggal: new Date(),
+        jenis: 'out',
+        qty: Number(it.qty),
+        source: MUTATION_SOURCE.TUKAR_KELUAR,
+        reference_id: tukar_id,
+        user_id: session?.user?.id,
+      })
+    }
+
+    await logAudit({
+      tx,
+      entity_type: AUDIT_ENTITY.TUKAR_BARANG,
+      change_type: "Selesaikan Tukar Barang Manual",
+      entity_id: tukar_id,
+      action: AUDIT_ACTION.UPDATE,
+      new_values: {
+        status: "selesai",
+        tanggal_selesai: new Date().toISOString().split("T")[0],
+        itemsKeluar: itemsKeluar,
+      },
+      user_id: session?.user?.id,
+      user_name: session?.user?.name,
+    })
+  })
+  revalidatePath("/tukar-barang")
 }
