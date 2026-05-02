@@ -96,7 +96,7 @@ export default function TukarBarangPage({ list, salesList }) {
 
       <Card>
         <DataTable
-          key={`${dateRange?.start}-${dateRange?.end}-${statusFilter}-${tokoFilter}-${salesFilter}`}
+          key={`${dateRange?.start}-${dateRange?.end}-${statusFilter}-${salesFilter}`}
           pageSize={PAGE_SIZE}
           rows={rows}
           empty={dateRange?.start ? `Tidak ada tukar barang dari ${fmtTanggal(dateRange.start)} s/d ${fmtTanggal(dateRange.end)}.` : "Belum ada tukar barang."}
