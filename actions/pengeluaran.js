@@ -60,18 +60,29 @@ export async function getPengeluaran() {
     jumlah: r.jumlah,
     keterangan: r.keterangan,
     sumber: r.sumber ?? "penjualan",
+    createdAt: r.createdAt.toISOString(),
   }))
+}
+
+function validatePengeluaranInput(data) {
+  const jumlah = Number(data.jumlah)
+  if (!Number.isFinite(jumlah) || jumlah <= 0) throw new Error("Jumlah pengeluaran harus lebih dari 0.")
+  if (!data.tanggal) throw new Error("Tanggal pengeluaran wajib diisi.")
+  if (!data.keterangan || !String(data.keterangan).trim()) throw new Error("Keterangan pengeluaran wajib diisi.")
+  const sumber = data.sumber ?? "penjualan"
+  if (sumber !== "penjualan" && sumber !== "lainnya") throw new Error("Sumber dana tidak valid.")
+  return { jumlah, sumber, keterangan: String(data.keterangan).trim() }
 }
 
 export async function addPengeluaran(data) {
   const session = await auth()
-  const sumber = data.sumber ?? "penjualan"
+  const { jumlah, sumber, keterangan } = validatePengeluaranInput(data)
   await prisma.$transaction(async (tx) => {
     const row = await tx.pengeluaran.create({
       data: {
         tanggal: new Date(data.tanggal),
-        jumlah: Number(data.jumlah),
-        keterangan: data.keterangan,
+        jumlah,
+        keterangan,
         sumber,
       },
     })
@@ -104,7 +115,7 @@ export async function addPengeluaran(data) {
 
 export async function updatePengeluaran(id, data, alasan) {
   const session = await auth()
-  const sumber = data.sumber ?? "penjualan"
+  const { jumlah, sumber, keterangan } = validatePengeluaranInput(data)
   await prisma.$transaction(async (tx) => {
     const old = await tx.pengeluaran.findUnique({ where: { id } })
     const oldUangPenjualan = await getPosisiUang(tx, old.tanggal, id)
@@ -114,8 +125,8 @@ export async function updatePengeluaran(id, data, alasan) {
       where: { id },
       data: {
         tanggal: new Date(data.tanggal),
-        jumlah: Number(data.jumlah),
-        keterangan: data.keterangan,
+        jumlah,
+        keterangan,
         sumber,
       },
     })
@@ -138,14 +149,14 @@ export async function updatePengeluaran(id, data, alasan) {
         pengeluaran_dikurangkan: oldIsPenjualan ? old.jumlah : 0,
         sisa_uang_penjualan: oldUangPenjualan - (oldIsPenjualan ? old.jumlah : 0)
       },
-      new_values:  { 
-        tanggal: data.tanggal, 
-        jumlah: Number(data.jumlah), 
-        keterangan: data.keterangan, 
+      new_values:  {
+        tanggal: data.tanggal,
+        jumlah,
+        keterangan,
         sumber,
         uang_penjualan_tersedia: newUangPenjualan,
-        pengeluaran_dikurangkan: newIsPenjualan ? Number(data.jumlah) : 0,
-        sisa_uang_penjualan: newUangPenjualan - (newIsPenjualan ? Number(data.jumlah) : 0)
+        pengeluaran_dikurangkan: newIsPenjualan ? jumlah : 0,
+        sisa_uang_penjualan: newUangPenjualan - (newIsPenjualan ? jumlah : 0)
       },
       alasan,
       user_id:     session?.user?.id,

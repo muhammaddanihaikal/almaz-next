@@ -35,23 +35,6 @@ export default function PengeluaranPage({ pengeluaranList, sesiList, titipJualLi
     [rows]
   )
 
-  const totalPenjualan = useMemo(() => {
-    const sesiF = filterByDateRange(sesiList, dateRange)
-    const titipJualF = (() => {
-      if (!dateRange?.start || !dateRange?.end)
-        return titipJualList.filter((k) => k.status === "selesai")
-      return titipJualList.filter(
-        (k) => k.status === "selesai" && k.tanggal_selesai >= dateRange.start && k.tanggal_selesai <= dateRange.end
-      )
-    })()
-    const penjualanSesi = sesiF.reduce((s, sesi) =>
-      s + sesi.penjualan.reduce((ss, it) => ss + it.qty * it.harga, 0), 0)
-    const penjualanKonsinyasi = titipJualF.reduce((s, k) => s + (k.nilaiTerjual ?? 0), 0)
-    return penjualanSesi + penjualanKonsinyasi
-  }, [sesiList, titipJualList, dateRange])
-
-  const sisaUangPenjualan = totalPenjualan - totalPengeluaranPenjualan
-
   const handleDownload = () => {
     const label = dateRange?.start ? `${dateRange.start}_${dateRange.end}` : "semua-waktu"
     downloadExcel(rows, `pengeluaran-${label}`, [
@@ -186,7 +169,6 @@ export default function PengeluaranPage({ pengeluaranList, sesiList, titipJualLi
             sesiList={sesiList}
             titipJualList={titipJualList}
             pengeluaranList={pengeluaranList}
-            dateRange={dateRange}
             onClose={() => setDetail(null)}
           />
         </Modal>
@@ -218,9 +200,14 @@ export default function PengeluaranPage({ pengeluaranList, sesiList, titipJualLi
   )
 }
 
-function PengeluaranDetail({ row, sesiList, titipJualList, pengeluaranList, dateRange, onClose }) {
-  // Hitung kumulatif penjualan sampai tanggal pengeluaran ini, dimulai dari awal filter dateRange
-  const startTgl = dateRange?.start || "0000-00-00"
+function PengeluaranDetail({ row, sesiList, titipJualList, pengeluaranList, onClose }) {
+  // Anchor ke awal bulan dari tanggal pengeluaran (selaras dengan getPosisiUang di server / audit log)
+  const startTgl = useMemo(() => {
+    const d = new Date(row.tanggal)
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, "0")
+    return `${y}-${m}-01`
+  }, [row.tanggal])
   
   const penjualanSaatItu = useMemo(() => {
     const fromSesi = sesiList
@@ -232,12 +219,19 @@ function PengeluaranDetail({ row, sesiList, titipJualList, pengeluaranList, date
     return fromSesi + fromTitip
   }, [sesiList, titipJualList, row.tanggal, startTgl])
 
-  // Hitung kumulatif pengeluaran (hanya dari penjualan) sampai tanggal ini, dimulai dari awal filter dateRange, KECUALI pengeluaran ini sendiri
+  // Pengeluaran sumber=penjualan yang terjadi SEBELUM pengeluaran ini secara kronologis
+  // (tanggal lebih awal, atau tanggal sama tapi createdAt lebih awal)
   const pengeluaranSebelumnya = useMemo(() =>
     pengeluaranList
-      .filter((p) => p.sumber === "penjualan" && p.tanggal >= startTgl && p.tanggal <= row.tanggal && p.id !== row.id)
+      .filter((p) => {
+        if (p.sumber !== "penjualan") return false
+        if (p.tanggal < startTgl || p.tanggal > row.tanggal) return false
+        if (p.id === row.id) return false
+        if (p.tanggal < row.tanggal) return true
+        return (p.createdAt ?? "") < (row.createdAt ?? "")
+      })
       .reduce((s, p) => s + p.jumlah, 0),
-    [pengeluaranList, row.tanggal, row.id, startTgl]
+    [pengeluaranList, row.tanggal, row.id, row.createdAt, startTgl]
   )
 
   const uangPenjualanTersedia = penjualanSaatItu - pengeluaranSebelumnya
@@ -280,16 +274,24 @@ function PengeluaranDetail({ row, sesiList, titipJualList, pengeluaranList, date
           <span className="text-neutral-600">Uang Penjualan</span>
           <span className="font-semibold text-emerald-600">{fmtIDR(uangPenjualanTersedia)}</span>
         </div>
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-neutral-600">Pengeluaran ini</span>
-          <span className="font-semibold text-red-600">- {fmtIDR(pengeluaranDikurangkan)}</span>
-        </div>
-        <div className="flex items-center justify-between text-sm border-t border-neutral-200 pt-2">
-          <span className="font-medium text-neutral-700">Sisa Uang Penjualan</span>
-          <span className={`font-bold ${sisaSaatItu >= 0 ? "text-neutral-900" : "text-red-700"}`}>
-            {fmtIDR(sisaSaatItu)}
-          </span>
-        </div>
+        {isDariPenjualan ? (
+          <>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-neutral-600">Pengeluaran ini</span>
+              <span className="font-semibold text-red-600">- {fmtIDR(pengeluaranDikurangkan)}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm border-t border-neutral-200 pt-2">
+              <span className="font-medium text-neutral-700">Sisa Uang Penjualan</span>
+              <span className={`font-bold ${sisaSaatItu >= 0 ? "text-neutral-900" : "text-red-700"}`}>
+                {fmtIDR(sisaSaatItu)}
+              </span>
+            </div>
+          </>
+        ) : (
+          <p className="text-xs text-neutral-500 border-t border-neutral-200 pt-2">
+            Pengeluaran ini menggunakan dana di luar penjualan, jadi <span className="font-medium text-neutral-700">tidak mengurangi uang penjualan</span>.
+          </p>
+        )}
       </div>
 
       <div className="flex justify-end pt-1">
