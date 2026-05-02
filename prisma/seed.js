@@ -172,7 +172,7 @@ async function main() {
       ["2026-04-29",   45000, "Parkir & Tol Distribusi"],
       ["2026-04-30",   85000, "Bensin Motor Hendra Kusuma"],
     ]) {
-      await tx.pengeluaran.create({ data: { tanggal: new Date(tgl), jumlah, keterangan } })
+      await tx.pengeluaran.create({ data: { tanggal: new Date(tgl), jumlah, keterangan, sumber: "penjualan" } })
     }
 
     // ─── Retur ────────────────────────────────────────────────────────────────
