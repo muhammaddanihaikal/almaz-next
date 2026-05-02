@@ -33,23 +33,21 @@ function SelisihBadge({ selisih }) {
   )
 }
 
-export default function TukarBarangPage({ list, tokoList, salesList }) {
+export default function TukarBarangPage({ list, salesList }) {
   const router = useRouter()
   const { confirmWithReason, ConfirmWithReasonModal } = useConfirmWithReason()
   const [detail, setDetail] = useState(null)
   const [dateRange, setDateRange] = useState(defaultDateRange("bulan_ini"))
   const [statusFilter, setStatusFilter] = useState("")
-  const [tokoFilter, setTokoFilter]     = useState("")
   const [salesFilter, setSalesFilter]   = useState("")
   const [deletingId, setDeletingId]     = useState(null)
 
   const rows = useMemo(() => {
     let filtered = filterByDateRange(list, dateRange)
     if (statusFilter) filtered = filtered.filter((r) => r.status === statusFilter)
-    if (tokoFilter)   filtered = filtered.filter((r) => r.toko_id === tokoFilter)
     if (salesFilter)  filtered = filtered.filter((r) => r.sales_id === salesFilter)
     return sortByDateDesc(filtered)
-  }, [list, dateRange, statusFilter, tokoFilter, salesFilter])
+  }, [list, dateRange, statusFilter, salesFilter])
 
   const aktifCount = useMemo(() => list.filter((r) => r.status === "aktif").length, [list])
 
@@ -86,14 +84,6 @@ export default function TukarBarangPage({ list, tokoList, salesList }) {
             <option value="selesai">Selesai</option>
           </SelectInput>
         </Field>
-        <Field label="Toko" className="w-56">
-          <SearchableSelect
-            value={tokoFilter}
-            onChange={(e) => setTokoFilter(e.target.value)}
-            placeholder="Semua Toko"
-            options={[{ value: "", label: "Semua Toko" }, ...tokoList.map((t) => ({ value: t.id, label: t.nama }))]}
-          />
-        </Field>
         <Field label="Sales" className="w-48">
           <SearchableSelect
             value={salesFilter}
@@ -114,7 +104,6 @@ export default function TukarBarangPage({ list, tokoList, salesList }) {
             { key: "no",      label: "No",     render: (_, idx) => idx + 1 },
             { key: "tanggal", label: "Tanggal Buat", render: (r) => fmtTanggal(r.tanggal) },
             { key: "tanggal_selesai", label: "Tanggal Selesai", render: (r) => r.tanggal_selesai ? fmtTanggal(r.tanggal_selesai) : <span className="text-neutral-400">—</span> },
-            { key: "toko",    label: "Toko",   render: (r) => r.nama_toko },
             { key: "sales",   label: "Sales",  render: (r) => r.nama_sales },
             { key: "masuk",   label: "Dari Toko", render: (r) => (
               <div className="space-y-0.5">
@@ -155,9 +144,10 @@ function TukarDetail({ record }) {
       <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
         <div><p className="text-xs text-neutral-500">Tanggal Buat</p><p className="font-medium">{fmtTanggal(record.tanggal)}</p></div>
         <div><p className="text-xs text-neutral-500">Tanggal Selesai</p><p className="font-medium">{record.tanggal_selesai ? fmtTanggal(record.tanggal_selesai) : "—"}</p></div>
-        <div><p className="text-xs text-neutral-500">Toko</p><p className="font-medium">{record.nama_toko}</p></div>
         <div><p className="text-xs text-neutral-500">Sales</p><p className="font-medium">{record.nama_sales}</p></div>
         <div><p className="text-xs text-neutral-500">Status</p><StatusBadge status={record.status} /></div>
+      </div>
+      <div className="grid grid-cols-2 gap-3 text-sm">
         <div><p className="text-xs text-neutral-500">Selisih</p><SelisihBadge selisih={record.selisih_uang} /></div>
       </div>
       {record.catatan && (

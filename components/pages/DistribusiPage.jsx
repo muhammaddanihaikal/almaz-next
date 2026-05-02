@@ -1416,7 +1416,6 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
           setPenyelesaianTukar={setPenyelesaianTukar}
           rokokDibawa={rokokDibawa}
           rokokList={rokokList}
-          tokoList={tokoList}
         />
       )}
 
@@ -1908,11 +1907,10 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
 
 // ─── TUKAR BARANG TAB (di Laporan Sore) ─────────────────────────────────────
 
-function TukarBarangTab({ tukarBaru, setTukarBaru, tukarAktifSales, penyelesaianTukar, setPenyelesaianTukar, rokokDibawa, rokokList, tokoList }) {
+function TukarBarangTab({ tukarBaru, setTukarBaru, tukarAktifSales, penyelesaianTukar, setPenyelesaianTukar, rokokDibawa, rokokList }) {
   const addTukar = () => setTukarBaru([
     ...tukarBaru,
     {
-      toko_id: "",
       itemsMasuk:  [{ rokok_id: "", qty: "", harga_satuan: "" }],
       itemsKeluar: [{ rokok_id: "", qty: "", harga_satuan: "" }],
       catatan: "",
@@ -1948,7 +1946,6 @@ function TukarBarangTab({ tukarBaru, setTukarBaru, tukarAktifSales, penyelesaian
             onRemove={() => removeTukar(idx)}
             rokokDibawa={rokokDibawa}
             rokokList={rokokList}
-            tokoList={tokoList}
           />
         ))}
         <Button variant="secondary" className="w-full border-dashed" onClick={addTukar}>
@@ -2020,12 +2017,10 @@ function TukarBarangTab({ tukarBaru, setTukarBaru, tukarAktifSales, penyelesaian
   )
 }
 
-function TukarBaruInput({ data, idx, onChange, onRemove, rokokDibawa, rokokList, tokoList }) {
-  const tokoSelected = tokoList.find((t) => t.id === data.toko_id)
-  const kategoriToko = tokoSelected?.kategori || "toko"
+function TukarBaruInput({ data, idx, onChange, onRemove, rokokDibawa, rokokList }) {
   const hargaDefault = (rokok) => {
     if (!rokok) return 0
-    return kategoriToko === "grosir" ? rokok.harga_grosir : rokok.harga_toko
+    return rokok.harga_toko
   }
 
   const totalMasuk  = data.itemsMasuk.reduce((s, it)  => s + Number(it.qty || 0) * Number(it.harga_satuan || 0), 0)
@@ -2095,20 +2090,9 @@ function TukarBaruInput({ data, idx, onChange, onRemove, rokokDibawa, rokokList,
 
   return (
     <div className="rounded-lg border border-neutral-200 p-4 space-y-4 mb-3">
-      <div className="flex items-start gap-3">
-        <div className="flex-1">
-          <Field label={`Toko (Tukar #${idx + 1})`}>
-            <SearchableSelect
-              value={data.toko_id}
-              onChange={(e) => onChange({ toko_id: e.target.value })}
-              placeholder="Pilih toko"
-              options={[{ value: "", label: "Pilih toko" }, ...tokoList.filter((t) => t.aktif !== false).map((t) => ({ value: t.id, label: t.nama }))]}
-            />
-          </Field>
-        </div>
-        <div className="pt-7">
-          <IconButton icon={Trash2} onClick={onRemove} variant="danger" label="Hapus tukar" />
-        </div>
+      <div className="flex items-center justify-between">
+        <h4 className="font-medium text-sm">Tukar Barang #{idx + 1}</h4>
+        <IconButton icon={Trash2} onClick={onRemove} variant="danger" label="Hapus tukar" />
       </div>
 
       {renderItems("itemsMasuk",  "Rokok dari Toko (kembalian)",       rokokForMasuk)}

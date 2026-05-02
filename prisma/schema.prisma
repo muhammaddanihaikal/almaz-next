@@ -35,8 +35,7 @@ model Toko {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  titipJual   TitipJual[]
-  tukarBarang TukarBarang[]
+  titipJual TitipJual[]
 }
 
 model Rokok {
@@ -259,7 +258,6 @@ model TukarBarang {
   tanggal         DateTime  @db.Date          // hari-1, saat tukar dibuat (B diserahkan toko)
   sesi_id         String                       // sesi sales hari-1
   sesi_selesai_id String?                      // sesi sales hari-N (saat tukar diselesaikan)
-  toko_id         String
   status          String    @default("aktif")  // "aktif" | "selesai"
   tanggal_selesai DateTime? @db.Date           // hari-N, null kalau masih aktif
   selisih_uang    Int       @default(0)        // >= 0: toko bayar tambahan ke sales, 0 = setara
@@ -269,7 +267,6 @@ model TukarBarang {
 
   sesi         SesiHarian              @relation("TukarBarangSesi", fields: [sesi_id], references: [id])
   sesiSelesai  SesiHarian?             @relation("TukarBarangSesiSelesai", fields: [sesi_selesai_id], references: [id])
-  toko         Toko                    @relation(fields: [toko_id], references: [id])
   itemsMasuk   TukarBarangItemMasuk[]  // rokok dari toko (kembali, fisik di hari-1)
   itemsKeluar  TukarBarangItemKeluar[] // rokok dari sales (planned di hari-1, fisik di hari-N)
 

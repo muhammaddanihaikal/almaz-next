@@ -7,7 +7,6 @@ import { auth } from "@/lib/auth"
 import { logAudit, AUDIT_ACTION, AUDIT_ENTITY } from "@/lib/audit"
 
 const include = {
-  toko:        true,
   sesi:        { include: { sales: true } },
   sesiSelesai: { include: { sales: true } },
   itemsMasuk:  { include: { rokok: true } },
@@ -23,8 +22,6 @@ function serialize(t) {
     tanggal_selesai: t.tanggal_selesai ? t.tanggal_selesai.toISOString().split("T")[0] : null,
     sesi_id:         t.sesi_id,
     sesi_selesai_id: t.sesi_selesai_id,
-    toko_id:         t.toko_id,
-    nama_toko:       t.toko.nama,
     sales_id:        t.sesi?.sales_id ?? null,
     nama_sales:      t.sesi?.sales?.nama ?? "-",
     status:          t.status,
@@ -73,7 +70,7 @@ export async function deleteTukarBarang(id, alasan) {
   await prisma.$transaction(async (tx) => {
     const old = await tx.tukarBarang.findUnique({
       where: { id },
-      include: { itemsMasuk: { include: { rokok: true } }, itemsKeluar: { include: { rokok: true } }, toko: true, sesi: { include: { sales: true } } },
+      include: { itemsMasuk: { include: { rokok: true } }, itemsKeluar: { include: { rokok: true } }, sesi: { include: { sales: true } } },
     })
     if (!old) return
 
@@ -87,7 +84,6 @@ export async function deleteTukarBarang(id, alasan) {
         tanggal:         old.tanggal.toISOString().split("T")[0],
         tanggal_selesai: old.tanggal_selesai ? old.tanggal_selesai.toISOString().split("T")[0] : null,
         status:          old.status,
-        toko:            old.toko.nama,
         sales:           old.sesi?.sales?.nama,
         itemsMasuk:      old.itemsMasuk.map((it) => ({ rokok: it.rokok?.nama, qty: it.qty, harga_satuan: it.harga_satuan })),
         itemsKeluar:     old.itemsKeluar.map((it) => ({ rokok: it.rokok?.nama, qty: it.qty, harga_satuan: it.harga_satuan })),
@@ -131,8 +127,6 @@ export async function deleteTukarBarang(id, alasan) {
  * - Else status = "aktif"
  */
 export async function createTukarBarangInSesi(tx, sesi, data, session, langsungSelesai = false) {
-  if (!data.toko_id) throw new Error("Toko wajib dipilih untuk tukar barang.")
-
   const itemsMasuk  = (data.itemsMasuk  || []).filter((it) => it.rokok_id && Number(it.qty) > 0)
   const itemsKeluar = (data.itemsKeluar || []).filter((it) => it.rokok_id && Number(it.qty) > 0)
   if (itemsMasuk.length === 0)  throw new Error("Minimal 1 rokok dari toko harus diisi.")
@@ -143,14 +137,10 @@ export async function createTukarBarangInSesi(tx, sesi, data, session, langsungS
   const selisih = totalKeluar - totalMasuk
   if (selisih < 0) throw new Error("Nilai rokok dari sales harus lebih besar atau sama dengan nilai dari toko (sales tidak kasih kembalian).")
 
-  const toko = await tx.toko.findUnique({ where: { id: data.toko_id } })
-  if (!toko) throw new Error("Toko tidak ditemukan.")
-
   const tukar = await tx.tukarBarang.create({
     data: {
       tanggal:         new Date(sesi.tanggal),
       sesi_id:         sesi.id,
-      toko_id:         data.toko_id,
       status:          langsungSelesai ? "selesai" : "aktif",
       tanggal_selesai: langsungSelesai ? new Date(sesi.tanggal) : null,
       sesi_selesai_id: langsungSelesai ? sesi.id : null,
