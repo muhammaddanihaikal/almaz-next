@@ -7,10 +7,11 @@ import { defaultDateRange, fmtIDR } from "@/lib/utils"
 import DataTable from "@/components/DataTable"
 
 const ENTITY_LABELS = {
-  SesiHarian:  "Distribusi",
-  TitipJual:   "Titip Jual",
-  Pengeluaran: "Pengeluaran",
-  Rokok:       "Rokok",
+  SesiHarian:   "Distribusi",
+  TitipJual:    "Titip Jual",
+  Pengeluaran:  "Pengeluaran",
+  Rokok:        "Rokok",
+  TukarBarang:  "Tukar Barang",
 }
 
 const ACTION_LABELS = {

@@ -32,7 +32,18 @@ async function getPosisiUang(tx, tanggalDate, excludeId = null) {
   })
   const totalTitip = titipList.reduce((acc, t) => acc + t.items.reduce((ss, it) => ss + (it.qty_terjual * it.harga), 0), 0)
 
-  const penjualanSaatItu = totalSesi + totalTitip
+  // Selisih + dari tukar barang (toko bayar tambahan) dihitung sebagai pemasukan tambahan.
+  // Selisih - sudah otomatis tercatat sebagai Pengeluaran sumber "penjualan" oleh actions/tukar-barang.
+  const tukarList = await tx.tukarBarang.findMany({
+    where: {
+      tanggal: { gte: startOfMonth, lte: tgl },
+      selisih_uang: { gt: 0 },
+    },
+    select: { selisih_uang: true },
+  })
+  const totalTukarPlus = tukarList.reduce((acc, t) => acc + t.selisih_uang, 0)
+
+  const penjualanSaatItu = totalSesi + totalTitip + totalTukarPlus
 
   const pengeluaranWhere = { 
     sumber: "penjualan", 

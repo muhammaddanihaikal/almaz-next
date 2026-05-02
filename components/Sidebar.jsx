@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Truck, PackageCheck, Cigarette,
   Users, CalendarCheck, Menu, X, ChevronDown, ChevronRight,
   Folder, Database, LogOut, ArrowDownCircle, Store,
-  UserCog, HardDrive, ShieldCheck, History, Loader2,
+  UserCog, HardDrive, ShieldCheck, History, Loader2, Repeat,
 } from "lucide-react"
 
 import { useLoading } from "./LoadingProvider"
@@ -23,9 +23,10 @@ function buildMenus(role, titipJualCounts) {
       label: "Operasional",
       icon: Folder,
       items: [
-        { id: "distribusi",  href: "/distribusi",  label: "Distribusi",  icon: Truck           },
-        { id: "titip-jual",  href: "/titip-jual",  label: "Titip Jual",  icon: PackageCheck, badges: titipJualCounts },
-        { id: "pengeluaran", href: "/pengeluaran", label: "Pengeluaran", icon: ArrowDownCircle },
+        { id: "distribusi",   href: "/distribusi",   label: "Distribusi",   icon: Truck           },
+        { id: "titip-jual",   href: "/titip-jual",   label: "Titip Jual",   icon: PackageCheck, badges: titipJualCounts },
+        { id: "tukar-barang", href: "/tukar-barang", label: "Tukar Barang", icon: Repeat          },
+        { id: "pengeluaran",  href: "/pengeluaran",  label: "Pengeluaran",  icon: ArrowDownCircle },
       ],
     },
     {
