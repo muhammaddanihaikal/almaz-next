@@ -10,8 +10,7 @@
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
-    "db:seed": "node prisma/seed.js",
-    "db:reset-prod": "node prisma/reset-prod.js"
+    "db:seed": "node prisma/seed.js"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
