@@ -14,8 +14,8 @@ const include = {
   setoran:       true,
   barangKembali: { include: { rokok: true } },
   titipJual:     { include: { items: { include: { rokok: true } }, setoran: true, toko: true } },
-  tukarBarang:   { include: { toko: true, itemsMasuk: { include: { rokok: true } }, itemsKeluar: { include: { rokok: true } } } },
-  tukarBarangSelesai: { include: { toko: true, itemsMasuk: { include: { rokok: true } }, itemsKeluar: { include: { rokok: true } } } },
+  tukarBarang:   { include: { itemsMasuk: { include: { rokok: true } }, itemsKeluar: { include: { rokok: true } } } },
+  tukarBarangSelesai: { include: { itemsMasuk: { include: { rokok: true } }, itemsKeluar: { include: { rokok: true } } } },
 }
 
 function serializeTukarList(list) {
@@ -23,8 +23,6 @@ function serializeTukarList(list) {
     id:              t.id,
     tanggal:         t.tanggal.toISOString().split("T")[0],
     tanggal_selesai: t.tanggal_selesai ? t.tanggal_selesai.toISOString().split("T")[0] : null,
-    toko_id:         t.toko_id,
-    nama_toko:       t.toko?.nama || "???",
     status:          t.status,
     selisih_uang:    t.selisih_uang,
     catatan:         t.catatan || "",
