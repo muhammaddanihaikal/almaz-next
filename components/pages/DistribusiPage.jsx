@@ -1174,7 +1174,7 @@ function LaporanSoreForm({ sesi, rokokList, retailList: retailListProp, isEdit =
         <div className="space-y-6">
           {/* Penjualan Langsung */}
           <SectionCard
-            title="Barang Kembali"
+            title="Penjualan"
             right={
               <label className="flex cursor-pointer items-center gap-1.5 text-xs text-neutral-600 select-none">
                 <input type="checkbox" checked={showPerorangan} onChange={(e) => setShowPerorangan(e.target.checked)} className="h-3.5 w-3.5 rounded" />
@@ -1196,8 +1196,8 @@ function LaporanSoreForm({ sesi, rokokList, retailList: retailListProp, isEdit =
             )}
           </SectionCard>
 
-          {/* Barang Kembali Tukar */}
-          <SectionCard title="Barang Kembali Tukar">
+          {/* Barang Kembali Tambahan */}
+          <SectionCard title="Barang Kembali (Tambahan)">
             <div className="space-y-2">
               {barangKembaliBaru.map((item, idx) => {
                 const rokok = rokokList.find((r) => r.id === item.rokok_id)
