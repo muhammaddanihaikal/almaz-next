@@ -1474,7 +1474,7 @@ function SectionCard({ title, right, children }) {
 }
 
 function PenjualanLangsungInput({ penjualan, setPenjualan, barangKeluar = [], qtyTitipBaru = {}, showPerorangan, setShowPerorangan, barangKembaliBaru = [], setBarangKembaliBaru, rokokList = [] }) {
-  const categories = showPerorangan ? ["grosir", "retail", "perorangan"] : ["grosir", "retail"]
+  const categories = showPerorangan ? ["retail", "grosir", "perorangan"] : ["retail", "grosir"]
   const rokok_ids  = [...new Set(penjualan.map((it) => it.rokok_id))]
 
   const qtyDibawa = Object.fromEntries(barangKeluar.map((it) => [it.rokok_id, it.qty]))
