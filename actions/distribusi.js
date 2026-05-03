@@ -19,10 +19,11 @@ function serialize(s) {
 
   const nilaiPenjualan = s.penjualan.reduce((sum, it) => sum + it.qty * it.harga, 0)
   const totalSetoran   = s.setoran.reduce((sum, it) => sum + it.jumlah, 0)
+  const rokok_ids_keluar = new Set(s.barangKeluar.map((it) => it.rokok_id))
   const qtyKeluar      = s.barangKeluar.reduce((sum, it) => sum + it.qty, 0)
   const qtyTerjual     = s.penjualan.reduce((sum, it) => sum + it.qty, 0)
   const qtyKonsinyasi  = s.titipJual.reduce((sum, k) => sum + k.items.reduce((ss, it) => ss + it.qty_keluar, 0), 0)
-  const qtyKembali     = s.barangKembali.reduce((sum, it) => sum + it.qty, 0)
+  const qtyKembali     = s.barangKembali.filter((it) => rokok_ids_keluar.has(it.rokok_id)).reduce((sum, it) => sum + it.qty, 0)
   const flagSetoran    = nilaiPenjualan > 0 && totalSetoran !== nilaiPenjualan
   const flagQty        = qtyKeluar > 0 && s.status === "selesai" && (qtyTerjual + qtyKonsinyasi + qtyKembali) !== qtyKeluar
 

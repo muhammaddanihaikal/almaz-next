@@ -542,6 +542,26 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, retailL
               },
             },
             {
+              key: "flag", label: "Flag",
+              render: (r) => {
+                if (!r.flagSetoran && !r.flagQty) return null
+                return (
+                  <div className="flex flex-col gap-1">
+                    {r.flagSetoran && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 whitespace-nowrap">
+                        <AlertCircle className="h-3 w-3 shrink-0" /> Selisih setoran
+                      </span>
+                    )}
+                    {r.flagQty && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700 whitespace-nowrap">
+                        <AlertCircle className="h-3 w-3 shrink-0" /> Qty tidak cocok
+                      </span>
+                    )}
+                  </div>
+                )
+              },
+            },
+            {
               key: "keluar", label: "Barang Keluar",
               render: (r) => (
                 <div className="space-y-0.5">
@@ -984,7 +1004,13 @@ function LaporanSoreForm({ sesi, rokokList, retailList: retailListProp, isEdit =
   const [loading, setLoading] = useState(false)
   const [showPerorangan,    setShowPerorangan]    = useState(false)
   const [setoranAuto,       setSetoranAuto]       = useState(false)
-  const [barangKembaliBaru, setBarangKembaliBaru] = useState([])
+  const [barangKembaliBaru, setBarangKembaliBaru] = useState(
+    isEdit && sesi.barangKembali?.length
+      ? sesi.barangKembali
+          .filter((k) => !sesi.barangKeluar.find((bk) => bk.rokok_id === k.rokok_id))
+          .map((k) => ({ rokok_id: k.rokok_id, qty: String(k.qty) }))
+      : []
+  )
 
   const nilaiPenjualan = penjualan.reduce((s, it) => {
     const r = rokokList.find((r) => r.id === it.rokok_id)
@@ -1157,7 +1183,15 @@ function LaporanSoreForm({ sesi, rokokList, retailList: retailListProp, isEdit =
       {activeTab === "penjualan" && (
         <div className="space-y-6">
           {/* Penjualan Langsung */}
-          <SectionCard title="Barang Kembali">
+          <SectionCard
+            title="Barang Kembali"
+            right={
+              <label className="flex cursor-pointer items-center gap-1.5 text-xs text-neutral-600 select-none">
+                <input type="checkbox" checked={showPerorangan} onChange={(e) => setShowPerorangan(e.target.checked)} className="h-3.5 w-3.5 rounded" />
+                Tampilkan Perorangan
+              </label>
+            }
+          >
             <PenjualanLangsungInput
               penjualan={penjualan}
               setPenjualan={setPenjualan}
@@ -1170,7 +1204,7 @@ function LaporanSoreForm({ sesi, rokokList, retailList: retailListProp, isEdit =
               rokokList={rokokList}
             />
             {nilaiPenjualan > 0 && (
-              <p className="text-xs text-neutral-500 mt-2">Total nilai penjualan: <span className="font-semibold text-neutral-900">{fmtIDR(nilaiPenjualan)}</span></p>
+              <p className="text-sm text-neutral-500 mt-2">Total nilai penjualan: <span className="font-semibold text-neutral-900">{fmtIDR(nilaiPenjualan)}</span></p>
             )}
           </SectionCard>
 
@@ -1437,10 +1471,13 @@ function buildPenjualanFromExisting(barangKeluar, penjualanLama) {
   })
 }
 
-function SectionCard({ title, children }) {
+function SectionCard({ title, right, children }) {
   return (
     <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 space-y-3">
-      <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">{title}</p>
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">{title}</p>
+        {right}
+      </div>
       {children}
     </div>
   )
@@ -1520,48 +1557,47 @@ function PenjualanLangsungInput({ penjualan, setPenjualan, barangKeluar = [], qt
               </Fragment>
             )
           })}
-        </tbody>
-      </table>
-
-      {setBarangKembaliBaru && (
-        <div className="space-y-2 pt-1">
-          {barangKembaliBaru.map((item, idx) => (
-            <div key={idx} className="flex items-center gap-2">
-              <div className="flex-1">
+          {setBarangKembaliBaru && barangKembaliBaru.map((item, idx) => (
+            <tr key={`extra-${idx}`} className="border-b border-neutral-100">
+              <td className="py-2 pr-3">
                 <SearchableSelect
                   value={item.rokok_id}
                   onChange={(e) => setBarangKembaliBaru(barangKembaliBaru.map((it, i) => i === idx ? { ...it, rokok_id: e.target.value } : it))}
                   placeholder="Pilih rokok..."
-                  options={rokokList.filter((r) => r.aktif !== false).map((r) => ({ value: r.id, label: r.nama }))}
+                  options={rokokList.filter((r) => r.aktif !== false && !barangKeluar.find((bk) => bk.rokok_id === r.id) && !barangKembaliBaru.find((bkb, i) => i !== idx && bkb.rokok_id === r.id)).map((r) => ({ value: r.id, label: r.nama }))}
                 />
-              </div>
-              <input
-                type="number"
-                min="0"
-                value={item.qty}
-                onChange={(e) => setBarangKembaliBaru(barangKembaliBaru.map((it, i) => i === idx ? { ...it, qty: e.target.value } : it))}
-                placeholder="Qty"
-                className={inputCls + " w-24"}
-              />
-              <IconButton icon={Trash2} onClick={() => setBarangKembaliBaru(barangKembaliBaru.filter((_, i) => i !== idx))} variant="danger" label="Hapus" />
-            </div>
+              </td>
+              <td colSpan={categories.length} className="py-2 px-1">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    value={item.qty}
+                    onChange={(e) => setBarangKembaliBaru(barangKembaliBaru.map((it, i) => i === idx ? { ...it, qty: e.target.value } : it))}
+                    placeholder="Qty"
+                    disabled={!item.rokok_id}
+                    className={inputCls + " flex-1" + (!item.rokok_id ? " opacity-50 cursor-not-allowed" : "")}
+                  />
+                  <IconButton icon={Trash2} onClick={() => setBarangKembaliBaru(barangKembaliBaru.filter((_, i) => i !== idx))} variant="danger" label="Hapus" />
+                </div>
+              </td>
+            </tr>
           ))}
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setBarangKembaliBaru([...barangKembaliBaru, { rokok_id: "", qty: "" }])}
-            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-          >
-            + Tambah Barang
-          </Button>
-        </div>
+        </tbody>
+      </table>
+
+      {setBarangKembaliBaru && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => setBarangKembaliBaru([...barangKembaliBaru, { rokok_id: "", qty: "" }])}
+          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+        >
+          + Tambah Barang
+        </Button>
       )}
 
-      <div className="flex items-center gap-2">
-        <label className="text-xs font-medium text-neutral-600">Tampilkan Perorangan</label>
-        <input type="checkbox" checked={showPerorangan} onChange={(e) => setShowPerorangan(e.target.checked)} className="h-4 w-4 rounded" />
-      </div>
     </div>
   )
 }
