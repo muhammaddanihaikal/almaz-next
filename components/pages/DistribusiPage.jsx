@@ -984,6 +984,7 @@ function LaporanSoreForm({ sesi, rokokList, retailList: retailListProp, isEdit =
   const [loading, setLoading] = useState(false)
   const [showPerorangan,    setShowPerorangan]    = useState(false)
   const [setoranAuto,       setSetoranAuto]       = useState(false)
+  const [barangKembaliBaru, setBarangKembaliBaru] = useState([])
 
   const nilaiPenjualan = penjualan.reduce((s, it) => {
     const r = rokokList.find((r) => r.id === it.rokok_id)
@@ -1025,6 +1026,17 @@ function LaporanSoreForm({ sesi, rokokList, retailList: retailListProp, isEdit =
       const validKembali = Object.entries(barangKembaliAuto)
         .filter(([_, qty]) => qty > 0)
         .map(([rokok_id, qty]) => ({ rokok_id, qty }))
+
+      const validBarangKembaliBaru = barangKembaliBaru.filter((it) => it.rokok_id && Number(it.qty) > 0)
+
+      for (const item of validBarangKembaliBaru) {
+        const existing = validKembali.find((k) => k.rokok_id === item.rokok_id)
+        if (existing) {
+          existing.qty += Number(item.qty)
+        } else {
+          validKembali.push({ rokok_id: item.rokok_id, qty: Number(item.qty) })
+        }
+      }
 
       await onSubmit({
         penjualan:      validPenjualan.map((it) => ({ rokok_id: it.rokok_id, kategori: it.kategori, qty: Number(it.qty) })),
@@ -1229,6 +1241,30 @@ function LaporanSoreForm({ sesi, rokokList, retailList: retailListProp, isEdit =
                 Selisih setoran: nilai penjualan {fmtIDR(nilaiPenjualan)} vs setoran {fmtIDR(totalSetoran)}
               </div>
             )}
+          </SectionCard>
+
+          {/* Barang Kembali */}
+          <SectionCard title="Barang Kembali">
+            <BarangKembaliInput
+              barangKembaliBaru={barangKembaliBaru}
+              setBarangKembaliBaru={setBarangKembaliBaru}
+              rokokList={rokokList}
+              barangKembaliAuto={(() => {
+                const map = {}
+                for (const keluar of sesi.barangKeluar) {
+                  map[keluar.rokok_id] = keluar.qty
+                }
+                for (const pj of penjualan.filter((it) => it.rokok_id && Number(it.qty) > 0)) {
+                  map[pj.rokok_id] = (map[pj.rokok_id] || 0) - pj.qty
+                }
+                for (const k of konsinyasiBaru.filter(k => k.retail_id && k.kategori && k.tanggal_jatuh_tempo)) {
+                  for (const it of k.items.filter((i) => i.rokok_id && Number(i.qty) > 0)) {
+                    map[it.rokok_id] = (map[it.rokok_id] || 0) - Number(it.qty)
+                  }
+                }
+                return Object.entries(map).filter(([_, qty]) => qty > 0).map(([rokok_id, qty]) => ({ rokok_id, qty }))
+              })()}
+            />
           </SectionCard>
         </div>
       )}
@@ -1830,5 +1866,91 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
   )
 }
 
+// ─── Barang Kembali Input ────────────────────────────────────────────────────
+
+function BarangKembaliInput({ barangKembaliBaru, setBarangKembaliBaru, rokokList, barangKembaliAuto }) {
+  const handleAddItem = () => {
+    setBarangKembaliBaru([...barangKembaliBaru, { rokok_id: "", qty: "" }])
+  }
+
+  const handleUpdateItem = (idx, field, value) => {
+    setBarangKembaliBaru(
+      barangKembaliBaru.map((item, i) =>
+        i === idx ? { ...item, [field]: value } : item
+      )
+    )
+  }
+
+  const handleRemoveItem = (idx) => {
+    setBarangKembaliBaru(barangKembaliBaru.filter((_, i) => i !== idx))
+  }
+
+  return (
+    <div className="space-y-3">
+      {barangKembaliAuto.length > 0 && (
+        <div className="bg-neutral-50 rounded-lg border border-neutral-200 p-3">
+          <p className="text-xs font-medium text-neutral-600 mb-2">Barang Kembali (Otomatis)</p>
+          <div className="space-y-1">
+            {barangKembaliAuto.map((item, i) => {
+              const rokok = rokokList.find((r) => r.id === item.rokok_id)
+              return (
+                <div key={i} className="flex items-center justify-between text-xs">
+                  <span className="text-neutral-700">{rokok?.nama || "???"}</span>
+                  <span className="font-medium tabular-nums">{item.qty}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {barangKembaliBaru.length > 0 && (
+        <div className="bg-blue-50 rounded-lg border border-blue-200 p-3">
+          <p className="text-xs font-medium text-blue-600 mb-2">Barang Kembali Tambahan</p>
+          <div className="space-y-2">
+            {barangKembaliBaru.map((item, idx) => (
+              <div key={idx} className="flex items-end gap-2">
+                <div className="flex-1">
+                  <SearchableSelect
+                    value={item.rokok_id}
+                    onChange={(value) => handleUpdateItem(idx, "rokok_id", value)}
+                    placeholder="Pilih rokok..."
+                  >
+                    {rokokList.filter((r) => r.aktif !== false).map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.nama}
+                      </option>
+                    ))}
+                  </SearchableSelect>
+                </div>
+                <div className="w-24">
+                  <input
+                    type="number"
+                    min="0"
+                    value={item.qty}
+                    onChange={(e) => handleUpdateItem(idx, "qty", e.target.value)}
+                    placeholder="Qty"
+                    className={inputCls}
+                  />
+                </div>
+                <IconButton icon={Trash2} onClick={() => handleRemoveItem(idx)} variant="danger" label="Hapus" />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={handleAddItem}
+        className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+      >
+        + Tambah Barang
+      </Button>
+    </div>
+  )
+}
 
 
