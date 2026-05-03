@@ -1157,7 +1157,7 @@ function LaporanSoreForm({ sesi, rokokList, retailList: retailListProp, isEdit =
       {activeTab === "penjualan" && (
         <div className="space-y-6">
           {/* Penjualan Langsung */}
-          <SectionCard title="Penjualan Langsung">
+          <SectionCard title="Barang Kembali">
             <PenjualanLangsungInput
               penjualan={penjualan}
               setPenjualan={setPenjualan}
@@ -1165,6 +1165,9 @@ function LaporanSoreForm({ sesi, rokokList, retailList: retailListProp, isEdit =
               qtyTitipBaru={qtyTitipBaru}
               showPerorangan={showPerorangan}
               setShowPerorangan={setShowPerorangan}
+              barangKembaliBaru={barangKembaliBaru}
+              setBarangKembaliBaru={setBarangKembaliBaru}
+              rokokList={rokokList}
             />
             {nilaiPenjualan > 0 && (
               <p className="text-xs text-neutral-500 mt-2">Total nilai penjualan: <span className="font-semibold text-neutral-900">{fmtIDR(nilaiPenjualan)}</span></p>
@@ -1243,29 +1246,6 @@ function LaporanSoreForm({ sesi, rokokList, retailList: retailListProp, isEdit =
             )}
           </SectionCard>
 
-          {/* Barang Kembali */}
-          <SectionCard title="Barang Kembali">
-            <BarangKembaliInput
-              barangKembaliBaru={barangKembaliBaru}
-              setBarangKembaliBaru={setBarangKembaliBaru}
-              rokokList={rokokList}
-              barangKembaliAuto={(() => {
-                const map = {}
-                for (const keluar of sesi.barangKeluar) {
-                  map[keluar.rokok_id] = keluar.qty
-                }
-                for (const pj of penjualan.filter((it) => it.rokok_id && Number(it.qty) > 0)) {
-                  map[pj.rokok_id] = (map[pj.rokok_id] || 0) - pj.qty
-                }
-                for (const k of konsinyasiBaru.filter(k => k.retail_id && k.kategori && k.tanggal_jatuh_tempo)) {
-                  for (const it of k.items.filter((i) => i.rokok_id && Number(i.qty) > 0)) {
-                    map[it.rokok_id] = (map[it.rokok_id] || 0) - Number(it.qty)
-                  }
-                }
-                return Object.entries(map).filter(([_, qty]) => qty > 0).map(([rokok_id, qty]) => ({ rokok_id, qty }))
-              })()}
-            />
-          </SectionCard>
         </div>
       )}
 
@@ -1466,7 +1446,7 @@ function SectionCard({ title, children }) {
   )
 }
 
-function PenjualanLangsungInput({ penjualan, setPenjualan, barangKeluar = [], qtyTitipBaru = {}, showPerorangan, setShowPerorangan }) {
+function PenjualanLangsungInput({ penjualan, setPenjualan, barangKeluar = [], qtyTitipBaru = {}, showPerorangan, setShowPerorangan, barangKembaliBaru = [], setBarangKembaliBaru, rokokList = [] }) {
   const categories = showPerorangan ? ["grosir", "retail", "perorangan"] : ["grosir", "retail"]
   const rokok_ids  = [...new Set(penjualan.map((it) => it.rokok_id))]
 
@@ -1542,6 +1522,45 @@ function PenjualanLangsungInput({ penjualan, setPenjualan, barangKeluar = [], qt
           })}
         </tbody>
       </table>
+
+      {setBarangKembaliBaru && (
+        <div className="space-y-2 pt-1">
+          {barangKembaliBaru.map((item, idx) => (
+            <div key={idx} className="flex items-center gap-2">
+              <div className="flex-1">
+                <SearchableSelect
+                  value={item.rokok_id}
+                  onChange={(value) => setBarangKembaliBaru(barangKembaliBaru.map((it, i) => i === idx ? { ...it, rokok_id: value } : it))}
+                  placeholder="Pilih rokok..."
+                >
+                  {rokokList.filter((r) => r.aktif !== false).map((r) => (
+                    <option key={r.id} value={r.id}>{r.nama}</option>
+                  ))}
+                </SearchableSelect>
+              </div>
+              <input
+                type="number"
+                min="0"
+                value={item.qty}
+                onChange={(e) => setBarangKembaliBaru(barangKembaliBaru.map((it, i) => i === idx ? { ...it, qty: e.target.value } : it))}
+                placeholder="Qty"
+                className={inputCls + " w-24"}
+              />
+              <IconButton icon={Trash2} onClick={() => setBarangKembaliBaru(barangKembaliBaru.filter((_, i) => i !== idx))} variant="danger" label="Hapus" />
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setBarangKembaliBaru([...barangKembaliBaru, { rokok_id: "", qty: "" }])}
+            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+          >
+            + Tambah Barang
+          </Button>
+        </div>
+      )}
+
       <div className="flex items-center gap-2">
         <label className="text-xs font-medium text-neutral-600">Tampilkan Perorangan</label>
         <input type="checkbox" checked={showPerorangan} onChange={(e) => setShowPerorangan(e.target.checked)} className="h-4 w-4 rounded" />
@@ -1866,91 +1885,5 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
   )
 }
 
-// ─── Barang Kembali Input ────────────────────────────────────────────────────
-
-function BarangKembaliInput({ barangKembaliBaru, setBarangKembaliBaru, rokokList, barangKembaliAuto }) {
-  const handleAddItem = () => {
-    setBarangKembaliBaru([...barangKembaliBaru, { rokok_id: "", qty: "" }])
-  }
-
-  const handleUpdateItem = (idx, field, value) => {
-    setBarangKembaliBaru(
-      barangKembaliBaru.map((item, i) =>
-        i === idx ? { ...item, [field]: value } : item
-      )
-    )
-  }
-
-  const handleRemoveItem = (idx) => {
-    setBarangKembaliBaru(barangKembaliBaru.filter((_, i) => i !== idx))
-  }
-
-  return (
-    <div className="space-y-3">
-      {barangKembaliAuto.length > 0 && (
-        <div className="bg-neutral-50 rounded-lg border border-neutral-200 p-3">
-          <p className="text-xs font-medium text-neutral-600 mb-2">Barang Kembali (Otomatis)</p>
-          <div className="space-y-1">
-            {barangKembaliAuto.map((item, i) => {
-              const rokok = rokokList.find((r) => r.id === item.rokok_id)
-              return (
-                <div key={i} className="flex items-center justify-between text-xs">
-                  <span className="text-neutral-700">{rokok?.nama || "???"}</span>
-                  <span className="font-medium tabular-nums">{item.qty}</span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {barangKembaliBaru.length > 0 && (
-        <div className="bg-blue-50 rounded-lg border border-blue-200 p-3">
-          <p className="text-xs font-medium text-blue-600 mb-2">Barang Kembali Tambahan</p>
-          <div className="space-y-2">
-            {barangKembaliBaru.map((item, idx) => (
-              <div key={idx} className="flex items-end gap-2">
-                <div className="flex-1">
-                  <SearchableSelect
-                    value={item.rokok_id}
-                    onChange={(value) => handleUpdateItem(idx, "rokok_id", value)}
-                    placeholder="Pilih rokok..."
-                  >
-                    {rokokList.filter((r) => r.aktif !== false).map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.nama}
-                      </option>
-                    ))}
-                  </SearchableSelect>
-                </div>
-                <div className="w-24">
-                  <input
-                    type="number"
-                    min="0"
-                    value={item.qty}
-                    onChange={(e) => handleUpdateItem(idx, "qty", e.target.value)}
-                    placeholder="Qty"
-                    className={inputCls}
-                  />
-                </div>
-                <IconButton icon={Trash2} onClick={() => handleRemoveItem(idx)} variant="danger" label="Hapus" />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={handleAddItem}
-        className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-      >
-        + Tambah Barang
-      </Button>
-    </div>
-  )
-}
 
 
