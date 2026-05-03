@@ -1189,13 +1189,67 @@ function LaporanSoreForm({ sesi, rokokList, retailList: retailListProp, isEdit =
               qtyTitipBaru={qtyTitipBaru}
               showPerorangan={showPerorangan}
               setShowPerorangan={setShowPerorangan}
-              barangKembaliBaru={barangKembaliBaru}
-              setBarangKembaliBaru={setBarangKembaliBaru}
               rokokList={rokokList}
             />
             {nilaiPenjualan > 0 && (
               <p className="text-sm text-neutral-500 mt-2">Total nilai penjualan: <span className="font-semibold text-neutral-900">{fmtIDR(nilaiPenjualan)}</span></p>
             )}
+          </SectionCard>
+
+          {/* Barang Kembali Tukar */}
+          <SectionCard title="Barang Kembali Tukar">
+            <div className="space-y-2">
+              {barangKembaliBaru.map((item, idx) => {
+                const rokok = rokokList.find((r) => r.id === item.rokok_id)
+                const sisaStok = rokok ? rokok.stok + (Number(item.qty) || 0) : 0
+                return (
+                  <div key={idx} className="flex items-end gap-2">
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-medium text-neutral-600">{idx === 0 ? "Rokok" : ""}</span>
+                        {rokok && (
+                          <span className={`text-[10px] font-bold tabular-nums ${sisaStok < 0 ? "text-red-500" : (Number(item.qty) || 0) > 0 ? "text-blue-600" : "text-neutral-400"}`}>
+                            Stok: {rokok.stok} / {sisaStok}
+                          </span>
+                        )}
+                      </div>
+                      <SearchableSelect
+                        value={item.rokok_id}
+                        onChange={(e) => setBarangKembaliBaru(barangKembaliBaru.map((it, i) => i === idx ? { ...it, rokok_id: e.target.value } : it))}
+                        placeholder="Pilih rokok..."
+                        options={rokokList.filter((r) => r.aktif !== false && !barangKembaliBaru.find((bkb, i) => i !== idx && bkb.rokok_id === r.id)).map((r) => ({ value: r.id, label: r.nama }))}
+                      />
+                    </div>
+                    <div className="w-24">
+                      <div className="mb-1 min-h-[14px]">
+                        {idx === 0 && <span className="text-xs font-medium text-neutral-600">Qty</span>}
+                      </div>
+                      <input
+                        type="number"
+                        min="0"
+                        value={item.qty}
+                        onChange={(e) => setBarangKembaliBaru(barangKembaliBaru.map((it, i) => i === idx ? { ...it, qty: e.target.value } : it))}
+                        placeholder="0"
+                        disabled={!item.rokok_id}
+                        className={inputCls + (!item.rokok_id ? " opacity-50 cursor-not-allowed" : "")}
+                      />
+                    </div>
+                    <div className="pb-1">
+                      <IconButton icon={Trash2} onClick={() => setBarangKembaliBaru(barangKembaliBaru.filter((_, i) => i !== idx))} variant="danger" label="Hapus" />
+                    </div>
+                  </div>
+                )
+              })}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setBarangKembaliBaru([...barangKembaliBaru, { rokok_id: "", qty: "" }])}
+                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+              >
+                + Tambah Barang
+              </Button>
+            </div>
           </SectionCard>
 
           {/* Setoran */}
@@ -1473,7 +1527,7 @@ function SectionCard({ title, right, children }) {
   )
 }
 
-function PenjualanLangsungInput({ penjualan, setPenjualan, barangKeluar = [], qtyTitipBaru = {}, showPerorangan, setShowPerorangan, barangKembaliBaru = [], setBarangKembaliBaru, rokokList = [] }) {
+function PenjualanLangsungInput({ penjualan, setPenjualan, barangKeluar = [], qtyTitipBaru = {}, showPerorangan, setShowPerorangan, rokokList = [] }) {
   const categories = showPerorangan ? ["retail", "grosir", "perorangan"] : ["retail", "grosir"]
   const rokok_ids  = [...new Set(penjualan.map((it) => it.rokok_id))]
 
@@ -1550,59 +1604,6 @@ function PenjualanLangsungInput({ penjualan, setPenjualan, barangKeluar = [], qt
         </tbody>
       </table>
 
-      {setBarangKembaliBaru && (
-        <div className="space-y-2">
-          {barangKembaliBaru.map((item, idx) => {
-            const rokok = rokokList.find((r) => r.id === item.rokok_id)
-            const sisaStok = rokok ? rokok.stok + (Number(item.qty) || 0) : 0
-            return (
-              <div key={idx} className="flex items-end gap-2">
-                <div className="flex-1">
-                  <div className="flex items-center justify-end mb-1">
-                    {rokok && (
-                      <span className={`text-[10px] font-bold tabular-nums ${sisaStok < 0 ? "text-red-500" : (Number(item.qty) || 0) > 0 ? "text-blue-600" : "text-neutral-400"}`}>
-                        Stok: {rokok.stok} / {sisaStok}
-                      </span>
-                    )}
-                  </div>
-                  <SearchableSelect
-                    value={item.rokok_id}
-                    onChange={(e) => setBarangKembaliBaru(barangKembaliBaru.map((it, i) => i === idx ? { ...it, rokok_id: e.target.value } : it))}
-                    placeholder="Pilih rokok..."
-                    options={rokokList.filter((r) => r.aktif !== false && !barangKeluar.find((bk) => bk.rokok_id === r.id) && !barangKembaliBaru.find((bkb, i) => i !== idx && bkb.rokok_id === r.id)).map((r) => ({ value: r.id, label: r.nama }))}
-                  />
-                </div>
-                <div className="w-24">
-                  <div className="mb-1 min-h-[14px]">
-                    {idx === 0 && <span className="text-xs font-medium text-neutral-600">Qty</span>}
-                  </div>
-                  <input
-                    type="number"
-                    min="0"
-                    value={item.qty}
-                    onChange={(e) => setBarangKembaliBaru(barangKembaliBaru.map((it, i) => i === idx ? { ...it, qty: e.target.value } : it))}
-                    placeholder="0"
-                    disabled={!item.rokok_id}
-                    className={inputCls + (!item.rokok_id ? " opacity-50 cursor-not-allowed" : "")}
-                  />
-                </div>
-                <div className="pb-1">
-                  <IconButton icon={Trash2} onClick={() => setBarangKembaliBaru(barangKembaliBaru.filter((_, i) => i !== idx))} variant="danger" label="Hapus" />
-                </div>
-              </div>
-            )
-          })}
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setBarangKembaliBaru([...barangKembaliBaru, { rokok_id: "", qty: "" }])}
-            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-          >
-            + Tambah Barang
-          </Button>
-        </div>
-      )}
 
     </div>
   )
