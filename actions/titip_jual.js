@@ -34,6 +34,7 @@ function serialize(k) {
     tanggal_jatuh_tempo: jatuhTempo,
     tanggal_selesai:     k.tanggal_selesai ? k.tanggal_selesai.toISOString().split("T")[0] : null,
     status:              k.status,
+    flag_selisih_setoran: k.flag_selisih_setoran,
     catatan:             k.catatan,
     createdAt:           k.createdAt.toISOString(),
     nilaiTotal,
@@ -122,9 +123,16 @@ export async function settleTitipJual(id, data) {
       })
     }
 
+    const nilaiTerjual = data.items.reduce((s, it) => {
+      const harga = old.items.find((o) => o.id === it.id)?.harga || 0
+      return s + it.qty_terjual * harga
+    }, 0)
+    const totalSetoran         = validSetoran.reduce((s, st) => s + st.jumlah, 0)
+    const flag_selisih_setoran = nilaiTerjual > 0 && totalSetoran !== nilaiTerjual
+
     await tx.titipJual.update({
       where: { id },
-      data:  { status: "selesai", tanggal_selesai: today },
+      data:  { status: "selesai", tanggal_selesai: today, flag_selisih_setoran },
     })
 
     await logAudit({
@@ -334,6 +342,18 @@ export async function editSettlement(id, data, alasan) {
       })
     }
 
+    const nilaiTerjual = data.items.reduce((s, it) => {
+      const harga = old.items.find((o) => o.id === it.id)?.harga || 0
+      return s + it.qty_terjual * harga
+    }, 0)
+    const totalSetoran         = validSetoran.reduce((s, st) => s + st.jumlah, 0)
+    const flag_selisih_setoran = nilaiTerjual > 0 && totalSetoran !== nilaiTerjual
+
+    await tx.titipJual.update({
+      where: { id },
+      data:  { tanggal_selesai: today, flag_selisih_setoran },
+    })
+
     await logAudit({
       tx,
       entity_type: AUDIT_ENTITY.TITIP_JUAL,
@@ -385,7 +405,7 @@ export async function revertSettlement(id, alasan) {
     }
 
     await tx.titipJualSetoran.deleteMany({ where: { titip_jual_id: id } })
-    await tx.titipJual.update({ where: { id }, data: { status: "aktif", tanggal_selesai: null } })
+    await tx.titipJual.update({ where: { id }, data: { status: "aktif", tanggal_selesai: null, flag_selisih_setoran: false } })
 
     await logAudit({
       tx,
@@ -420,14 +440,17 @@ export async function getTitipJualNotificationCounts() {
   const tigaHariLagi = new Date(today)
   tigaHariLagi.setDate(tigaHariLagi.getDate() + 3)
 
-  const [red, yellow] = await Promise.all([
+  const [red, yellow, neutral] = await Promise.all([
     prisma.titipJual.count({
       where: { status: "aktif", tanggal_jatuh_tempo: { lte: today } }
     }),
     prisma.titipJual.count({
       where: { status: "aktif", tanggal_jatuh_tempo: { gte: tomorrow, lte: tigaHariLagi } }
-    })
+    }),
+    prisma.titipJual.count({
+      where: { status: "selesai", flag_selisih_setoran: true }
+    }),
   ])
 
-  return { red, yellow }
+  return { red, yellow, neutral }
 }

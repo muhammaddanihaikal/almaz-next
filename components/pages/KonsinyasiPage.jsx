@@ -14,7 +14,7 @@ const PAGE_SIZE = 10
 
 const KATEGORI_COLOR = {
   grosir: "bg-violet-100 text-violet-700",
-  toko:   "bg-blue-100 text-blue-700",
+  retail: "bg-blue-100 text-blue-700",
 }
 
 const STATUS_COLOR = {
@@ -53,7 +53,8 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
   const [activeTab,    setActiveTab]    = useState("aktif")
   const [search,       setSearch]       = useState("")
   const [salesFilter,  setSalesFilter]  = useState("")
-  const [statusAktifFilter, setStatusAktifFilter] = useState("")
+  const [statusAktifFilter,   setStatusAktifFilter]   = useState("")
+  const [statusSelesaiFilter, setStatusSelesaiFilter] = useState("")
   const [dateRange, setDateRange] = useState(defaultDateRange("semua"))
   const [expandedHariIni, setExpandedHariIni] = useState(false)
   const [expandedSegera,  setExpandedSegera]  = useState(false)
@@ -74,6 +75,9 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
       else if (statusAktifFilter === "hari_ini") filtered = filtered.filter(r => r.selisihHari === 0)
       else if (statusAktifFilter === "segera") filtered = filtered.filter(r => r.selisihHari > 0 && r.selisihHari <= 3)
       else if (statusAktifFilter === "aman") filtered = filtered.filter(r => r.selisihHari > 3)
+    }
+    if (activeTab === "selesai" && statusSelesaiFilter === "selisih") {
+      filtered = filtered.filter(r => r.flag_selisih_setoran)
     }
 
     if (dateRange?.start && dateRange?.end) {
@@ -222,11 +226,25 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
                 </div>
               </>
             )}
+            {activeTab === "selesai" && (
+              <>
+                <div className="hidden sm:block w-px h-6 bg-neutral-200 mx-2"></div>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                  <label className="text-sm font-medium text-neutral-600 shrink-0">Filter:</label>
+                  <div className="w-full sm:w-56 shrink-0">
+                    <SelectInput value={statusSelesaiFilter} onChange={(e) => setStatusSelesaiFilter(e.target.value)}>
+                      <option value="">Semua Selesai</option>
+                      <option value="selisih">Ada Selisih Setoran</option>
+                    </SelectInput>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
         <DataTable
-          key={`${activeTab}-${salesFilter}-${search}-${statusAktifFilter}-${dateRange?.start}-${dateRange?.end}`}
+          key={`${activeTab}-${salesFilter}-${search}-${statusAktifFilter}-${statusSelesaiFilter}-${dateRange?.start}-${dateRange?.end}`}
           pageSize={PAGE_SIZE}
           rows={rows}
           empty={`Tidak ada titip jual ${activeTab}.`}

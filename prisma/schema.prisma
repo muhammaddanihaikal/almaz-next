@@ -157,12 +157,13 @@ model TitipJual {
   sales_id            String
   retail_id           String
   kategori            String   // "grosir" | "retail"
-  tanggal_jatuh_tempo DateTime  @db.Date
-  tanggal_selesai     DateTime? @db.Date
-  status              String    @default("aktif") // "aktif" | "selesai"
-  catatan             String?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  tanggal_jatuh_tempo  DateTime  @db.Date
+  tanggal_selesai      DateTime? @db.Date
+  status               String    @default("aktif") // "aktif" | "selesai"
+  flag_selisih_setoran Boolean   @default(false)
+  catatan              String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   sesi    SesiHarian      @relation(fields: [sesi_id], references: [id])
   sales   Sales           @relation(fields: [sales_id], references: [id])
