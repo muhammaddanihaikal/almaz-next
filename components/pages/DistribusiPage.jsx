@@ -769,7 +769,7 @@ function SesiDetail({ record }) {
             record.konsinyasi.map((k, i) => (
               <div key={i} className="rounded-lg border border-neutral-200 p-3 space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="font-medium">{k.nama_toko}</span>
+                  <span className="font-medium">{k.nama_retail}</span>
                   <div className="flex items-center gap-2">
                     <Badge label={k.kategori} colorClass={KATEGORI_COLOR[k.kategori] || "bg-neutral-100 text-neutral-600"} />
                     <Badge label={k.status === "selesai" ? "Selesai" : "Aktif"} colorClass={STATUS_COLOR[k.status]} />
@@ -777,6 +777,11 @@ function SesiDetail({ record }) {
                 </div>
                 <p className="text-xs text-neutral-500">Jatuh Tempo: {fmtTanggal(k.tanggal_jatuh_tempo)}</p>
                 <SimpleTable rows={k.items} cols={["rokok", "qty_keluar", "qty_terjual", "qty_kembali"]} labels={["Rokok", "Keluar", "Terjual", "Kembali"]} />
+                {k.status === "selesai" && k.flag_selisih_setoran && (
+                  <div className="flex items-center gap-1 text-xs text-red-600 mt-2">
+                    <AlertCircle className="h-3 w-3" /> Selisih: {fmtIDR(Math.abs(k.nilaiTerjual - k.totalSetoran))}
+                  </div>
+                )}
               </div>
             ))
           ) : (
