@@ -87,7 +87,7 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
     if (search.trim()) {
       const q = search.trim().toLowerCase()
       filtered = filtered.filter(
-        (r) => r.sales.toLowerCase().includes(q) || r.nama_toko.toLowerCase().includes(q)
+        (r) => r.sales.toLowerCase().includes(q) || r.nama_retail.toLowerCase().includes(q)
       )
     }
     return filtered
@@ -125,7 +125,7 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
             <div className="border-t border-red-200 p-4 space-y-1">
               {jatuhTempoHariIni.map((k) => (
                 <div key={k.id} className="flex items-center justify-between text-xs text-red-600">
-                  <span>{k.sales} → {k.nama_toko} ({k.kategori})</span>
+                  <span>{k.sales} → {k.nama_retail} ({k.kategori})</span>
                   <span>{fmtIDR(k.nilaiTotal)}</span>
                 </div>
               ))}
@@ -156,7 +156,7 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
             <div className="border-t border-amber-200 p-4 space-y-1">
               {jatuhTempoSegera.map((k) => (
                 <div key={k.id} className="flex items-center justify-between text-xs text-amber-600">
-                  <span>{k.sales} → {k.nama_toko} ({k.kategori}) — {k.selisihHari} hari lagi</span>
+                  <span>{k.sales} → {k.nama_retail} ({k.kategori}) — {k.selisihHari} hari lagi</span>
                   <span>{fmtIDR(k.nilaiTotal)}</span>
                 </div>
               ))}
@@ -238,7 +238,7 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
               </span>
             )},
             { key: "sales",      label: "Sales",        render: (r) => r.sales },
-            { key: "nama_toko",  label: "Toko",         render: (r) => r.nama_toko },
+            { key: "nama_retail",  label: "Retail",         render: (r) => r.nama_retail },
             { key: "kategori",   label: "Kategori",     render: (r) => <Badge label={r.kategori} colorClass={KATEGORI_COLOR[r.kategori] || "bg-neutral-100 text-neutral-600"} /> },
             {
               key: "items", label: "Rokok",
@@ -290,7 +290,7 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
                         size="sm"
                         variant="ghost"
                         onClick={async () => {
-                          const alasan = await confirmWithReason(`Hapus titip jual "${r.nama_toko}"? Stok akan dikembalikan.`, { title: "Hapus Titip Jual", variant: "danger", confirmLabel: "Ya, Hapus" })
+                          const alasan = await confirmWithReason(`Hapus titip jual "${r.nama_retail}"? Stok akan dikembalikan.`, { title: "Hapus Titip Jual", variant: "danger", confirmLabel: "Ya, Hapus" })
                           if (!alasan) return
                           await deleteTitipJual(r.id, alasan)
                           router.refresh()
@@ -315,7 +315,7 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
                         size="sm"
                         variant="ghost"
                         onClick={async () => {
-                          const alasan = await confirmWithReason(`Batalkan penyelesaian titip jual "${r.nama_toko}"? Status akan kembali ke Aktif.`, { title: "Batalkan Penyelesaian", variant: "danger", confirmLabel: "Ya, Batalkan" })
+                          const alasan = await confirmWithReason(`Batalkan penyelesaian titip jual "${r.nama_retail}"? Status akan kembali ke Aktif.`, { title: "Batalkan Penyelesaian", variant: "danger", confirmLabel: "Ya, Batalkan" })
                           if (!alasan) return
                           await revertSettlement(r.id, alasan)
                           router.refresh()
@@ -342,14 +342,14 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
 
       {/* Detail Modal */}
       {detail && (
-        <Modal title={`Detail Titip Jual — ${detail.nama_toko}`} onClose={() => setDetail(null)} width="max-w-2xl">
+        <Modal title={`Detail Titip Jual — ${detail.nama_retail}`} onClose={() => setDetail(null)} width="max-w-2xl">
           <KonsinyasiDetail record={detail} />
         </Modal>
       )}
 
       {/* Settlement Modal */}
       {settling && (
-        <Modal title={`Selesaikan Titip Jual — ${settling.nama_toko}`} onClose={() => setSettling(null)} width="max-w-2xl">
+        <Modal title={`Selesaikan Titip Jual — ${settling.nama_retail}`} onClose={() => setSettling(null)} width="max-w-2xl">
           <SettlementForm
             konsinyasi={settling}
             onSubmit={async (data) => {
@@ -364,13 +364,13 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
 
       {/* Edit Detail Modal (untuk aktif) */}
       {editingDetail && (
-        <Modal title={`Edit Titip Jual — ${editingDetail.nama_toko}`} onClose={() => setEditingDetail(null)} width="max-w-md">
+        <Modal title={`Edit Titip Jual — ${editingDetail.nama_retail}`} onClose={() => setEditingDetail(null)} width="max-w-md">
           <KonsinyasiDetailForm
             record={editingDetail}
             onSubmit={async (data) => {
               const captured = editingDetail
               setEditingDetail(null)
-              const alasan = await confirmWithReason(`Edit detail titip jual "${captured.nama_toko}"?`, { title: "Edit Titip Jual", confirmLabel: "Ya, Simpan" })
+              const alasan = await confirmWithReason(`Edit detail titip jual "${captured.nama_retail}"?`, { title: "Edit Titip Jual", confirmLabel: "Ya, Simpan" })
               if (!alasan) return
               await editTitipJualDetail(captured.id, data, alasan)
               router.refresh()
@@ -382,14 +382,14 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
 
       {/* Edit Settlement Modal */}
       {editingSettlement && (
-        <Modal title={`Edit Penyelesaian — ${editingSettlement.nama_toko}`} onClose={() => setEditingSettlement(null)} width="max-w-2xl">
+        <Modal title={`Edit Penyelesaian — ${editingSettlement.nama_retail}`} onClose={() => setEditingSettlement(null)} width="max-w-2xl">
           <SettlementForm
             konsinyasi={editingSettlement}
             initialSetoran={editingSettlement.setoran}
             onSubmit={async (data) => {
               const captured = editingSettlement
               setEditingSettlement(null)
-              const alasan = await confirmWithReason(`Edit penyelesaian titip jual "${captured.nama_toko}"?`, { title: "Edit Penyelesaian", confirmLabel: "Ya, Simpan" })
+              const alasan = await confirmWithReason(`Edit penyelesaian titip jual "${captured.nama_retail}"?`, { title: "Edit Penyelesaian", confirmLabel: "Ya, Simpan" })
               if (!alasan) return
               await editSettlement(captured.id, data, alasan)
               router.refresh()
@@ -424,7 +424,7 @@ function KonsinyasiDetailForm({ record, onSubmit, onCancel }) {
     <form onSubmit={handleSubmit} className="space-y-4 text-sm">
       <div className="grid grid-cols-2 gap-3 text-xs pb-2 border-b border-neutral-100">
         <div><p className="text-neutral-500">Sales</p><p className="font-medium">{record.sales}</p></div>
-        <div><p className="text-neutral-500">Toko</p><p className="font-medium">{record.nama_toko}</p></div>
+        <div><p className="text-neutral-500">Retail</p><p className="font-medium">{record.nama_retail}</p></div>
         <div><p className="text-neutral-500">Kategori</p><p className="font-medium capitalize">{record.kategori}</p></div>
       </div>
       <Field label="Jatuh Tempo">
@@ -445,7 +445,7 @@ function KonsinyasiDetail({ record }) {
     <div className="space-y-4 text-sm">
       <div className="grid grid-cols-2 gap-3">
         <div><p className="text-xs text-neutral-500">Sales</p><p className="font-medium">{record.sales}</p></div>
-        <div><p className="text-xs text-neutral-500">Toko</p><p className="font-medium">{record.nama_toko}</p></div>
+        <div><p className="text-xs text-neutral-500">Retail</p><p className="font-medium">{record.nama_retail}</p></div>
         <div><p className="text-xs text-neutral-500">Kategori</p><Badge label={record.kategori} colorClass={KATEGORI_COLOR[record.kategori] || "bg-neutral-100 text-neutral-600"} /></div>
         <div><p className="text-xs text-neutral-500">Status</p><Badge label={record.status === "selesai" ? "Selesai" : "Aktif"} colorClass={STATUS_COLOR[record.status]} /></div>
         <div><p className="text-xs text-neutral-500">Jatuh Tempo</p><p className={`font-medium ${record.status === "aktif" && record.selisihHari <= 0 ? "text-red-600" : ""}`}>{fmtTanggal(record.tanggal_jatuh_tempo)}</p></div>

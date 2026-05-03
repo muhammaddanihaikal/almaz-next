@@ -5,36 +5,13 @@ import { revalidatePath } from "next/cache"
 import { mutateStock, MUTATION_SOURCE } from "@/lib/stock"
 import { auth } from "@/lib/auth"
 import { logAudit, AUDIT_ACTION, AUDIT_ENTITY } from "@/lib/audit"
-import { createTukarBarangInSesi, selesaikanTukarBarangInSesi, revertSelesaiTukarBarangInSesi } from "@/actions/tukar-barang"
-
 const include = {
   sales: true,
   barangKeluar:  { include: { rokok: true } },
   penjualan:     { include: { rokok: true } },
   setoran:       true,
   barangKembali: { include: { rokok: true } },
-  titipJual:     { include: { items: { include: { rokok: true } }, setoran: true, toko: true } },
-  tukarBarang:   { include: { itemsMasuk: { include: { rokok: true } }, itemsKeluar: { include: { rokok: true } } } },
-  tukarBarangSelesai: { include: { itemsMasuk: { include: { rokok: true } }, itemsKeluar: { include: { rokok: true } } } },
-}
-
-function serializeTukarList(list) {
-  return list.map((t) => ({
-    id:              t.id,
-    tanggal:         t.tanggal.toISOString().split("T")[0],
-    tanggal_selesai: t.tanggal_selesai ? t.tanggal_selesai.toISOString().split("T")[0] : null,
-    status:          t.status,
-    selisih_uang:    t.selisih_uang,
-    catatan:         t.catatan || "",
-    itemsMasuk: (t.itemsMasuk || []).map((it) => ({
-      id: it.id, rokok_id: it.rokok_id, rokok: it.rokok?.nama || "???",
-      qty: it.qty, harga_satuan: it.harga_satuan,
-    })),
-    itemsKeluar: (t.itemsKeluar || []).map((it) => ({
-      id: it.id, rokok_id: it.rokok_id, rokok: it.rokok?.nama || "???",
-      qty: it.qty, harga_satuan: it.harga_satuan,
-    })),
-  }))
+  titipJual:     { include: { items: { include: { rokok: true } }, setoran: true, retail: true } },
 }
 
 function serialize(s) {
@@ -80,12 +57,10 @@ function serialize(s) {
       .map((it) => ({
         id: it.id, rokok_id: it.rokok_id, rokok: it.rokok?.nama || "???", qty: it.qty,
       })),
-    tukarBarang: serializeTukarList(s.tukarBarang || []),
-    tukarBarangSelesaiDiSesi: serializeTukarList(s.tukarBarangSelesai || []),
     konsinyasi: s.titipJual.map((k) => ({
       id:                  k.id,
-      toko_id:             k.toko_id,
-      nama_toko:           k.toko.nama,
+      retail_id:           k.retail_id,
+      nama_retail:         k.retail.nama,
       kategori:            k.kategori,
       tanggal_jatuh_tempo: k.tanggal_jatuh_tempo.toISOString().split("T")[0],
       tanggal_selesai:     k.tanggal_selesai ? k.tanggal_selesai.toISOString().split("T")[0] : null,
@@ -243,7 +218,7 @@ export async function submitLaporanSore(id, data) {
   const rokokList = await prisma.rokok.findMany()
   const hargaMap  = {}
   for (const r of rokokList) {
-    hargaMap[r.id] = { grosir: r.harga_grosir, toko: r.harga_toko, perorangan: r.harga_perorangan }
+    hargaMap[r.id] = { grosir: r.harga_grosir, retail: r.harga_retail, perorangan: r.harga_perorangan }
   }
 
   const session = await auth()
@@ -306,7 +281,7 @@ export async function submitLaporanSore(id, data) {
         data: {
           sesi_id:             id,
           sales_id:            data.sales_id,
-          toko_id:             k.toko_id,
+          retail_id:           k.retail_id,
           kategori:            k.kategori,
           tanggal_jatuh_tempo: new Date(k.tanggal_jatuh_tempo),
           catatan:             k.catatan || null,
@@ -319,19 +294,6 @@ export async function submitLaporanSore(id, data) {
           },
         },
       })
-    }
-
-    // Tukar Barang Baru
-    const tukarBaru = data.tukarBaru || []
-    const sesiObj = { id, tanggal: data.tanggal }
-    for (const t of tukarBaru) {
-      await createTukarBarangInSesi(tx, sesiObj, t, session, !!t.langsungSelesai)
-    }
-
-    // Penyelesaian Tukar Barang yang masih aktif
-    const penyelesaianTukar = data.penyelesaianTukar || []
-    for (const tukar_id of penyelesaianTukar) {
-      await selesaikanTukarBarangInSesi(tx, sesiObj, tukar_id, session)
     }
 
     const penyelesaian = data.penyelesaianKonsinyasi || []
@@ -400,7 +362,7 @@ export async function editLaporanSore(id, data, alasan) {
   const rokokList = await prisma.rokok.findMany()
   const hargaMap  = {}
   for (const r of rokokList) {
-    hargaMap[r.id] = { grosir: r.harga_grosir, toko: r.harga_toko, perorangan: r.harga_perorangan }
+    hargaMap[r.id] = { grosir: r.harga_grosir, retail: r.harga_retail, perorangan: r.harga_perorangan }
   }
 
   const session = await auth()
@@ -421,38 +383,6 @@ export async function editLaporanSore(id, data, alasan) {
         keterangan: "Revert retur sales (edit sore)",
         user_id: session?.user?.id
       })
-    }
-
-    // Revert tukar barang yang dibuat di sesi ini (revert mutasi tukar_masuk + delete record)
-    const oldTukarBaru = await tx.tukarBarang.findMany({
-      where: { sesi_id: id },
-      include: { itemsMasuk: true },
-    })
-    for (const t of oldTukarBaru) {
-      for (const it of t.itemsMasuk) {
-        await mutateStock({
-          tx,
-          rokok_id: it.rokok_id,
-          tanggal: data.tanggal,
-          jenis: 'out',
-          qty: it.qty,
-          source: MUTATION_SOURCE.REVERT,
-          reference_id: t.id,
-          keterangan: "Revert tukar barang (edit sore)",
-          user_id: session?.user?.id,
-        })
-      }
-      await tx.tukarBarang.delete({ where: { id: t.id } })
-    }
-
-    // Revert penyelesaian tukar yang diselesaikan di sesi ini (status balik aktif)
-    const oldTukarSelesai = await tx.tukarBarang.findMany({
-      where: { sesi_selesai_id: id, status: "selesai" },
-    })
-    for (const t of oldTukarSelesai) {
-      // skip kalau tukar dibuat di sesi yang sama (langsung selesai) — sudah dihapus di blok atas
-      if (t.sesi_id === id) continue
-      await revertSelesaiTukarBarangInSesi(tx, t.id, session)
     }
 
     await tx.sesiPenjualan.deleteMany({ where: { sesi_id: id } })
@@ -498,7 +428,7 @@ export async function editLaporanSore(id, data, alasan) {
         data: {
           sesi_id:             id,
           sales_id:            data.sales_id,
-          toko_id:             k.toko_id,
+          retail_id:           k.retail_id,
           kategori:            k.kategori,
           tanggal_jatuh_tempo: new Date(k.tanggal_jatuh_tempo),
           catatan:             k.catatan || null,
@@ -511,15 +441,6 @@ export async function editLaporanSore(id, data, alasan) {
           },
         },
       })
-    }
-
-    // Apply tukar barang baru & penyelesaian (mirror submitLaporanSore)
-    const sesiObjEdit = { id, tanggal: data.tanggal }
-    for (const t of (data.tukarBaru || [])) {
-      await createTukarBarangInSesi(tx, sesiObjEdit, t, session, !!t.langsungSelesai)
-    }
-    for (const tukar_id of (data.penyelesaianTukar || [])) {
-      await selesaikanTukarBarangInSesi(tx, sesiObjEdit, tukar_id, session)
     }
 
     await logAudit({
@@ -672,37 +593,6 @@ export async function deleteSesi(id, alasan) {
     }
 
     await tx.titipJual.deleteMany({ where: { sesi_id: id } })
-
-    // Revert tukar barang yang dibuat di sesi ini
-    const tukarBaruDiSesi = await tx.tukarBarang.findMany({
-      where: { sesi_id: id },
-      include: { itemsMasuk: true },
-    })
-    for (const t of tukarBaruDiSesi) {
-      for (const it of t.itemsMasuk) {
-        await mutateStock({
-          tx,
-          rokok_id: it.rokok_id,
-          tanggal: sesi.tanggal,
-          jenis: 'out',
-          qty: it.qty,
-          source: MUTATION_SOURCE.REVERT,
-          reference_id: t.id,
-          keterangan: "Revert tukar barang masuk (delete sesi)",
-          user_id: session?.user?.id,
-        })
-      }
-      await tx.tukarBarang.delete({ where: { id: t.id } })
-    }
-
-    // Revert penyelesaian tukar yang diselesaikan di sesi ini (status balik aktif)
-    const tukarSelesaiDiSesi = await tx.tukarBarang.findMany({
-      where: { sesi_selesai_id: id, status: "selesai" },
-    })
-    for (const t of tukarSelesaiDiSesi) {
-      if (t.sesi_id === id) continue
-      await revertSelesaiTukarBarangInSesi(tx, t.id, session)
-    }
 
     await tx.sesiHarian.delete({ where: { id } })
   })

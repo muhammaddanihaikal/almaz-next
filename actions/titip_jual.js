@@ -7,9 +7,9 @@ import { auth } from "@/lib/auth"
 import { logAudit, AUDIT_ACTION, AUDIT_ENTITY } from "@/lib/audit"
 
 const include = {
-  sales: true,
-  toko:  true,
-  items: { include: { rokok: true } },
+  sales:  true,
+  retail: true,
+  items:  { include: { rokok: true } },
   setoran: true,
 }
 
@@ -28,8 +28,8 @@ function serialize(k) {
     sesi_id:             k.sesi_id,
     sales_id:            k.sales_id,
     sales:               k.sales.nama,
-    toko_id:             k.toko_id,
-    nama_toko:           k.toko.nama,
+    retail_id:           k.retail_id,
+    nama_retail:         k.retail.nama,
     kategori:            k.kategori,
     tanggal_jatuh_tempo: jatuhTempo,
     tanggal_selesai:     k.tanggal_selesai ? k.tanggal_selesai.toISOString().split("T")[0] : null,
@@ -182,7 +182,7 @@ export async function editTitipJualDetail(id, data, alasan) {
 export async function deleteTitipJual(id, alasan) {
   const session = await auth()
   await prisma.$transaction(async (tx) => {
-    const k = await tx.titipJual.findUnique({ where: { id }, include: { items: { include: { rokok: true } }, toko: true, sales: true } })
+    const k = await tx.titipJual.findUnique({ where: { id }, include: { items: { include: { rokok: true } }, retail: true, sales: true } })
     if (k.status !== "aktif") throw new Error("Hanya titip jual aktif yang bisa dihapus")
 
     await logAudit({
@@ -193,7 +193,7 @@ export async function deleteTitipJual(id, alasan) {
       action:      AUDIT_ACTION.DELETE,
       old_values:  {
         sales:               k.sales.nama,
-        toko:                k.toko.nama,
+        retail:              k.retail.nama,
         kategori:            k.kategori,
         tanggal_jatuh_tempo: k.tanggal_jatuh_tempo.toISOString().split("T")[0],
         items: k.items.map(it => ({ rokok: it.rokok?.nama, qty_keluar: it.qty_keluar, harga: it.harga })),
@@ -227,7 +227,7 @@ export async function createTitipJual(sesiId, salesId, k) {
   const rokokList = await prisma.rokok.findMany()
   const hargaMap  = {}
   for (const r of rokokList) {
-    hargaMap[r.id] = { grosir: r.harga_grosir, toko: r.harga_toko, perorangan: r.harga_perorangan }
+    hargaMap[r.id] = { grosir: r.harga_grosir, retail: r.harga_retail, perorangan: r.harga_perorangan }
   }
 
   const session = await auth()
@@ -236,7 +236,7 @@ export async function createTitipJual(sesiId, salesId, k) {
       data: {
         sesi_id:             sesiId,
         sales_id:            salesId,
-        toko_id:             k.toko_id,
+        retail_id:           k.retail_id,
         kategori:            k.kategori,
         tanggal_jatuh_tempo: new Date(k.tanggal_jatuh_tempo),
         catatan:             k.catatan || null,
@@ -260,7 +260,7 @@ export async function createTitipJual(sesiId, salesId, k) {
       action:      AUDIT_ACTION.CREATE,
       new_values:  {
         sales_id:            salesId,
-        toko_id:             k.toko_id,
+        retail_id:           k.retail_id,
         kategori:            k.kategori,
         tanggal_jatuh_tempo: k.tanggal_jatuh_tempo,
         items: k.items.filter(it => it.rokok_id && Number(it.qty) > 0).map(it => ({ rokok_id: it.rokok_id, qty: Number(it.qty) })),

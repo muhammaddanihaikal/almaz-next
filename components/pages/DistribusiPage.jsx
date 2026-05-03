@@ -6,7 +6,7 @@ import { Plus, Trash2, AlertCircle, ChevronDown, ChevronUp, Download } from "luc
 import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc } from "@/lib/utils"
 import { createSesi, updateSesiPagi, submitLaporanSore, editLaporanSore, deleteSesi } from "@/actions/distribusi"
 import { settleTitipJual, createTitipJual, editSettlement, revertSettlement, editTitipJualDetail, deleteTitipJual } from "@/actions/titip_jual"
-import { addToko } from "@/actions/toko"
+import { addRetail } from "@/actions/retail"
 import SettlementForm from "@/components/SettlementForm"
 import {
   Card, PageHeader, DateFilter, PrimaryButton, Field, FormActions,
@@ -19,7 +19,7 @@ const PAGE_SIZE = 10
 
 const KATEGORI_COLOR = {
   grosir:     "bg-violet-100 text-violet-700",
-  toko:       "bg-blue-100 text-blue-700",
+  retail:     "bg-blue-100 text-blue-700",
   perorangan: "bg-amber-100 text-amber-700",
 }
 
@@ -346,7 +346,7 @@ function exportToExcelBySales(rows, rokokList, dateRange, onNoData) {
   XLSX.writeFile(wb, `laporan_motoris_${new Date().toISOString().slice(0, 10)}.xlsx`)
 }
 
-export default function DistribusiPage({ sesiList, rokokList, salesList, tokoList, tukarBarangList = [] }) {
+export default function DistribusiPage({ sesiList, rokokList, salesList, retailList }) {
   const router  = useRouter()
   const { confirm, ConfirmModal } = useConfirm()
   const { confirmWithReason, ConfirmWithReasonModal } = useConfirmWithReason()
@@ -529,18 +529,12 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
               key: "status", label: "Status",
               render: (r) => {
                 const hasAktifKonsinyasi = r.konsinyasi?.some((k) => k.status === "aktif")
-                const tukarAktifSales = tukarBarangList.filter((t) => t.status === "aktif" && t.sales_id === r.sales_id).length
                 return (
                   <div className="flex flex-col gap-1">
                     <Badge label={r.status === "selesai" ? "Selesai" : "Aktif"} colorClass={STATUS_COLOR[r.status]} />
                     {hasAktifKonsinyasi && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
                         <AlertCircle className="h-3 w-3" /> Titip jual aktif
-                      </span>
-                    )}
-                    {tukarAktifSales > 0 && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
-                        <AlertCircle className="h-3 w-3" /> {tukarAktifSales} tukar aktif
                       </span>
                     )}
                   </div>
@@ -631,8 +625,7 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
           <LaporanSoreForm
             sesi={laporanSesi}
             rokokList={rokokList}
-            tokoList={tokoList}
-            tukarBarangList={tukarBarangList}
+            retailList={retailList}
             onSubmit={async (data) => {
               await submitLaporanSore(laporanSesi.id, { ...data, sales_id: laporanSesi.sales_id, tanggal: laporanSesi.tanggal })
               setLaporanSesi(null)
@@ -648,8 +641,7 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
           <LaporanSoreForm
             sesi={editLaporan}
             rokokList={rokokList}
-            tokoList={tokoList}
-            tukarBarangList={tukarBarangList}
+            retailList={retailList}
             isEdit
             onSubmit={async (data) => {
               const captured = editLaporan
@@ -704,9 +696,6 @@ function SesiDetail({ record }) {
         </TabButton>
         <TabButton active={activeTab === "konsinyasi"} onClick={() => setActiveTab("konsinyasi")}>
           Titip Jual {record.konsinyasi.length > 0 && `(${record.konsinyasi.length})`}
-        </TabButton>
-        <TabButton active={activeTab === "tukar"} onClick={() => setActiveTab("tukar")}>
-          Tukar Barang {(record.tukarBarang?.length > 0 || record.tukarBarangSelesaiDiSesi?.length > 0) && `(${(record.tukarBarang?.length || 0) + (record.tukarBarangSelesaiDiSesi?.length || 0)})`}
         </TabButton>
       </div>
 
@@ -796,52 +785,6 @@ function SesiDetail({ record }) {
         </div>
       )}
 
-      {activeTab === "tukar" && (
-        <div className="space-y-3">
-          {record.tukarBarang?.length > 0 || record.tukarBarangSelesaiDiSesi?.length > 0 ? (
-            <>
-              {record.tukarBarang?.map((t, i) => (
-                <div key={`baru-${i}`} className="rounded-lg border border-neutral-200 p-3 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">{t.toko} <span className="text-xs font-normal text-neutral-500">— Tukar Baru</span></span>
-                    <Badge label={t.status === "selesai" ? "Selesai" : "Aktif"} colorClass={STATUS_COLOR[t.status]} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-xs font-semibold text-neutral-500 mb-1">Rokok dari Toko</p>
-                      <SimpleTable rows={t.itemsMasuk} cols={["rokok", "qty"]} labels={["Rokok", "Qty"]} />
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-neutral-500 mb-1">Rokok Pengganti</p>
-                      <SimpleTable rows={t.itemsKeluar} cols={["rokok", "qty"]} labels={["Rokok", "Qty"]} />
-                    </div>
-                  </div>
-                </div>
-              ))}
-              {record.tukarBarangSelesaiDiSesi?.map((t, i) => (
-                <div key={`selesai-${i}`} className="rounded-lg border border-blue-200 bg-blue-50 p-3 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-blue-800">{t.toko} <span className="text-xs font-normal text-blue-600">— Penyelesaian Tukar Aktif</span></span>
-                    <Badge label="Diselesaikan" colorClass="bg-blue-100 text-blue-700" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-xs font-semibold text-blue-700/70 mb-1">Rokok dari Toko (kemarin)</p>
-                      <SimpleTable rows={t.itemsMasuk} cols={["rokok", "qty"]} labels={["Rokok", "Qty"]} />
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-blue-700/70 mb-1">Rokok Pengganti (hari ini)</p>
-                      <SimpleTable rows={t.itemsKeluar} cols={["rokok", "qty"]} labels={["Rokok", "Qty"]} />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </>
-          ) : (
-            <p className="text-xs text-neutral-400 italic">Tidak ada tukar barang pada sesi ini.</p>
-          )}
-        </div>
-      )}
     </div>
   )
 }
@@ -1007,37 +950,10 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, onSubmit, onCan
 
 // ─── Form Laporan Sore ────────────────────────────────────────────────────────
 
-function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangList = [], isEdit = false, onSubmit, onCancel }) {
+function LaporanSoreForm({ sesi, rokokList, retailList: retailListProp, isEdit = false, onSubmit, onCancel }) {
   const { confirmWithReason, ConfirmWithReasonModal: LaporanConfirmModal } = useConfirmWithReason()
   const [activeTab, setActiveTab] = useState("penjualan")
-  const [tokoList, setTokoList]   = useState(tokoListProp ?? [])
-
-  // ─── Tukar Barang ──────────────────────────────────────────────────────
-  // Daftar tukar aktif untuk sales ini (semua sesi sebelumnya), bisa diselesaikan di sesi ini
-  const tukarAktifSales = useMemo(
-    () => tukarBarangList.filter((t) => t.status === "aktif" && t.sales_id === sesi.sales_id),
-    [tukarBarangList, sesi.sales_id]
-  )
-  // Form input tukar baru di sesi ini
-  const initialTukarSelesai = isEdit && sesi.tukarBarang?.find(t => t.status === "selesai")
-  const initialTukarBelum = isEdit && sesi.tukarBarang?.find(t => t.status === "aktif")
-
-  const [tukarSelesai, setTukarSelesai] = useState({
-    itemsMasuk: initialTukarSelesai?.itemsMasuk?.map(it => ({ rokok_id: it.rokok_id, qty: String(it.qty), harga_satuan: String(it.harga_satuan) })) || [{ rokok_id: "", qty: "", harga_satuan: "" }],
-    itemsKeluar: initialTukarSelesai?.itemsKeluar?.map(it => ({ rokok_id: it.rokok_id, qty: String(it.qty), harga_satuan: String(it.harga_satuan) })) || [{ rokok_id: "", qty: "", harga_satuan: "" }],
-    catatan: initialTukarSelesai?.catatan || "",
-  })
-
-  const [tukarBelumSelesai, setTukarBelumSelesai] = useState({
-    itemsMasuk: initialTukarBelum?.itemsMasuk?.map(it => ({ rokok_id: it.rokok_id, qty: String(it.qty), harga_satuan: String(it.harga_satuan) })) || [{ rokok_id: "", qty: "", harga_satuan: "" }],
-    catatan: initialTukarBelum?.catatan || "",
-  })
-
-  // Set ID tukar yang dicentang untuk diselesaikan di sesi ini
-  const initialPenyelesaian = isEdit
-    ? new Set((sesi.tukarBarangSelesaiDiSesi || []).filter((t) => t.tanggal !== sesi.tanggal).map((t) => t.id))
-    : new Set()
-  const [penyelesaianTukar, setPenyelesaianTukar] = useState(initialPenyelesaian)
+  const [retailList, setRetailList] = useState(retailListProp ?? [])
 
   const [penjualan,    setPenjualan]    = useState(
     isEdit && sesi.penjualan?.length
@@ -1050,7 +966,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
       : [{ metode: "cash", jumlah: "" }]
   )
   const [konsinyasiBaru, setKonsinyasiBaru] = useState([
-    { toko_id: "", kategori: "toko", tanggal_jatuh_tempo: "", catatan: "", items: [{ rokok_id: "", qty: "" }] }
+    { retail_id: "", kategori: "retail", tanggal_jatuh_tempo: "", catatan: "", items: [{ rokok_id: "", qty: "" }] }
   ])
   const [settlingKonsinyasi,    setSettlingKonsinyasi]    = useState(null)
   const [settledIds,            setSettledIds]            = useState(new Set())
@@ -1080,22 +996,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
     try {
       const validPenjualan  = penjualan.filter((it) => it.rokok_id && Number(it.qty) > 0)
       const validSetoran    = setoran.filter((it) => Number(it.jumlah) > 0)
-      const validKonsinyasi = konsinyasiBaru.filter((k) => k.toko_id && k.kategori && k.tanggal_jatuh_tempo && k.items.some((it) => it.rokok_id && Number(it.qty) > 0))
-      const validTukarBaru = []
-      
-      const inSelesai = tukarSelesai.itemsMasuk.filter(i => i.rokok_id && Number(i.qty) > 0)
-      const outSelesai = tukarSelesai.itemsKeluar.filter(i => i.rokok_id && Number(i.qty) > 0)
-      if (inSelesai.length > 0 || outSelesai.length > 0) {
-        if (inSelesai.length === 0 || outSelesai.length === 0) {
-          throw new Error("Tukar Selesai: Barang return dan barang pengganti harus diisi.")
-        }
-        validTukarBaru.push({ ...tukarSelesai, langsungSelesai: true })
-      }
-
-      const inBelum = tukarBelumSelesai.itemsMasuk.filter(i => i.rokok_id && Number(i.qty) > 0)
-      if (inBelum.length > 0) {
-        validTukarBaru.push({ itemsMasuk: tukarBelumSelesai.itemsMasuk, itemsKeluar: [], catatan: tukarBelumSelesai.catatan, langsungSelesai: false })
-      }
+      const validKonsinyasi = konsinyasiBaru.filter((k) => k.retail_id && k.kategori && k.tanggal_jatuh_tempo && k.items.some((it) => it.rokok_id && Number(it.qty) > 0))
 
       const savedKonsinyasiItems = newlyCreatedKonsinyasi.flatMap(k =>
         k.items.map(it => ({ rokok_id: it.rokok_id, qty: it.qty_keluar }))
@@ -1116,22 +1017,6 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
       for (const it of savedKonsinyasiItems) {
         barangKembaliAuto[it.rokok_id] = (barangKembaliAuto[it.rokok_id] || 0) - it.qty
       }
-      // Tukar yang langsung selesai hari ini: A diserahkan ke toko, kurangi dari barangKembali
-      for (const t of validTukarBaru) {
-        if (t.langsungSelesai) {
-          for (const it of t.itemsKeluar.filter((i) => i.rokok_id && Number(i.qty) > 0)) {
-            barangKembaliAuto[it.rokok_id] = (barangKembaliAuto[it.rokok_id] || 0) - Number(it.qty)
-          }
-        }
-      }
-      // Tukar aktif yang diselesaikan di sesi ini: A diserahkan, kurangi dari barangKembali
-      for (const t of tukarAktifSales) {
-        if (penyelesaianTukar.has(t.id)) {
-          for (const it of t.itemsKeluar) {
-            barangKembaliAuto[it.rokok_id] = (barangKembaliAuto[it.rokok_id] || 0) - it.qty
-          }
-        }
-      }
       const validKembali = Object.entries(barangKembaliAuto)
         .filter(([_, qty]) => qty > 0)
         .map(([rokok_id, qty]) => ({ rokok_id, qty }))
@@ -1141,15 +1026,6 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
         setoran:        validSetoran.map((it) => ({ metode: it.metode, jumlah: Number(it.jumlah) })),
         barangKembali:  validKembali,
         konsinyasiBaru: validKonsinyasi,
-        tukarBaru: validTukarBaru.map((t) => ({
-          itemsMasuk:  t.itemsMasuk.filter((it) => it.rokok_id && Number(it.qty) > 0)
-            .map((it) => ({ rokok_id: it.rokok_id, qty: Number(it.qty), harga_satuan: Number(it.harga_satuan || 0) })),
-          itemsKeluar: (t.itemsKeluar || []).filter((it) => it.rokok_id && Number(it.qty) > 0)
-            .map((it) => ({ rokok_id: it.rokok_id, qty: Number(it.qty), harga_satuan: Number(it.harga_satuan || 0) })),
-          catatan: t.catatan || null,
-          langsungSelesai: !!t.langsungSelesai,
-        })),
-        penyelesaianTukar: Array.from(penyelesaianTukar),
       })
     } finally {
       setLoading(false)
@@ -1225,8 +1101,8 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
     return map
   }, [newlyCreatedKonsinyasi])
 
-  const savedTokoIds = useMemo(() => 
-    newlyCreatedKonsinyasi.map(k => k.toko_id),
+  const savedRetailIds = useMemo(() =>
+    newlyCreatedKonsinyasi.map(k => k.retail_id),
     [newlyCreatedKonsinyasi]
   )
 
@@ -1258,9 +1134,6 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
         </TabButton>
         <TabButton active={activeTab === "konsinyasi"} onClick={() => setActiveTab("konsinyasi")}>
           Titip Jual {activeKonsinyasi.length > 0 && <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-yellow-500 text-xs text-white">{activeKonsinyasi.length}</span>}
-        </TabButton>
-        <TabButton active={activeTab === "tukar"} onClick={() => setActiveTab("tukar")}>
-          Tukar Barang {tukarAktifSales.length > 0 && <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-xs text-white">{tukarAktifSales.length}</span>}
         </TabButton>
       </div>
 
@@ -1369,18 +1242,18 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
                 qtyTerjualLangsung={qtyTerjualLangsung}
                 qtyTitipLama={qtyTitipLama}
                 konsinyasiBaru={konsinyasiBaru}
-                tokoList={tokoList}
+                retailList={retailList}
                 onChange={(updated) => setKonsinyasiBaru(konsinyasiBaru.map((x, i) => i === idx ? updated : x))}
                 onRemove={() => setKonsinyasiBaru(konsinyasiBaru.filter((_, i) => i !== idx))}
-                onTokoCreated={(newToko) => setTokoList((prev) => [...prev, newToko].sort((a, b) => a.nama.localeCompare(b.nama, "id")))}
+                onRetailCreated={(newRetail) => setRetailList((prev) => [...prev, newRetail].sort((a, b) => a.nama.localeCompare(b.nama, "id")))}
                 onSaveAndSettle={(d) => handleSaveAndSettle(d, idx)}
-                extraUsedTokoIds={savedTokoIds}
+                extraUsedRetailIds={savedRetailIds}
               />
             ))}
             <Button
               variant="secondary"
               className="w-full border-dashed"
-              onClick={() => setKonsinyasiBaru([...konsinyasiBaru, { toko_id: "", kategori: "toko", tanggal_jatuh_tempo: "", catatan: "", items: [{ rokok_id: "", qty: "" }] }])}
+              onClick={() => setKonsinyasiBaru([...konsinyasiBaru, { retail_id: "", kategori: "retail", tanggal_jatuh_tempo: "", catatan: "", items: [{ rokok_id: "", qty: "" }] }])}
             >
               + Tambah Titip Jual
             </Button>
@@ -1469,20 +1342,6 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
         </div>
       )}
 
-      {activeTab === "tukar" && (
-        <TukarBarangTab
-          tukarSelesai={tukarSelesai}
-          setTukarSelesai={setTukarSelesai}
-          tukarBelumSelesai={tukarBelumSelesai}
-          setTukarBelumSelesai={setTukarBelumSelesai}
-          tukarAktifSales={tukarAktifSales}
-          penyelesaianTukar={penyelesaianTukar}
-          setPenyelesaianTukar={setPenyelesaianTukar}
-          rokokDibawa={rokokDibawa}
-          rokokList={rokokList}
-        />
-      )}
-
       {/* Settlement Modal */}
       {settlingKonsinyasi && (
         <Modal title={`Selesaikan Titip Jual — ${settlingKonsinyasi.nama_toko}`} onClose={() => setSettlingKonsinyasi(null)} width="max-w-2xl">
@@ -1542,7 +1401,7 @@ function buildDefaultPenjualan(barangKeluar) {
   const result = []
   for (const it of barangKeluar) {
     result.push({ rokok_id: it.rokok_id, rokok: it.rokok, kategori: "grosir",  qty: "" })
-    result.push({ rokok_id: it.rokok_id, rokok: it.rokok, kategori: "toko",    qty: "" })
+    result.push({ rokok_id: it.rokok_id, rokok: it.rokok, kategori: "retail",  qty: "" })
   }
   return result
 }
@@ -1567,7 +1426,7 @@ function SectionCard({ title, children }) {
 }
 
 function PenjualanLangsungInput({ penjualan, setPenjualan, barangKeluar = [], qtyTitipBaru = {}, showPerorangan, setShowPerorangan }) {
-  const categories = showPerorangan ? ["grosir", "toko", "perorangan"] : ["grosir", "toko"]
+  const categories = showPerorangan ? ["grosir", "retail", "perorangan"] : ["grosir", "retail"]
   const rokok_ids  = [...new Set(penjualan.map((it) => it.rokok_id))]
 
   const qtyDibawa = Object.fromEntries(barangKeluar.map((it) => [it.rokok_id, it.qty]))
@@ -1745,18 +1604,18 @@ function PenyelesaianDetail({ record }) {
   )
 }
 
-function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerjualLangsung, qtyTitipLama = {}, konsinyasiBaru, tokoList, onChange, onRemove, onTokoCreated, onSaveAndSettle, extraUsedTokoIds = [] }) {
-  const [open,        setOpen]        = useState(true)
-  const [showAddToko, setShowAddToko] = useState(false)
-  const [newTokoNama, setNewTokoNama] = useState("")
-  const [newTokoAlamat, setNewTokoAlamat] = useState("")
-  const [newTokoKategori, setNewTokoKategori] = useState("toko")
-  const [savingToko,  setSavingToko]  = useState(false)
-  const [saving,      setSaving]      = useState(false)
+function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerjualLangsung, qtyTitipLama = {}, konsinyasiBaru, retailList, onChange, onRemove, onRetailCreated, onSaveAndSettle, extraUsedRetailIds = [] }) {
+  const [open,           setOpen]           = useState(true)
+  const [showAddRetail,  setShowAddRetail]  = useState(false)
+  const [newRetailNama,  setNewRetailNama]  = useState("")
+  const [newRetailAlamat, setNewRetailAlamat] = useState("")
+  const [newRetailKategori, setNewRetailKategori] = useState("retail")
+  const [savingRetail,   setSavingRetail]   = useState(false)
+  const [saving,         setSaving]         = useState(false)
 
-  const selectedToko  = tokoList.find((t) => t.id === data.toko_id)
-  const usedTokoIds   = [...konsinyasiBaru.filter((_, i) => i !== currentIdx).map((k) => k.toko_id).filter(Boolean), ...extraUsedTokoIds]
-  const canSaveAndSettle = data.toko_id && data.tanggal_jatuh_tempo && data.items.some((it) => it.rokok_id && Number(it.qty) > 0)
+  const selectedRetail  = retailList.find((t) => t.id === data.retail_id)
+  const usedRetailIds   = [...konsinyasiBaru.filter((_, i) => i !== currentIdx).map((k) => k.retail_id).filter(Boolean), ...extraUsedRetailIds]
+  const canSaveAndSettle = data.retail_id && data.tanggal_jatuh_tempo && data.items.some((it) => it.rokok_id && Number(it.qty) > 0)
 
   const handleSaveAndSettle = async () => {
     if (!canSaveAndSettle) return
@@ -1790,21 +1649,20 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
   const updateItem = (idx, field, val) =>
     onChange({ ...data, items: data.items.map((it, i) => i === idx ? { ...it, [field]: val } : it) })
 
-  const handleSaveToko = async () => {
-    if (!newTokoNama.trim()) return
-    setSavingToko(true)
+  const handleSaveRetail = async () => {
+    if (!newRetailNama.trim()) return
+    setSavingRetail(true)
     try {
-      await addToko({ nama: newTokoNama.trim(), alamat: newTokoAlamat.trim(), kategori: newTokoKategori })
-      // Fetch toko baru — karena server action, kita buat objek sementara untuk optimistic update
-      const tempToko = { id: `__temp__${Date.now()}`, nama: newTokoNama.trim(), alamat: newTokoAlamat.trim(), kategori: newTokoKategori, aktif: true }
-      onTokoCreated(tempToko)
-      onChange({ ...data, toko_id: tempToko.id, kategori: newTokoKategori })
-      setShowAddToko(false)
-      setNewTokoNama("")
-      setNewTokoAlamat("")
-      setNewTokoKategori("toko")
+      await addRetail({ nama: newRetailNama.trim(), alamat: newRetailAlamat.trim(), kategori: newRetailKategori })
+      const tempRetail = { id: `__temp__${Date.now()}`, nama: newRetailNama.trim(), alamat: newRetailAlamat.trim(), kategori: newRetailKategori, aktif: true }
+      onRetailCreated(tempRetail)
+      onChange({ ...data, retail_id: tempRetail.id, kategori: newRetailKategori })
+      setShowAddRetail(false)
+      setNewRetailNama("")
+      setNewRetailAlamat("")
+      setNewRetailKategori("retail")
     } finally {
-      setSavingToko(false)
+      setSavingRetail(false)
     }
   }
 
@@ -1817,7 +1675,7 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
           onClick={() => setOpen(!open)}
           icon={open ? ChevronUp : ChevronDown}
         >
-          {selectedToko?.nama || "Titip Jual Baru"}
+          {selectedRetail?.nama || "Titip Jual Baru"}
         </Button>
         <IconButton icon={Trash2} onClick={onRemove} variant="danger" label="Hapus" />
       </div>
@@ -1826,27 +1684,27 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <div className="mb-1.5 flex items-center justify-between">
-                <span className="text-xs font-medium text-neutral-600">Toko</span>
+                <span className="text-xs font-medium text-neutral-600">Retail</span>
                 <Button
                   variant="ghost"
                   size="sm"
                   className="h-auto p-0 text-blue-500 hover:text-blue-700 hover:bg-transparent"
-                  onClick={() => setShowAddToko(true)}
+                  onClick={() => setShowAddRetail(true)}
                 >
-                  + toko baru
+                  + retail baru
                 </Button>
               </div>
               <SearchableSelect
-                value={data.toko_id}
+                value={data.retail_id}
                 onChange={(e) => {
-                  const t = tokoList.find((x) => x.id === e.target.value)
-                  onChange({ ...data, toko_id: e.target.value, kategori: t?.kategori || data.kategori })
+                  const t = retailList.find((x) => x.id === e.target.value)
+                  onChange({ ...data, retail_id: e.target.value, kategori: t?.kategori || data.kategori })
                 }}
-                placeholder="Pilih toko"
+                placeholder="Pilih retail"
                 options={[
-                  { value: "", label: "Pilih toko" },
-                  ...tokoList
-                    .filter((t) => t.aktif !== false && (t.id === data.toko_id || !usedTokoIds.includes(t.id)))
+                  { value: "", label: "Pilih retail" },
+                  ...retailList
+                    .filter((t) => t.aktif !== false && (t.id === data.retail_id || !usedRetailIds.includes(t.id)))
                     .map((t) => ({ value: t.id, label: `${t.nama} (${t.kategori})` })),
                 ]}
               />
@@ -1859,31 +1717,29 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
             </Field>
           </div>
 
-          {/* Modal tambah toko baru */}
-          {showAddToko && (
-            <Modal title="Tambah Toko Baru" onClose={() => setShowAddToko(false)} width="max-w-md">
+          {/* Modal tambah retail baru */}
+          {showAddRetail && (
+            <Modal title="Tambah Retail Baru" onClose={() => setShowAddRetail(false)} width="max-w-md">
               <div className="space-y-4">
-                <Field label="Nama Toko">
-                  <input type="text" value={newTokoNama} onChange={(e) => setNewTokoNama(e.target.value)} placeholder="Nama toko" className={inputCls} autoFocus />
+                <Field label="Nama Retail">
+                  <input type="text" value={newRetailNama} onChange={(e) => setNewRetailNama(e.target.value)} placeholder="Nama retail" className={inputCls} autoFocus />
                 </Field>
                 <Field label="Kategori Default">
-                  <SelectInput value={newTokoKategori} onChange={(e) => setNewTokoKategori(e.target.value)}>
-                    <option value="toko">Toko</option>
+                  <SelectInput value={newRetailKategori} onChange={(e) => setNewRetailKategori(e.target.value)}>
+                    <option value="retail">Retail</option>
                     <option value="grosir">Grosir</option>
                   </SelectInput>
                 </Field>
                 <Field label="Alamat (opsional)">
-                  <input type="text" value={newTokoAlamat} onChange={(e) => setNewTokoAlamat(e.target.value)} placeholder="Alamat toko" className={inputCls} />
+                  <input type="text" value={newRetailAlamat} onChange={(e) => setNewRetailAlamat(e.target.value)} placeholder="Alamat retail" className={inputCls} />
                 </Field>
                 <div className="flex justify-end gap-3">
-                <div className="flex justify-end gap-3">
-                  <Button variant="secondary" onClick={() => setShowAddToko(false)}>
+                  <Button variant="secondary" onClick={() => setShowAddRetail(false)}>
                     Batal
                   </Button>
-                  <Button onClick={handleSaveToko} disabled={!newTokoNama.trim()} loading={savingToko}>
-                    Simpan Toko
+                  <Button onClick={handleSaveRetail} disabled={!newRetailNama.trim()} loading={savingRetail}>
+                    Simpan Retail
                   </Button>
-                </div>
                 </div>
               </div>
             </Modal>
@@ -1969,254 +1825,5 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
   )
 }
 
-// ─── TUKAR BARANG TAB (di Laporan Sore) ─────────────────────────────────────
 
-function TukarBarangTab({ tukarSelesai, setTukarSelesai, tukarBelumSelesai, setTukarBelumSelesai, tukarAktifSales, penyelesaianTukar, setPenyelesaianTukar, rokokDibawa, rokokList }) {
-  const [subTab, setSubTab] = useState("selesai") // selesai | belum_selesai
-
-  const togglePenyelesaian = (id) => {
-    const next = new Set(penyelesaianTukar)
-    if (next.has(id)) next.delete(id)
-    else next.add(id)
-    setPenyelesaianTukar(next)
-  }
-
-  return (
-    <div className="space-y-4">
-      {/* Sub Tab Navigation */}
-      <div className="flex gap-2 border-b border-neutral-200">
-        <button
-          type="button"
-          onClick={() => setSubTab("selesai")}
-          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
-            subTab === "selesai"
-              ? "border-blue-600 text-blue-600"
-              : "border-transparent text-neutral-500 hover:text-neutral-700"
-          }`}
-        >
-          Tukar Selesai
-        </button>
-        <button
-          type="button"
-          onClick={() => setSubTab("belum_selesai")}
-          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
-            subTab === "belum_selesai"
-              ? "border-blue-600 text-blue-600"
-              : "border-transparent text-neutral-500 hover:text-neutral-700"
-          }`}
-        >
-          Tukar Belum Selesai
-        </button>
-      </div>
-
-      <div className="mt-4">
-        {subTab === "selesai" && (
-          <div className="space-y-6">
-            <SectionCard title="Tukar Selesai">
-              <p className="text-xs text-neutral-500 mb-3">Digunakan jika tukar langsung selesai hari ini.</p>
-              <TukarInputBlock
-                data={tukarSelesai}
-                onChange={setTukarSelesai}
-                rokokDibawa={rokokDibawa}
-                rokokList={rokokList}
-                type="selesai"
-              />
-            </SectionCard>
-
-            {/* Lanjutkan Tukar Aktif - Grouped here because it's about finishing exchanges */}
-            {tukarAktifSales.length > 0 && (
-              <SectionCard title={`Selesaikan Tukar Aktif (${tukarAktifSales.length})`}>
-                <p className="text-xs text-neutral-500 mb-3">
-                  Tukar barang sebelumnya yang masih aktif. Centang jika sales sudah menyerahkan rokok pengganti hari ini.
-                </p>
-                <div className="space-y-2">
-                  {tukarAktifSales.map((t) => {
-                    const checked = penyelesaianTukar.has(t.id)
-                    return (
-                      <label
-                        key={t.id}
-                        className={`flex items-start gap-3 rounded-lg border px-3 py-2.5 cursor-pointer transition ${
-                          checked
-                            ? "border-green-300 bg-green-50"
-                            : "border-neutral-200 bg-white hover:bg-neutral-50"
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => togglePenyelesaian(t.id)}
-                          className="mt-1 h-4 w-4 rounded"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium">{t.toko ? t.toko : "Tidak ada toko"}</p>
-                          <p className="text-xs text-neutral-500">
-                            Dibuat {fmtTanggal(t.tanggal)}
-                            {t.selisih_uang > 0 && ` · Toko bayar tambahan ${fmtIDR(t.selisih_uang)}`}
-                          </p>
-                          <div className="mt-1 grid grid-cols-2 gap-2 text-xs">
-                            <div>
-                              <p className="text-neutral-500">Barang Return (B):</p>
-                              <ul className="text-neutral-700">
-                                {t.itemsMasuk.map((it, i) => (
-                                  <li key={i}>{it.rokok} ×{it.qty}</li>
-                                ))}
-                              </ul>
-                            </div>
-                            <div>
-                              <p className="text-neutral-500">Barang Pengganti (A):</p>
-                              <ul className="text-neutral-700">
-                                {t.itemsKeluar.map((it, i) => (
-                                  <li key={i}>{it.rokok} ×{it.qty}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          </div>
-                        </div>
-                        {checked && (
-                          <span className="rounded-full bg-green-200 px-2 py-0.5 text-xs font-medium text-green-800">
-                            Akan diselesaikan
-                          </span>
-                        )}
-                      </label>
-                    )
-                  })}
-                </div>
-              </SectionCard>
-            )}
-          </div>
-        )}
-
-        {subTab === "belum_selesai" && (
-          <SectionCard title="Tukar Belum Selesai">
-            <p className="text-xs text-neutral-500 mb-3">Penggantian dilakukan di hari lain.</p>
-            <TukarInputBlock
-              data={tukarBelumSelesai}
-              onChange={setTukarBelumSelesai}
-              rokokDibawa={rokokDibawa}
-              rokokList={rokokList}
-              type="belum_selesai"
-            />
-          </SectionCard>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function TukarInputBlock({ data, onChange, rokokDibawa, rokokList, type }) {
-  const hargaDefault = (rokok) => {
-    if (!rokok) return 0
-    return rokok.harga_toko || rokok.harga_standar
-  }
-
-  const updateItems = (field, items) => onChange({ ...data, [field]: items })
-  const updateRow = (field, rowIdx, key, val) => {
-    const items = data[field].map((it, i) => i === rowIdx ? { ...it, [key]: val } : it)
-    updateItems(field, items)
-  }
-  const updateRokok = (field, rowIdx, rokok_id) => {
-    const rokok = rokokList.find((r) => r.id === rokok_id)
-    const standar = hargaDefault(rokok)
-    const items = data[field].map((it, i) => i === rowIdx ? { ...it, rokok_id, harga_satuan: it.harga_satuan || String(standar) } : it)
-    updateItems(field, items)
-  }
-  const addRow    = (field) => updateItems(field, [...data[field], { rokok_id: "", qty: "", harga_satuan: "" }])
-  const removeRow = (field, rowIdx) => updateItems(field, data[field].filter((_, i) => i !== rowIdx))
-
-  const rokokForKeluar = rokokDibawa
-  const rokokForMasuk  = rokokList.filter((r) => r.aktif !== false)
-
-  const renderItems = (field, label, available) => (
-    <div className="space-y-2">
-      <p className="text-xs font-medium text-neutral-600">{label}</p>
-      {data[field]?.map((item, rowIdx) => {
-        const selectedIds = data[field].map((x) => x.rokok_id).filter(Boolean)
-        const opts = available.filter((r) => !selectedIds.includes(r.id) || r.id === item.rokok_id)
-        const rokok = rokokList.find((r) => r.id === item.rokok_id)
-        const standar = hargaDefault(rokok)
-        return (
-          <div key={rowIdx} className="grid grid-cols-12 items-end gap-2">
-            <div className="col-span-12 sm:col-span-5">
-              <SelectInput value={item.rokok_id} onChange={(e) => updateRokok(field, rowIdx, e.target.value)}>
-                <option value="">Pilih rokok</option>
-                {opts.map((r) => <option key={r.id} value={r.id}>{r.nama}</option>)}
-              </SelectInput>
-            </div>
-            <div className="col-span-3 sm:col-span-2">
-              <input type="number" min="1" value={item.qty} disabled={!item.rokok_id}
-                onChange={(e) => updateRow(field, rowIdx, "qty", e.target.value)}
-                placeholder="Qty" className={inputCls + (!item.rokok_id ? " bg-neutral-50 opacity-50" : "")} />
-            </div>
-            <div className="col-span-7 sm:col-span-4">
-              <MoneyInput value={item.harga_satuan} disabled={!item.rokok_id}
-                onChange={(v) => updateRow(field, rowIdx, "harga_satuan", v)}
-                className={inputCls + (!item.rokok_id ? " bg-neutral-50 opacity-50" : "")}
-                placeholder={standar ? `Standar ${standar.toLocaleString("id-ID")}` : "Harga"} />
-            </div>
-            <div className="col-span-2 sm:col-span-1 flex justify-end">
-              {data[field].length > 1 && (
-                <IconButton icon={Trash2} onClick={() => removeRow(field, rowIdx)} variant="danger" label="Hapus" />
-              )}
-            </div>
-          </div>
-        )
-      })}
-      <Button type="button" variant="ghost" size="sm" onClick={() => addRow(field)} className="text-blue-600 hover:bg-blue-50">
-        + Tambah baris
-      </Button>
-    </div>
-  )
-
-  const totalMasuk  = (data.itemsMasuk || []).reduce((s, it)  => s + Number(it.qty || 0) * Number(it.harga_satuan || 0), 0)
-  const totalKeluar = (data.itemsKeluar || []).reduce((s, it) => s + Number(it.qty || 0) * Number(it.harga_satuan || 0), 0)
-  const selisih     = totalKeluar - totalMasuk
-  const invalid     = type === "selesai" && selisih < 0
-
-  return (
-    <div className="rounded-lg border border-neutral-200 p-4 space-y-4">
-      {renderItems("itemsMasuk", "Barang Return (dari Toko)", rokokForMasuk)}
-      
-      {type === "selesai" && (
-        <>
-          {renderItems("itemsKeluar", "Barang Pengganti (dari Sales)", rokokForKeluar)}
-          {rokokForKeluar.length === 0 && (
-            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
-              Sales tidak membawa rokok hari ini — tidak bisa input pengganti.
-            </p>
-          )}
-
-          <div className="rounded border border-neutral-300 bg-neutral-50 p-3 text-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-neutral-600 text-xs">Nilai pengganti − Nilai kembalian</span>
-              <span className="font-medium tabular-nums text-xs">{fmtIDR(totalKeluar)} − {fmtIDR(totalMasuk)}</span>
-            </div>
-            <div className="flex items-center justify-between mt-1">
-              <span className="font-semibold text-sm">Selisih (toko bayar tambahan)</span>
-              <span className={`font-bold tabular-nums ${invalid ? "text-red-600" : selisih > 0 ? "text-emerald-700" : "text-neutral-700"}`}>
-                {fmtIDR(Math.abs(selisih))}
-              </span>
-            </div>
-            {invalid && (
-              <p className="mt-1 text-xs text-red-600">
-                Nilai pengganti dari sales harus ≥ nilai kembalian dari toko.
-              </p>
-            )}
-          </div>
-        </>
-      )}
-
-      {type === "belum_selesai" && (
-        <Field label="Catatan (opsional)">
-          <input
-            type="text"
-            value={data.catatan || ""}
-            onChange={(e) => onChange({ ...data, catatan: e.target.value })}
-            placeholder="Catatan tambahan..."
-            className={inputCls}
-          />
-        </Field>
-      )}
-    </div>
-  )
-}
 

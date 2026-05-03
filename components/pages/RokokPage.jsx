@@ -367,7 +367,7 @@ export default function RokokPage({ rokokList, usedIds, mutasiHariIni = [] }) {
             {[
               { label: "Harga Beli",       value: detailTarget.harga_beli },
               { label: "Harga Grosir",     value: detailTarget.harga_grosir },
-              { label: "Harga Toko",       value: detailTarget.harga_toko },
+              { label: "Harga Retail",      value: detailTarget.harga_retail },
               { label: "Harga Perorangan", value: detailTarget.harga_perorangan },
             ].map(({ label, value }) => (
               <div key={label} className="flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3">
@@ -539,13 +539,13 @@ function RokokForm({ initial, rokokList, onSubmit, onCancel }) {
   const [aktif, setAktif]                   = useState(initial?.aktif !== false)
   const [hargaBeli, setHargaBeli]           = useState(initial?.harga_beli || "")
   const [hargaGrosir, setHargaGrosir]       = useState(initial?.harga_grosir || "")
-  const [hargaToko, setHargaToko]           = useState(initial?.harga_toko || "")
+  const [hargaRetail, setHargaRetail]       = useState(initial?.harga_retail || "")
   const [hargaPerorangan, setHargaPerorangan] = useState(initial?.harga_perorangan || "")
 
   const isDuplicate = rokokList.some(
     (r) => r.nama.toLowerCase() === nama.trim().toLowerCase() && r.id !== initial?.id
   )
-  const valid = nama.trim() && hargaBeli && hargaGrosir && hargaToko && hargaPerorangan && !isDuplicate
+  const valid = nama.trim() && hargaBeli && hargaGrosir && hargaRetail && hargaPerorangan && !isDuplicate
 
   const [loading, setLoading] = useState(false)
   const submit = async (e) => {
@@ -553,7 +553,7 @@ function RokokForm({ initial, rokokList, onSubmit, onCancel }) {
     if (!valid || loading) return
     setLoading(true)
     try {
-      await onSubmit({ nama: nama.trim(), stok: Number(stok), aktif, harga_beli: Number(hargaBeli), harga_grosir: Number(hargaGrosir), harga_toko: Number(hargaToko), harga_perorangan: Number(hargaPerorangan) })
+      await onSubmit({ nama: nama.trim(), stok: Number(stok), aktif, harga_beli: Number(hargaBeli), harga_grosir: Number(hargaGrosir), harga_retail: Number(hargaRetail), harga_perorangan: Number(hargaPerorangan) })
     } finally {
       setLoading(false)
     }
@@ -583,8 +583,8 @@ function RokokForm({ initial, rokokList, onSubmit, onCancel }) {
         <Field label="Harga Grosir">
           <input type="number" min="0" value={hargaGrosir} onChange={(e) => setHargaGrosir(e.target.value)} className={inputCls} required />
         </Field>
-        <Field label="Harga Toko">
-          <input type="number" min="0" value={hargaToko} onChange={(e) => setHargaToko(e.target.value)} className={inputCls} required />
+        <Field label="Harga Retail">
+          <input type="number" min="0" value={hargaRetail} onChange={(e) => setHargaRetail(e.target.value)} className={inputCls} required />
         </Field>
         <Field label="Harga Perorangan">
           <input type="number" min="0" value={hargaPerorangan} onChange={(e) => setHargaPerorangan(e.target.value)} className={inputCls} required />

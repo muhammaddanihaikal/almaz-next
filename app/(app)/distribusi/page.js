@@ -1,19 +1,17 @@
 import { getSesiList } from "@/actions/distribusi"
 import { getRokokList } from "@/actions/rokok"
 import { getSalesList } from "@/actions/sales"
-import { getTokoList } from "@/actions/toko"
-import { getTukarBarangList } from "@/actions/tukar-barang"
+import { getRetailList } from "@/actions/retail"
 import DistribusiPage from "@/components/pages/DistribusiPage"
 
 export const revalidate = 0
 
 export default async function Page() {
-  const [sesiList, rokokList, salesList, tokoList, tukarBarangList] = await Promise.all([
+  const [sesiList, rokokList, salesList, retailList] = await Promise.all([
     getSesiList(),
     getRokokList(),
     getSalesList(),
-    getTokoList(),
-    getTukarBarangList(),
+    getRetailList(),
   ])
-  return <DistribusiPage sesiList={sesiList} rokokList={rokokList} salesList={salesList} tokoList={tokoList} tukarBarangList={tukarBarangList} />
+  return <DistribusiPage sesiList={sesiList} rokokList={rokokList} salesList={salesList} retailList={retailList} />
 }
