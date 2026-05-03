@@ -1530,13 +1530,10 @@ function PenjualanLangsungInput({ penjualan, setPenjualan, barangKeluar = [], qt
               <div className="flex-1">
                 <SearchableSelect
                   value={item.rokok_id}
-                  onChange={(value) => setBarangKembaliBaru(barangKembaliBaru.map((it, i) => i === idx ? { ...it, rokok_id: value } : it))}
+                  onChange={(e) => setBarangKembaliBaru(barangKembaliBaru.map((it, i) => i === idx ? { ...it, rokok_id: e.target.value } : it))}
                   placeholder="Pilih rokok..."
-                >
-                  {rokokList.filter((r) => r.aktif !== false).map((r) => (
-                    <option key={r.id} value={r.id}>{r.nama}</option>
-                  ))}
-                </SearchableSelect>
+                  options={rokokList.filter((r) => r.aktif !== false).map((r) => ({ value: r.id, label: r.nama }))}
+                />
               </div>
               <input
                 type="number"
