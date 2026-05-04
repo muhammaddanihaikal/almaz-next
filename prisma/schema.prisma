@@ -259,8 +259,9 @@ model TukarBarang {
   sesi_id         String                       // sesi sales hari-1
   sesi_selesai_id String?                      // sesi sales hari-N (saat tukar diselesaikan)
   status          String    @default("aktif")  // "aktif" | "selesai"
+  kategori        String    @default("grosir") // "grosir" | "toko"
   tanggal_selesai DateTime? @db.Date           // hari-N, null kalau masih aktif
-  selisih_uang    Int       @default(0)        // >= 0: toko bayar tambahan ke sales, 0 = setara
+  selisih_uang    Int       @default(0)        // positif: toko bayar tambahan, negatif: sales kasih kembalian
   catatan         String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt

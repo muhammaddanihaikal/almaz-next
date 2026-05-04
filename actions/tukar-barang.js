@@ -25,6 +25,7 @@ function serialize(t) {
     sales_id:        t.sesi?.sales_id ?? null,
     nama_sales:      t.sesi?.sales?.nama ?? "-",
     status:          t.status,
+    kategori:        t.kategori || "grosir",
     selisih_uang:    t.selisih_uang,
     catatan:         t.catatan || "",
     createdAt:       t.createdAt.toISOString(),
@@ -94,7 +95,6 @@ export async function deleteTukarBarang(id, alasan) {
       user_name: session?.user?.name,
     })
 
-    // Revert mutasi tukar_masuk (in B → out B)
     for (const it of old.itemsMasuk) {
       await mutateStock({
         tx,
@@ -104,7 +104,20 @@ export async function deleteTukarBarang(id, alasan) {
         user_id: session?.user?.id,
       })
     }
-    // Items keluar: tidak ada mutasi yang perlu di-revert (tidak ada ledger entry)
+    if (old.status === "selesai") {
+      for (const it of old.itemsKeluar) {
+        if (it.qty > 0) {
+          await mutateStock({
+            tx,
+            rokok_id: it.rokok_id, tanggal: old.tanggal_selesai || old.tanggal, jenis: 'in', qty: it.qty,
+            source: MUTATION_SOURCE.REVERT, reference_id: id,
+            keterangan: "Revert tukar barang keluar (delete)",
+            user_id: session?.user?.id,
+            allowNegative: true,
+          })
+        }
+      }
+    }
     await tx.tukarBarang.delete({ where: { id } })
   })
 
@@ -141,6 +154,7 @@ export async function createTukarBarangInSesi(tx, sesi, data, session, langsungS
       tanggal:         new Date(sesi.tanggal),
       sesi_id:         sesi.id,
       status:          langsungSelesai ? "selesai" : "aktif",
+      kategori:        data.kategori || "grosir",
       tanggal_selesai: langsungSelesai ? new Date(sesi.tanggal) : null,
       sesi_selesai_id: langsungSelesai ? sesi.id : null,
       selisih_uang:    selisih,
@@ -158,7 +172,6 @@ export async function createTukarBarangInSesi(tx, sesi, data, session, langsungS
     },
   })
 
-  // Mutasi stok: hanya itemsMasuk (rokok B masuk gudang dari toko)
   for (const it of itemsMasuk) {
     await mutateStock({
       tx,
@@ -170,6 +183,20 @@ export async function createTukarBarangInSesi(tx, sesi, data, session, langsungS
       reference_id: tukar.id,
       user_id:  session?.user?.id,
     })
+  }
+  if (langsungSelesai) {
+    for (const it of itemsKeluar) {
+      await mutateStock({
+        tx,
+        rokok_id: it.rokok_id,
+        tanggal:  sesi.tanggal,
+        jenis:    'out',
+        qty:      Number(it.qty),
+        source:   MUTATION_SOURCE.TUKAR_KELUAR,
+        reference_id: tukar.id,
+        user_id:  session?.user?.id,
+      })
+    }
   }
 
   await logAudit({
@@ -195,7 +222,7 @@ export async function createTukarBarangInSesi(tx, sesi, data, session, langsungS
 
 /**
  * Selesaikan tukar barang yang masih aktif (dipanggil dari laporan sore hari-N).
- * Tidak ada mutasi stok tambahan (A keluar sudah implicit di distribusi-vs-barangKembali sesi-N).
+ * TUKAR_KELUAR OUT untuk itemsKeluar — rokok A keluar gudang ke toko.
  */
 export async function selesaikanTukarBarangInSesi(tx, sesi, tukar_id, session) {
   const tukar = await tx.tukarBarang.findUnique({
@@ -213,6 +240,21 @@ export async function selesaikanTukarBarangInSesi(tx, sesi, tukar_id, session) {
       sesi_selesai_id: sesi.id,
     },
   })
+
+  for (const it of tukar.itemsKeluar) {
+    if (it.qty > 0) {
+      await mutateStock({
+        tx,
+        rokok_id: it.rokok_id,
+        tanggal:  sesi.tanggal,
+        jenis:    'out',
+        qty:      it.qty,
+        source:   MUTATION_SOURCE.TUKAR_KELUAR,
+        reference_id: tukar_id,
+        user_id:  session?.user?.id,
+      })
+    }
+  }
 
   await logAudit({
     tx,
@@ -232,11 +274,32 @@ export async function selesaikanTukarBarangInSesi(tx, sesi, tukar_id, session) {
 
 /**
  * Batalkan penyelesaian tukar barang (dipanggil saat edit/revert laporan sore).
+ * Revert TUKAR_KELUAR OUT untuk itemsKeluar.
  */
 export async function revertSelesaiTukarBarangInSesi(tx, tukar_id, session) {
-  const tukar = await tx.tukarBarang.findUnique({ where: { id: tukar_id } })
+  const tukar = await tx.tukarBarang.findUnique({
+    where: { id: tukar_id },
+    include: { itemsKeluar: true },
+  })
   if (!tukar) return
   if (tukar.status !== "selesai") return
+
+  for (const it of tukar.itemsKeluar) {
+    if (it.qty > 0) {
+      await mutateStock({
+        tx,
+        rokok_id: it.rokok_id,
+        tanggal:  tukar.tanggal_selesai || tukar.tanggal,
+        jenis:    'in',
+        qty:      it.qty,
+        source:   MUTATION_SOURCE.REVERT,
+        reference_id: tukar_id,
+        keterangan: "Revert tukar keluar (batalkan penyelesaian)",
+        user_id:  session?.user?.id,
+        allowNegative: true,
+      })
+    }
+  }
 
   await tx.tukarBarang.update({
     where: { id: tukar_id },

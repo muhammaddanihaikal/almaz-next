@@ -1041,21 +1041,29 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
     return Object.values(map)
   }
 
-  // Pre-fill dari data existing saat edit (kategori digabung semua ke grosir karena tidak disimpan di DB)
+  // Pre-fill dari data existing saat edit — split by kategori (now stored in DB)
   const existingSelesai = isEdit ? (sesi.tukarBarang || []).filter(t => t.status === "selesai") : []
   const existingBelum   = isEdit ? (sesi.tukarBarang || []).filter(t => t.status === "aktif")   : []
-  const allSelesaiMasuk  = aggregateItems(existingSelesai.flatMap(t => t.itemsMasuk || []))
-  const allSelesaiKeluar = aggregateItems(existingSelesai.flatMap(t => t.itemsKeluar || []))
-  const allBelumMasuk    = aggregateItems(existingBelum.flatMap(t => t.itemsMasuk || []))
+
+  const selesaiGrosir = existingSelesai.filter(t => (t.kategori || "grosir") === "grosir")
+  const selesaiToko   = existingSelesai.filter(t => t.kategori === "toko")
+  const belumGrosir   = existingBelum.filter(t => (t.kategori || "grosir") === "grosir")
+  const belumToko     = existingBelum.filter(t => t.kategori === "toko")
 
   const [tukarSelesai, setTukarSelesai] = useState({
-    grosir: { itemsMasuk: mapItems(allSelesaiMasuk), itemsKeluar: mapItems(allSelesaiKeluar) },
-    toko:   { itemsMasuk: emptyItems(), itemsKeluar: emptyItems() },
+    grosir: {
+      itemsMasuk:  mapItems(aggregateItems(selesaiGrosir.flatMap(t => t.itemsMasuk  || [])), "grosir"),
+      itemsKeluar: mapItems(aggregateItems(selesaiGrosir.flatMap(t => t.itemsKeluar || [])), "grosir"),
+    },
+    toko: {
+      itemsMasuk:  mapItems(aggregateItems(selesaiToko.flatMap(t => t.itemsMasuk  || [])), "toko"),
+      itemsKeluar: mapItems(aggregateItems(selesaiToko.flatMap(t => t.itemsKeluar || [])), "toko"),
+    },
   })
 
   const [tukarBelumSelesai, setTukarBelumSelesai] = useState({
-    grosir: { itemsMasuk: mapItems(allBelumMasuk) },
-    toko:   { itemsMasuk: emptyItems() },
+    grosir: { itemsMasuk: mapItems(aggregateItems(belumGrosir.flatMap(t => t.itemsMasuk || [])), "grosir") },
+    toko:   { itemsMasuk: mapItems(aggregateItems(belumToko.flatMap(t => t.itemsMasuk   || [])), "toko") },
   })
 
   // Set ID tukar yang dicentang untuk diselesaikan di sesi ini
@@ -1098,9 +1106,11 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
   const flagSetoran  = nilaiPenjualan > 0 && totalSetoran !== nilaiPenjualan
   const setoranEmpty = nilaiPenjualan > 0 && totalSetoran === 0
 
+  const [submitError, setSubmitError] = useState("")
   const submit = async (e) => {
     e.preventDefault()
     if (setoranEmpty || loading) return
+    setSubmitError("")
     setLoading(true)
     try {
       const validPenjualan  = penjualan.filter((it) => it.rokok_id && Number(it.qty) > 0)
@@ -1171,6 +1181,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
         barangKembali:  validKembali,
         konsinyasiBaru: validKonsinyasi,
         tukarBaru: validTukarBaru.map((t) => ({
+          kategori:    t.kategori || "grosir",
           itemsMasuk:  t.itemsMasuk.filter((it) => it.rokok_id && Number(it.qty) > 0)
             .map((it) => ({ rokok_id: it.rokok_id, qty: Number(it.qty), harga_satuan: Number(it.harga_satuan || 0) })),
           itemsKeluar: (t.itemsKeluar || []).filter((it) => it.rokok_id && Number(it.qty) > 0)
@@ -1180,6 +1191,8 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
         })),
         penyelesaianTukar: Array.from(penyelesaianTukar),
       })
+    } catch (err) {
+      setSubmitError(err?.message || "Terjadi kesalahan saat menyimpan laporan sore.")
     } finally {
       setLoading(false)
     }
@@ -1301,7 +1314,11 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
           Titip Jual {activeKonsinyasi.length > 0 && <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-yellow-500 text-xs text-white">{activeKonsinyasi.length}</span>}
         </TabButton>
         <TabButton active={activeTab === "tukar"} onClick={() => setActiveTab("tukar")}>
-          Tukar Barang {tukarAktifSales.length > 0 && <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-xs text-white">{tukarAktifSales.length}</span>}
+          Tukar Barang {(() => {
+            const n = [tukarSelesai.grosir, tukarSelesai.toko, tukarBelumSelesai.grosir, tukarBelumSelesai.toko]
+              .filter(b => b.itemsMasuk.some(i => i.rokok_id && Number(i.qty) > 0)).length
+            return n > 0 && <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-xs text-white">{n}</span>
+          })()}
         </TabButton>
       </div>
 
@@ -1579,6 +1596,12 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
       )}
 
       {LaporanConfirmModal}
+      {submitError && (
+        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+          <span>{submitError}</span>
+        </div>
+      )}
       <FormActions onCancel={onCancel} disabled={setoranEmpty} loading={loading} submitLabel={isEdit ? "Simpan Perubahan" : "Submit Laporan"} />
     </form>
   )
