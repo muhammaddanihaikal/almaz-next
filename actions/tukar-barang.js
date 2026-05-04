@@ -135,7 +135,6 @@ export async function createTukarBarangInSesi(tx, sesi, data, session, langsungS
   const totalMasuk  = itemsMasuk.reduce((s, it)  => s + Number(it.qty) * Number(it.harga_satuan || 0), 0)
   const totalKeluar = itemsKeluar.reduce((s, it) => s + Number(it.qty) * Number(it.harga_satuan || 0), 0)
   const selisih = totalKeluar - totalMasuk
-  if (langsungSelesai && selisih < 0) throw new Error("Nilai rokok dari sales harus lebih besar atau sama dengan nilai dari toko (sales tidak kasih kembalian).")
 
   const tukar = await tx.tukarBarang.create({
     data: {

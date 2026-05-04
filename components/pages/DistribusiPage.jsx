@@ -1020,14 +1020,41 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
   )
   // Form input tukar baru di sesi ini
   const emptyItems = () => [{ rokok_id: "", qty: "", harga_satuan: "" }]
+  const mapItems   = (items, kategori = "grosir") => items.length > 0
+    ? items.map(it => {
+        const rokok = rokokList.find(r => r.id === it.rokok_id)
+        const harga = rokok
+          ? (kategori === "grosir" ? (rokok.harga_grosir || rokok.harga_toko) : (rokok.harga_toko || rokok.harga_perorangan))
+          : it.harga_satuan
+        return { rokok_id: it.rokok_id, qty: String(it.qty), harga_satuan: String(harga) }
+      })
+    : emptyItems()
+
+  // Aggregate items with same rokok_id (sum qty) when pre-filling from multiple DB records
+  const aggregateItems = (items) => {
+    const map = {}
+    for (const it of items) {
+      if (!it.rokok_id) continue
+      if (!map[it.rokok_id]) map[it.rokok_id] = { ...it, qty: 0 }
+      map[it.rokok_id] = { ...map[it.rokok_id], qty: map[it.rokok_id].qty + Number(it.qty) }
+    }
+    return Object.values(map)
+  }
+
+  // Pre-fill dari data existing saat edit (kategori digabung semua ke grosir karena tidak disimpan di DB)
+  const existingSelesai = isEdit ? (sesi.tukarBarang || []).filter(t => t.status === "selesai") : []
+  const existingBelum   = isEdit ? (sesi.tukarBarang || []).filter(t => t.status === "aktif")   : []
+  const allSelesaiMasuk  = aggregateItems(existingSelesai.flatMap(t => t.itemsMasuk || []))
+  const allSelesaiKeluar = aggregateItems(existingSelesai.flatMap(t => t.itemsKeluar || []))
+  const allBelumMasuk    = aggregateItems(existingBelum.flatMap(t => t.itemsMasuk || []))
 
   const [tukarSelesai, setTukarSelesai] = useState({
-    grosir: { itemsMasuk: emptyItems(), itemsKeluar: emptyItems() },
+    grosir: { itemsMasuk: mapItems(allSelesaiMasuk), itemsKeluar: mapItems(allSelesaiKeluar) },
     toko:   { itemsMasuk: emptyItems(), itemsKeluar: emptyItems() },
   })
 
   const [tukarBelumSelesai, setTukarBelumSelesai] = useState({
-    grosir: { itemsMasuk: emptyItems() },
+    grosir: { itemsMasuk: mapItems(allBelumMasuk) },
     toko:   { itemsMasuk: emptyItems() },
   })
 
@@ -1244,6 +1271,18 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
     return map
   }, [konsinyasiBaru, qtyTitipLama])
 
+  // Qty tukar selesai keluar (barang pengganti dari sales) — dikurangi dari sisa semua tab
+  const qtyTukarSelesaiKeluar = useMemo(() => {
+    const map = {}
+    for (const block of [tukarSelesai.grosir, tukarSelesai.toko]) {
+      for (const it of (block.itemsKeluar || [])) {
+        if (it.rokok_id && Number(it.qty) > 0)
+          map[it.rokok_id] = (map[it.rokok_id] || 0) + Number(it.qty)
+      }
+    }
+    return map
+  }, [tukarSelesai])
+
   // Rokok yang dibawa sales hari ini (sudah terfilter)
   const rokokDibawa = useMemo(
     () => rokokList.filter((r) => sesi.barangKeluar.some((bk) => bk.rokok_id === r.id)),
@@ -1275,6 +1314,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
               setPenjualan={setPenjualan}
               barangKeluar={sesi.barangKeluar}
               qtyTitipBaru={qtyTitipBaru}
+              qtyTukarKeluar={qtyTukarSelesaiKeluar}
               showPerorangan={showPerorangan}
               setShowPerorangan={setShowPerorangan}
             />
@@ -1370,6 +1410,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
                 qtyDibawa={qtyDibawa}
                 qtyTerjualLangsung={qtyTerjualLangsung}
                 qtyTitipLama={qtyTitipLama}
+                qtyTukarKeluar={qtyTukarSelesaiKeluar}
                 konsinyasiBaru={konsinyasiBaru}
                 tokoList={tokoList}
                 onChange={(updated) => setKonsinyasiBaru(konsinyasiBaru.map((x, i) => i === idx ? updated : x))}
@@ -1482,6 +1523,9 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
           setPenyelesaianTukar={setPenyelesaianTukar}
           rokokDibawa={rokokDibawa}
           rokokList={rokokList}
+          qtyDibawa={qtyDibawa}
+          qtyTerjualLangsung={qtyTerjualLangsung}
+          qtyTitipBaru={qtyTitipBaru}
         />
       )}
 
@@ -1568,7 +1612,7 @@ function SectionCard({ title, children }) {
   )
 }
 
-function PenjualanLangsungInput({ penjualan, setPenjualan, barangKeluar = [], qtyTitipBaru = {}, showPerorangan, setShowPerorangan }) {
+function PenjualanLangsungInput({ penjualan, setPenjualan, barangKeluar = [], qtyTitipBaru = {}, qtyTukarKeluar = {}, showPerorangan, setShowPerorangan }) {
   const categories = showPerorangan ? ["grosir", "toko", "perorangan"] : ["grosir", "toko"]
   const rokok_ids  = [...new Set(penjualan.map((it) => it.rokok_id))]
 
@@ -1602,8 +1646,9 @@ function PenjualanLangsungInput({ penjualan, setPenjualan, barangKeluar = [], qt
             const dibawa  = qtyDibawa[rokok_id] ?? 0
             const terjual = totalTerjualPerRokok(rokok_id)
             const dititip = qtyTitipBaru[rokok_id] ?? 0
-            const sisa    = dibawa - terjual - dititip
-            const melebihi = terjual + dititip > dibawa
+            const ditukar = qtyTukarKeluar[rokok_id] ?? 0
+            const sisa    = dibawa - terjual - dititip - ditukar
+            const melebihi = terjual + dititip + ditukar > dibawa
             return (
               <Fragment key={rokok_id}>
                 <tr className="border-b border-neutral-100">
@@ -1747,7 +1792,7 @@ function PenyelesaianDetail({ record }) {
   )
 }
 
-function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerjualLangsung, qtyTitipLama = {}, konsinyasiBaru, tokoList, onChange, onRemove, onTokoCreated, onSaveAndSettle, extraUsedTokoIds = [] }) {
+function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerjualLangsung, qtyTitipLama = {}, qtyTukarKeluar = {}, konsinyasiBaru, tokoList, onChange, onRemove, onTokoCreated, onSaveAndSettle, extraUsedTokoIds = [] }) {
   const [open,        setOpen]        = useState(true)
   const [showAddToko, setShowAddToko] = useState(false)
   const [newTokoNama, setNewTokoNama] = useState("")
@@ -1772,7 +1817,8 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
     const dibawa  = qtyDibawa[rokok_id] || 0
     const terjual = qtyTerjualLangsung[rokok_id] || 0
     const lama    = qtyTitipLama[rokok_id] || 0
-    
+    const ditukar = qtyTukarKeluar[rokok_id] || 0
+
     // Qty dari konsinyasi baru lainnya (accordion lain)
     const otherAccordions = konsinyasiBaru
       .filter((_, i) => i !== currentIdx)
@@ -1786,7 +1832,7 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
       .filter((it) => it.rokok_id === rokok_id)
       .reduce((s, it) => s + (Number(it.qty) || 0), 0)
 
-    return Math.max(0, dibawa - terjual - lama - otherAccordions - currentAccordionOthers)
+    return Math.max(0, dibawa - terjual - lama - ditukar - otherAccordions - currentAccordionOthers)
   }
 
   const updateItem = (idx, field, val) =>
@@ -1973,11 +2019,24 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
 
 // ─── TUKAR BARANG TAB (di Laporan Sore) ─────────────────────────────────────
 
-function TukarBarangTab({ tukarSelesai, setTukarSelesai, tukarBelumSelesai, setTukarBelumSelesai, tukarAktifSales, penyelesaianTukar, setPenyelesaianTukar, rokokDibawa, rokokList }) {
+function TukarBarangTab({ tukarSelesai, setTukarSelesai, tukarBelumSelesai, setTukarBelumSelesai, tukarAktifSales, penyelesaianTukar, setPenyelesaianTukar, rokokDibawa, rokokList, qtyDibawa, qtyTerjualLangsung, qtyTitipBaru }) {
   const [subTab, setSubTab] = useState("selesai") // selesai | belum_selesai
 
   const updateSelesai  = (kat, block) => setTukarSelesai(prev => ({ ...prev, [kat]: block }))
   const updateBelum    = (kat, block) => setTukarBelumSelesai(prev => ({ ...prev, [kat]: block }))
+
+  // Qty pengganti yang dipakai blok lain (untuk hitung sisa tiap blok)
+  const qtyMap = (items) => {
+    const map = {}
+    for (const it of (items || [])) {
+      if (it.rokok_id && Number(it.qty) > 0) map[it.rokok_id] = (map[it.rokok_id] || 0) + Number(it.qty)
+    }
+    return map
+  }
+  const qtySelesaiGrosirKeluar = qtyMap(tukarSelesai.grosir.itemsKeluar)
+  const qtySelesaiTokoKeluar   = qtyMap(tukarSelesai.toko.itemsKeluar)
+  const qtySelesaiGrosirMasuk  = qtyMap(tukarSelesai.grosir.itemsMasuk)
+  const qtySelesaiTokoMasuk    = qtyMap(tukarSelesai.toko.itemsMasuk)
 
   return (
     <div className="space-y-4">
@@ -2020,6 +2079,11 @@ function TukarBarangTab({ tukarSelesai, setTukarSelesai, tukarBelumSelesai, setT
                 rokokList={rokokList}
                 type="selesai"
                 kategori="grosir"
+                qtyDibawa={qtyDibawa}
+                qtyTerjualLangsung={qtyTerjualLangsung}
+                qtyTitipBaru={qtyTitipBaru}
+                qtyOtherTukarKeluar={qtySelesaiTokoKeluar}
+                qtyOtherTukarMasuk={qtySelesaiTokoMasuk}
               />
               <TukarInputBlock
                 label="Toko"
@@ -2029,6 +2093,11 @@ function TukarBarangTab({ tukarSelesai, setTukarSelesai, tukarBelumSelesai, setT
                 rokokList={rokokList}
                 type="selesai"
                 kategori="toko"
+                qtyDibawa={qtyDibawa}
+                qtyTerjualLangsung={qtyTerjualLangsung}
+                qtyTitipBaru={qtyTitipBaru}
+                qtyOtherTukarKeluar={qtySelesaiGrosirKeluar}
+                qtyOtherTukarMasuk={qtySelesaiGrosirMasuk}
               />
             </div>
           </SectionCard>
@@ -2064,7 +2133,7 @@ function TukarBarangTab({ tukarSelesai, setTukarSelesai, tukarBelumSelesai, setT
   )
 }
 
-function TukarInputBlock({ data, onChange, rokokDibawa, rokokList, type, kategori, label }) {
+function TukarInputBlock({ data, onChange, rokokDibawa, rokokList, type, kategori, label, qtyDibawa = {}, qtyTerjualLangsung = {}, qtyTitipBaru = {}, qtyOtherTukarKeluar = {}, qtyOtherTukarMasuk = {} }) {
   const hargaDefault = (rokok) => {
     if (!rokok) return 0
     return kategori === "grosir" ? (rokok.harga_grosir || rokok.harga_toko) : (rokok.harga_toko || rokok.harga_perorangan)
@@ -2095,9 +2164,47 @@ function TukarInputBlock({ data, onChange, rokokDibawa, rokokList, type, kategor
         const opts = available.filter((r) => !selectedIds.includes(r.id) || r.id === item.rokok_id)
         const rokok = rokokList.find((r) => r.id === item.rokok_id)
         const standar = hargaDefault(rokok)
+
+        // Info tambahan per field
+        const isKeluar = field === "itemsKeluar"
+        const isMasuk  = field === "itemsMasuk"
+        let infoLabel = null
+        if (item.rokok_id) {
+          if (isKeluar) {
+            const dibawa   = qtyDibawa[item.rokok_id] || 0
+            const terjual  = qtyTerjualLangsung[item.rokok_id] || 0
+            const titip    = qtyTitipBaru[item.rokok_id] || 0
+            const other    = qtyOtherTukarKeluar[item.rokok_id] || 0
+            const thisRowQty = Number(item.qty || 0)
+            const otherRowsQty = (data.itemsKeluar || []).filter((_, i) => i !== rowIdx).reduce((s, it) => it.rokok_id === item.rokok_id ? s + Number(it.qty || 0) : s, 0)
+            const totalUsed = terjual + titip + other + otherRowsQty
+            const sisa = Math.max(0, dibawa - totalUsed - thisRowQty)
+            const melebihi = thisRowQty > dibawa - totalUsed
+            infoLabel = (
+              <span className={`text-[10px] font-bold tabular-nums ${!thisRowQty ? "text-neutral-400" : melebihi ? "text-red-500" : "text-blue-600"}`}>
+                Sisa: {sisa} / {dibawa}
+              </span>
+            )
+          } else if (isMasuk) {
+            const stok         = rokok?.stok ?? 0
+            const thisBlockQty = (data.itemsMasuk || []).reduce((s, it) => it.rokok_id === item.rokok_id ? s + Number(it.qty || 0) : s, 0)
+            const otherBlockQty = qtyOtherTukarMasuk[item.rokok_id] || 0
+            const totalMasuk   = thisBlockQty + otherBlockQty
+            infoLabel = (
+              <span className={`text-[10px] font-bold tabular-nums ${totalMasuk > 0 ? "text-blue-600" : "text-neutral-400"}`}>
+                Stok: {stok + totalMasuk}
+              </span>
+            )
+          }
+        }
+
         return (
           <div key={rowIdx} className="grid grid-cols-12 items-end gap-2">
             <div className="col-span-12 sm:col-span-5">
+              <div className="flex items-center justify-between mb-1">
+                <span />
+                {infoLabel}
+              </div>
               <SelectInput value={item.rokok_id} onChange={(e) => updateRokok(field, rowIdx, e.target.value)}>
                 <option value="">Pilih rokok</option>
                 {opts.map((r) => <option key={r.id} value={r.id}>{r.nama}</option>)}
