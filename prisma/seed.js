@@ -16,6 +16,9 @@ async function main() {
     await tx.sesiPenjualan.deleteMany({})
     await tx.sesiBarangKembali.deleteMany({})
     await tx.sesiBarangKeluar.deleteMany({})
+    await tx.tukarBarangItemMasuk.deleteMany({})
+    await tx.tukarBarangItemKeluar.deleteMany({})
+    await tx.tukarBarang.deleteMany({})
     await tx.sesiHarian.deleteMany({})
     await tx.returItem.deleteMany({})
     await tx.retur.deleteMany({})
@@ -118,14 +121,16 @@ async function main() {
 
     // ─── Sales ────────────────────────────────────────────────────────────────
     const salesMap = {}
-    for (const [nama, no_hp] of [
-      ["Budi Santoso",  "081234567890"],
-      ["Agus Prasetyo", "081234567891"],
-      ["Siti Rahayu",   "081234567892"],
-      ["Hendra Kusuma", "081234567893"],
-      ["Dian Safitri",  "081234567894"],
+    for (const [nama, no_hp, kategori] of [
+      ["Budi Santoso",  "081234567890", "grosir"],
+      ["Agus Prasetyo", "081234567891", "toko"],
+      ["Siti Rahayu",   "081234567892", "grosir"],
+      ["Hendra Kusuma", "081234567893", "toko"],
+      ["Dian Safitri",  "081234567894", "grosir"],
     ]) {
-      salesMap[nama] = await tx.sales.create({ data: { nama, no_hp } })
+      const s = await tx.sales.create({ data: { nama, no_hp } })
+      await tx.$executeRawUnsafe(`UPDATE "Sales" SET "kategori" = '${kategori}' WHERE "id" = '${s.id}'`)
+      salesMap[nama] = s
     }
 
     // ─── Toko ────────────────────────────────────────────────────────────────

@@ -1030,25 +1030,10 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
   const existingSelesai = isEdit ? (sesi.tukarBarang || []).filter(t => t.status === "selesai") : []
   const existingBelum   = isEdit ? (sesi.tukarBarang || []).filter(t => t.status === "aktif")   : []
 
-  const selesaiGrosir = existingSelesai.filter(t => (t.kategori || "grosir") === "grosir")
-  const selesaiToko   = existingSelesai.filter(t => t.kategori === "toko")
-  const belumGrosir   = existingBelum.filter(t => (t.kategori || "grosir") === "grosir")
-  const belumToko     = existingBelum.filter(t => t.kategori === "toko")
-
   const [tukarSelesai, setTukarSelesai] = useState({
-    grosir: {
-      itemsMasuk:  mapItems(aggregateItems(selesaiGrosir.flatMap(t => t.itemsMasuk  || [])), "grosir"),
-      itemsKeluar: mapItems(aggregateItems(selesaiGrosir.flatMap(t => t.itemsKeluar || [])), "grosir"),
-    },
-    toko: {
-      itemsMasuk:  mapItems(aggregateItems(selesaiToko.flatMap(t => t.itemsMasuk  || [])), "toko"),
-      itemsKeluar: mapItems(aggregateItems(selesaiToko.flatMap(t => t.itemsKeluar || [])), "toko"),
-    },
-  })
-
-  const [tukarBelumSelesai, setTukarBelumSelesai] = useState({
-    grosir: { itemsMasuk: mapItems(aggregateItems(belumGrosir.flatMap(t => t.itemsMasuk || [])), "grosir") },
-    toko:   { itemsMasuk: mapItems(aggregateItems(belumToko.flatMap(t => t.itemsMasuk   || [])), "toko") },
+    kategori: existingSelesai[0]?.kategori || sesi.sales_kategori || "grosir",
+    itemsMasuk:  mapItems(aggregateItems(existingSelesai.flatMap(t => t.itemsMasuk  || [])), (existingSelesai[0]?.kategori || sesi.sales_kategori || "grosir")),
+    itemsKeluar: mapItems(aggregateItems(existingSelesai.flatMap(t => t.itemsKeluar || [])), (existingSelesai[0]?.kategori || sesi.sales_kategori || "grosir")),
   })
 
   // Set ID tukar yang dicentang untuk diselesaikan di sesi ini
@@ -1068,7 +1053,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
       : [{ metode: "cash", jumlah: "" }]
   )
   const [konsinyasiBaru, setKonsinyasiBaru] = useState([
-    { toko_id: "", kategori: "toko", tanggal_jatuh_tempo: "", catatan: "", items: [{ rokok_id: "", qty: "" }] }
+    { toko_id: "", kategori: sesi.sales_kategori || "toko", tanggal_jatuh_tempo: "", catatan: "", items: [{ rokok_id: "", qty: "" }] }
   ])
   const [settlingKonsinyasi,    setSettlingKonsinyasi]    = useState(null)
   const [settledIds,            setSettledIds]            = useState(new Set())
@@ -1103,22 +1088,13 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
       const validKonsinyasi = konsinyasiBaru.filter((k) => k.toko_id && k.kategori && k.tanggal_jatuh_tempo && k.items.some((it) => it.rokok_id && Number(it.qty) > 0))
       const validTukarBaru = []
 
-      for (const [kategori, block] of [["grosir", tukarSelesai.grosir], ["toko", tukarSelesai.toko]]) {
-        const inItems  = block.itemsMasuk.filter(i => i.rokok_id && Number(i.qty) > 0)
-        const outItems = block.itemsKeluar.filter(i => i.rokok_id && Number(i.qty) > 0)
-        if (inItems.length > 0 || outItems.length > 0) {
-          if (inItems.length === 0 || outItems.length === 0) {
-            throw new Error(`Tukar Selesai (${kategori}): Barang return dan barang pengganti harus diisi.`)
-          }
-          validTukarBaru.push({ ...block, kategori, langsungSelesai: true })
+      const inItems  = tukarSelesai.itemsMasuk.filter(i => i.rokok_id && Number(i.qty) > 0)
+      const outItems = tukarSelesai.itemsKeluar.filter(i => i.rokok_id && Number(i.qty) > 0)
+      if (inItems.length > 0 || outItems.length > 0) {
+        if (inItems.length === 0 || outItems.length === 0) {
+          throw new Error(`Tukar Barang: Barang return dan barang pengganti harus diisi.`)
         }
-      }
-
-      for (const [kategori, block] of [["grosir", tukarBelumSelesai.grosir], ["toko", tukarBelumSelesai.toko]]) {
-        const inItems = block.itemsMasuk.filter(i => i.rokok_id && Number(i.qty) > 0)
-        if (inItems.length > 0) {
-          validTukarBaru.push({ itemsMasuk: block.itemsMasuk, itemsKeluar: [], kategori, langsungSelesai: false })
-        }
+        validTukarBaru.push({ ...tukarSelesai, langsungSelesai: true })
       }
 
       const savedKonsinyasiItems = newlyCreatedKonsinyasi.flatMap(k =>
@@ -1272,11 +1248,9 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
   // Qty tukar selesai keluar (barang pengganti dari sales) — dikurangi dari sisa semua tab
   const qtyTukarSelesaiKeluar = useMemo(() => {
     const map = {}
-    for (const block of [tukarSelesai.grosir, tukarSelesai.toko]) {
-      for (const it of (block.itemsKeluar || [])) {
-        if (it.rokok_id && Number(it.qty) > 0)
-          map[it.rokok_id] = (map[it.rokok_id] || 0) + Number(it.qty)
-      }
+    for (const it of (tukarSelesai.itemsKeluar || [])) {
+      if (it.rokok_id && Number(it.qty) > 0)
+        map[it.rokok_id] = (map[it.rokok_id] || 0) + Number(it.qty)
     }
     return map
   }, [tukarSelesai])
@@ -1300,8 +1274,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
         </TabButton>
         <TabButton active={activeTab === "tukar"} onClick={() => setActiveTab("tukar")}>
           Tukar Barang {(() => {
-            const n = [tukarSelesai.grosir, tukarSelesai.toko, tukarBelumSelesai.grosir, tukarBelumSelesai.toko]
-              .filter(b => b.itemsMasuk.some(i => i.rokok_id && Number(i.qty) > 0)).length
+            const n = tukarSelesai.itemsMasuk.some(i => i.rokok_id && Number(i.qty) > 0) ? 1 : 0
             return n > 0 && <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-xs text-white">{n}</span>
           })()}
         </TabButton>
@@ -1518,11 +1491,6 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
         <TukarBarangTab
           tukarSelesai={tukarSelesai}
           setTukarSelesai={setTukarSelesai}
-          tukarBelumSelesai={tukarBelumSelesai}
-          setTukarBelumSelesai={setTukarBelumSelesai}
-          tukarAktifSales={tukarAktifSales}
-          penyelesaianTukar={penyelesaianTukar}
-          setPenyelesaianTukar={setPenyelesaianTukar}
           rokokDibawa={rokokDibawa}
           rokokList={rokokList}
           qtyDibawa={qtyDibawa}
@@ -2027,115 +1995,39 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
 
 // ─── TUKAR BARANG TAB (di Laporan Sore) ─────────────────────────────────────
 
-function TukarBarangTab({ tukarSelesai, setTukarSelesai, tukarBelumSelesai, setTukarBelumSelesai, tukarAktifSales, penyelesaianTukar, setPenyelesaianTukar, rokokDibawa, rokokList, qtyDibawa, qtyTerjualLangsung, qtyTitipBaru }) {
-  const [subTab, setSubTab] = useState("selesai") // selesai | belum_selesai
-
-  const updateSelesai  = (kat, block) => setTukarSelesai(prev => ({ ...prev, [kat]: block }))
-  const updateBelum    = (kat, block) => setTukarBelumSelesai(prev => ({ ...prev, [kat]: block }))
-
-  // Qty pengganti yang dipakai blok lain (untuk hitung sisa tiap blok)
-  const qtyMap = (items) => {
-    const map = {}
-    for (const it of (items || [])) {
-      if (it.rokok_id && Number(it.qty) > 0) map[it.rokok_id] = (map[it.rokok_id] || 0) + Number(it.qty)
-    }
-    return map
-  }
-  const qtySelesaiGrosirKeluar = qtyMap(tukarSelesai.grosir.itemsKeluar)
-  const qtySelesaiTokoKeluar   = qtyMap(tukarSelesai.toko.itemsKeluar)
-  const qtySelesaiGrosirMasuk  = qtyMap(tukarSelesai.grosir.itemsMasuk)
-  const qtySelesaiTokoMasuk    = qtyMap(tukarSelesai.toko.itemsMasuk)
-
+function TukarBarangTab({ tukarSelesai, setTukarSelesai, rokokDibawa, rokokList, qtyDibawa, qtyTerjualLangsung, qtyTitipBaru }) {
   return (
-    <div className="space-y-4">
-      {/* Sub Tab Navigation */}
-      <div className="flex gap-2 border-b border-neutral-200">
-        <button
-          type="button"
-          onClick={() => setSubTab("selesai")}
-          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
-            subTab === "selesai"
-              ? "border-blue-600 text-blue-600"
-              : "border-transparent text-neutral-500 hover:text-neutral-700"
-          }`}
-        >
-          Tukar Selesai
-        </button>
-        <button
-          type="button"
-          onClick={() => setSubTab("belum_selesai")}
-          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
-            subTab === "belum_selesai"
-              ? "border-blue-600 text-blue-600"
-              : "border-transparent text-neutral-500 hover:text-neutral-700"
-          }`}
-        >
-          Tukar Belum Selesai
-        </button>
-      </div>
+    <div className="space-y-6">
+      <div className="rounded-xl border border-neutral-200 bg-white p-5 space-y-5">
+        <div className="border-b border-neutral-100 pb-3">
+          <h3 className="text-sm font-bold text-neutral-800 uppercase tracking-wide">Tukar Barang Selesai</h3>
+          <p className="text-[11px] text-neutral-400 mt-1 italic">Gunakan jika penukaran barang (kembali & pengganti) langsung selesai hari ini.</p>
+        </div>
 
-      <div className="mt-4">
-        {subTab === "selesai" && (
-          <SectionCard title="Tukar Selesai">
-            <p className="text-xs text-neutral-500 mb-4">Digunakan jika tukar langsung selesai hari ini.</p>
-            <div className="space-y-4">
-              <TukarInputBlock
-                label="Grosir"
-                data={tukarSelesai.grosir}
-                onChange={(b) => updateSelesai("grosir", b)}
-                rokokDibawa={rokokDibawa}
-                rokokList={rokokList}
-                type="selesai"
-                kategori="grosir"
-                qtyDibawa={qtyDibawa}
-                qtyTerjualLangsung={qtyTerjualLangsung}
-                qtyTitipBaru={qtyTitipBaru}
-                qtyOtherTukarKeluar={qtySelesaiTokoKeluar}
-                qtyOtherTukarMasuk={qtySelesaiTokoMasuk}
-              />
-              <TukarInputBlock
-                label="Toko"
-                data={tukarSelesai.toko}
-                onChange={(b) => updateSelesai("toko", b)}
-                rokokDibawa={rokokDibawa}
-                rokokList={rokokList}
-                type="selesai"
-                kategori="toko"
-                qtyDibawa={qtyDibawa}
-                qtyTerjualLangsung={qtyTerjualLangsung}
-                qtyTitipBaru={qtyTitipBaru}
-                qtyOtherTukarKeluar={qtySelesaiGrosirKeluar}
-                qtyOtherTukarMasuk={qtySelesaiGrosirMasuk}
-              />
-            </div>
-          </SectionCard>
-        )}
+        <div className="space-y-5">
+          <Field label="Tipe Toko">
+            <SelectInput
+              value={tukarSelesai.kategori}
+              onChange={(e) => setTukarSelesai(prev => ({ ...prev, kategori: e.target.value }))}
+              className="w-full"
+            >
+              <option value="grosir">Grosir</option>
+              <option value="toko">Toko</option>
+            </SelectInput>
+          </Field>
 
-        {subTab === "belum_selesai" && (
-          <SectionCard title="Tukar Belum Selesai">
-            <p className="text-xs text-neutral-500 mb-4">Penggantian dilakukan di hari lain.</p>
-            <div className="space-y-4">
-              <TukarInputBlock
-                label="Grosir"
-                data={tukarBelumSelesai.grosir}
-                onChange={(b) => updateBelum("grosir", b)}
-                rokokDibawa={rokokDibawa}
-                rokokList={rokokList}
-                type="belum_selesai"
-                kategori="grosir"
-              />
-              <TukarInputBlock
-                label="Toko"
-                data={tukarBelumSelesai.toko}
-                onChange={(b) => updateBelum("toko", b)}
-                rokokDibawa={rokokDibawa}
-                rokokList={rokokList}
-                type="belum_selesai"
-                kategori="toko"
-              />
-            </div>
-          </SectionCard>
-        )}
+          <TukarInputBlock
+            data={tukarSelesai}
+            onChange={(b) => setTukarSelesai(b)}
+            rokokDibawa={rokokDibawa}
+            rokokList={rokokList}
+            type="selesai"
+            kategori={tukarSelesai.kategori}
+            qtyDibawa={qtyDibawa}
+            qtyTerjualLangsung={qtyTerjualLangsung}
+            qtyTitipBaru={qtyTitipBaru}
+          />
+        </div>
       </div>
     </div>
   )
@@ -2270,14 +2162,18 @@ function TukarInputBlock({ data, onChange, rokokDibawa, rokokList, type, kategor
   const invalid     = type === "selesai" && selisih < 0
 
   const labelKat = label || (kategori === "grosir" ? "Grosir" : "Toko")
-  const dotColor = kategori === "grosir" ? "bg-blue-600" : "bg-emerald-600"
+  const KATEGORI_STYLE = {
+    grosir: "bg-violet-100 text-violet-700",
+    toko:   "bg-blue-100 text-blue-700",
+  }
 
   return (
     <div className="rounded-lg border border-neutral-200 p-4 space-y-4">
-      <p className="text-sm font-bold text-neutral-700 flex items-center gap-2">
-        <span className={`inline-block w-2 h-2 rounded-full ${dotColor}`} />
-        {labelKat}
-      </p>
+      <div className="flex items-center gap-2">
+        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${KATEGORI_STYLE[kategori] || "bg-neutral-100 text-neutral-600"}`}>
+          {labelKat}
+        </span>
+      </div>
       {renderItems("itemsMasuk", `Barang Return (dari ${labelKat})`, rokokForMasuk)}
       
       {type === "selesai" && (

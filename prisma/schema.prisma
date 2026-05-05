@@ -79,6 +79,7 @@ model Sales {
   id        String   @id @default(cuid())
   nama      String   @unique
   no_hp     String?
+  kategori  String   @default("grosir") // "grosir" | "toko"
   aktif     Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -9,13 +9,14 @@ export async function getSalesList() {
     id: s.id,
     nama: s.nama,
     no_hp: s.no_hp || "",
+    kategori: s.kategori || "grosir",
     aktif: s.aktif,
   }))
 }
 
 export async function addSales(data) {
   await prisma.sales.create({
-    data: { nama: data.nama, no_hp: data.no_hp || null },
+    data: { nama: data.nama, no_hp: data.no_hp || null, kategori: data.kategori || "grosir" },
   })
   revalidatePath("/sales")
 }
@@ -23,7 +24,7 @@ export async function addSales(data) {
 export async function updateSales(id, data) {
   await prisma.sales.update({
     where: { id },
-    data: { nama: data.nama, no_hp: data.no_hp || null },
+    data: { nama: data.nama, no_hp: data.no_hp || null, kategori: data.kategori || "grosir" },
   })
   revalidatePath("/sales")
 }

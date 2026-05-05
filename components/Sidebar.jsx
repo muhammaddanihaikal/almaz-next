@@ -26,7 +26,7 @@ function buildMenus(role, titipJualCounts, tukarAktifCount) {
       items: [
         { id: "distribusi",   href: "/distribusi",   label: "Distribusi",   icon: Truck           },
         { id: "titip-jual",   href: "/titip-jual",   label: "Titip Jual",   icon: PackageCheck, badges: titipJualCounts },
-        { id: "tukar-barang", href: "/tukar-barang", label: "Tukar Barang", icon: Repeat,       badges: tukarBadge },
+        // { id: "tukar-barang", href: "/tukar-barang", label: "Tukar Barang", icon: Repeat,       badges: tukarBadge },
       ],
     },
     {

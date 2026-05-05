@@ -55,6 +55,7 @@ function serialize(s) {
     tanggal,
     sales_id:  s.sales_id,
     sales:     s.sales.nama,
+    sales_kategori: s.sales.kategori || "grosir",
     status:    s.status,
     catatan:   s.catatan,
     createdAt: s.createdAt.toISOString(),

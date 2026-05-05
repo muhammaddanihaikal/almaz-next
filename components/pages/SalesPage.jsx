@@ -9,6 +9,10 @@ import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
 
 const PAGE_SIZE = 10
+const KATEGORI_COLOR = {
+  grosir: "bg-violet-100 text-violet-700",
+  toko:   "bg-blue-100 text-blue-700",
+}
 
 export default function SalesPage({ role, salesList, sesiList }) {
   const router = useRouter()
@@ -68,6 +72,14 @@ export default function SalesPage({ role, salesList, sesiList }) {
             { key: "nama",  label: "Nama Sales" },
             { key: "no_hp", label: "No HP",       render: (r) => r.no_hp || <span className="text-neutral-400">—</span> },
             {
+              key: "kategori", label: "Kategori",
+              render: (r) => (
+                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${KATEGORI_COLOR[r.kategori] || "bg-neutral-100 text-neutral-600"}`}>
+                  {r.kategori}
+                </span>
+              ),
+            },
+            {
               key: "aktif", label: "Aktif", align: "center",
               render: (r) => <Toggle checked={r.aktif ?? true} onChange={() => handleToggle(r.id)} disabled={role === "staff"} />,
             },
@@ -88,7 +100,12 @@ export default function SalesPage({ role, salesList, sesiList }) {
             <div className="flex items-center justify-between gap-2">
               <div>
                 <p className="font-medium text-neutral-900">{r.nama}</p>
-                {r.no_hp && <p className="text-xs text-neutral-500">{r.no_hp}</p>}
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize ${KATEGORI_COLOR[r.kategori] || "bg-neutral-100 text-neutral-600"}`}>
+                    {r.kategori}
+                  </span>
+                  {r.no_hp && <p className="text-xs text-neutral-500">{r.no_hp}</p>}
+                </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <Toggle checked={r.aktif ?? true} onChange={() => handleToggle(r.id)} disabled={role === "staff"} />
@@ -128,6 +145,7 @@ export default function SalesPage({ role, salesList, sesiList }) {
 function SalesForm({ initial, salesList, onSubmit, onCancel }) {
   const [nama, setNama] = useState(initial?.nama || "")
   const [noHp, setNoHp] = useState(initial?.no_hp || "")
+  const [kategori, setKategori] = useState(initial?.kategori || "grosir")
   const [loading, setLoading] = useState(false)
 
   const isDuplicate = salesList.some(
@@ -140,7 +158,7 @@ function SalesForm({ initial, salesList, onSubmit, onCancel }) {
     if (!valid || loading) return
     setLoading(true)
     try {
-      await onSubmit({ nama: nama.trim(), no_hp: noHp.trim() })
+      await onSubmit({ nama: nama.trim(), no_hp: noHp.trim(), kategori })
     } finally {
       setLoading(false)
     }
@@ -154,6 +172,23 @@ function SalesForm({ initial, salesList, onSubmit, onCancel }) {
       </Field>
       <Field label="No HP">
         <input type="text" value={noHp} onChange={(e) => setNoHp(e.target.value)} placeholder="Misal: 0812-3456-7890" className={inputCls} />
+      </Field>
+      <Field label="Kategori Default">
+        <div className="flex gap-4">
+          {["grosir", "toko"].map((k) => (
+            <label key={k} className="flex cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="radio"
+                name="kategori"
+                value={k}
+                checked={kategori === k}
+                onChange={(e) => setKategori(e.target.value)}
+                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-neutral-300"
+              />
+              <span className="capitalize">{k}</span>
+            </label>
+          ))}
+        </div>
       </Field>
       <FormActions onCancel={onCancel} disabled={!valid} loading={loading} submitLabel={initial ? "Simpan Perubahan" : "Tambah Sales"} />
     </form>
