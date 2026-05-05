@@ -22,7 +22,7 @@ async function main() {
     await tx.absensi.deleteMany({})
     await tx.stokMasuk.deleteMany({})
     await tx.pengeluaran.deleteMany({})
-    await tx.retail.deleteMany({})
+    await tx.toko.deleteMany({})
     await tx.sales.deleteMany({})
     await tx.rokok.deleteMany({})
 
@@ -56,14 +56,14 @@ async function main() {
 
     // ─── Rokok ────────────────────────────────────────────────────────────────
     const rokokData = [
-      { nama: "Gudang Garam Surya 12", harga_beli: 20000, harga_grosir: 22000, harga_retail: 23000, harga_perorangan: 25000, urutan: 1, stok_awal: 1000 },
-      { nama: "Sampoerna A Mild 16",   harga_beli: 22000, harga_grosir: 24500, harga_retail: 25500, harga_perorangan: 27500, urutan: 2, stok_awal: 800  },
-      { nama: "Dji Sam Soe 234",       harga_beli: 25000, harga_grosir: 27500, harga_retail: 28500, harga_perorangan: 30000, urutan: 3, stok_awal: 500  },
-      { nama: "Marlboro Merah",        harga_beli: 29000, harga_grosir: 31000, harga_retail: 32500, harga_perorangan: 35000, urutan: 4, stok_awal: 400  },
-      { nama: "LA Bold",               harga_beli: 19500, harga_grosir: 21500, harga_retail: 22500, harga_perorangan: 24500, urutan: 5, stok_awal: 600  },
-      { nama: "Gudang Garam Merah",    harga_beli: 17500, harga_grosir: 19500, harga_retail: 20500, harga_perorangan: 22500, urutan: 6, stok_awal: 1200 },
-      { nama: "Camel Filter",          harga_beli: 24000, harga_grosir: 26000, harga_retail: 27000, harga_perorangan: 29000, urutan: 7, stok_awal: 300  },
-      { nama: "Dunhill Filter",        harga_beli: 26000, harga_grosir: 28000, harga_retail: 29500, harga_perorangan: 32000, urutan: 8, stok_awal: 350  },
+      { nama: "Gudang Garam Surya 12", harga_beli: 20000, harga_grosir: 22000, harga_toko: 23000, harga_perorangan: 25000, urutan: 1, stok_awal: 1000 },
+      { nama: "Sampoerna A Mild 16",   harga_beli: 22000, harga_grosir: 24500, harga_toko: 25500, harga_perorangan: 27500, urutan: 2, stok_awal: 800  },
+      { nama: "Dji Sam Soe 234",       harga_beli: 25000, harga_grosir: 27500, harga_toko: 28500, harga_perorangan: 30000, urutan: 3, stok_awal: 500  },
+      { nama: "Marlboro Merah",        harga_beli: 29000, harga_grosir: 31000, harga_toko: 32500, harga_perorangan: 35000, urutan: 4, stok_awal: 400  },
+      { nama: "LA Bold",               harga_beli: 19500, harga_grosir: 21500, harga_toko: 22500, harga_perorangan: 24500, urutan: 5, stok_awal: 600  },
+      { nama: "Gudang Garam Merah",    harga_beli: 17500, harga_grosir: 19500, harga_toko: 20500, harga_perorangan: 22500, urutan: 6, stok_awal: 1200 },
+      { nama: "Camel Filter",          harga_beli: 24000, harga_grosir: 26000, harga_toko: 27000, harga_perorangan: 29000, urutan: 7, stok_awal: 300  },
+      { nama: "Dunhill Filter",        harga_beli: 26000, harga_grosir: 28000, harga_toko: 29500, harga_perorangan: 32000, urutan: 8, stok_awal: 350  },
     ]
 
     const rokok = {}
@@ -71,7 +71,7 @@ async function main() {
       const item = await tx.rokok.create({
         data: {
           nama: r.nama, harga_beli: r.harga_beli, harga_grosir: r.harga_grosir,
-          harga_retail: r.harga_retail, harga_perorangan: r.harga_perorangan,
+          harga_toko: r.harga_toko, harga_perorangan: r.harga_perorangan,
           urutan: r.urutan, stok: 0,
         },
       })
@@ -128,17 +128,17 @@ async function main() {
       salesMap[nama] = await tx.sales.create({ data: { nama, no_hp } })
     }
 
-    // ─── Retail ───────────────────────────────────────────────────────────────
-    const retailMap = {}
+    // ─── Toko ────────────────────────────────────────────────────────────────
+    const tokoMap = {}
     for (const t of [
-      { nama: "Toko Berkah",       alamat: "Jl. Merdeka No. 10",     kategori: "retail" },
+      { nama: "Toko Berkah",       alamat: "Jl. Merdeka No. 10",     kategori: "toko" },
       { nama: "Grosir Jaya",       alamat: "Pasar Baru Blok A-12",   kategori: "grosir" },
-      { nama: "Warung Bu Siti",    alamat: "Jl. Mawar No. 5",        kategori: "retail" },
-      { nama: "Minimarket Almaz",  alamat: "Jl. Almaz Raya No. 1",   kategori: "retail" },
-      { nama: "Toko Murah Meriah", alamat: "Jl. Pahlawan No. 22",    kategori: "retail" },
+      { nama: "Warung Bu Siti",    alamat: "Jl. Mawar No. 5",        kategori: "toko" },
+      { nama: "Minimarket Almaz",  alamat: "Jl. Almaz Raya No. 1",   kategori: "toko" },
+      { nama: "Toko Murah Meriah", alamat: "Jl. Pahlawan No. 22",    kategori: "toko" },
       { nama: "Grosir Sentral",    alamat: "Pasar Induk Blok D-3",   kategori: "grosir" },
     ]) {
-      retailMap[t.nama] = await tx.retail.create({ data: t })
+      tokoMap[t.nama] = await tx.toko.create({ data: t })
     }
 
     // ─── Absensi (Apr 18 – May 1, 5 sales) ───────────────────────────────────
@@ -269,7 +269,7 @@ async function main() {
     const s1 = await buatSesiSelesai({
       tgl: "2026-04-18", salesNama: "Budi Santoso",
       keluar:    [{ nama: "Gudang Garam Surya 12", qty: 80  }, { nama: "Gudang Garam Merah", qty: 100 }],
-      penjualan: [{ nama: "Gudang Garam Surya 12", kategori: "retail", qty: 75, harga: 23000 },
+      penjualan: [{ nama: "Gudang Garam Surya 12", kategori: "toko", qty: 75, harga: 23000 },
                   { nama: "Gudang Garam Merah",    kategori: "grosir", qty: 95, harga: 19500 }],
       kembali:   [{ nama: "Gudang Garam Surya 12", qty: 5 }, { nama: "Gudang Garam Merah", qty: 5 }],
       setoran:   [{ metode: "cash", jumlah: 75 * 23000 + 95 * 19500 }],
@@ -279,8 +279,8 @@ async function main() {
     const s2 = await buatSesiSelesai({
       tgl: "2026-04-19", salesNama: "Agus Prasetyo",
       keluar:    [{ nama: "Sampoerna A Mild 16", qty: 60 }, { nama: "LA Bold", qty: 50 }],
-      penjualan: [{ nama: "Sampoerna A Mild 16", kategori: "retail", qty: 55, harga: 25500 },
-                  { nama: "LA Bold",             kategori: "retail", qty: 45, harga: 22500 }],
+      penjualan: [{ nama: "Sampoerna A Mild 16", kategori: "toko", qty: 55, harga: 25500 },
+                  { nama: "LA Bold",             kategori: "toko", qty: 45, harga: 22500 }],
       kembali:   [{ nama: "Sampoerna A Mild 16", qty: 5 }, { nama: "LA Bold", qty: 5 }],
       setoran:   [{ metode: "transfer", jumlah: 55 * 25500 + 45 * 22500 }],
     })
@@ -300,7 +300,7 @@ async function main() {
       tgl: "2026-04-22", salesNama: "Hendra Kusuma",
       keluar:    [{ nama: "Gudang Garam Surya 12", qty: 100 }, { nama: "Camel Filter", qty: 30 }],
       penjualan: [{ nama: "Gudang Garam Surya 12", kategori: "grosir", qty: 92, harga: 22000 },
-                  { nama: "Camel Filter",          kategori: "retail", qty: 25, harga: 27000 }],
+                  { nama: "Camel Filter",          kategori: "toko", qty: 25, harga: 27000 }],
       kembali:   [{ nama: "Gudang Garam Surya 12", qty: 8 }, { nama: "Camel Filter", qty: 5 }],
       setoran:   [{ metode: "cash", jumlah: 1619400 }, { metode: "transfer", jumlah: 1079600 }],
     })
@@ -310,7 +310,7 @@ async function main() {
       tgl: "2026-04-24", salesNama: "Budi Santoso",
       keluar:    [{ nama: "Gudang Garam Merah", qty: 120 }, { nama: "Sampoerna A Mild 16", qty: 50 }],
       penjualan: [{ nama: "Gudang Garam Merah", kategori: "grosir", qty: 110, harga: 19500 },
-                  { nama: "Sampoerna A Mild 16", kategori: "retail", qty: 48,  harga: 25500 }],
+                  { nama: "Sampoerna A Mild 16", kategori: "toko", qty: 48,  harga: 25500 }],
       kembali:   [{ nama: "Gudang Garam Merah", qty: 10 }, { nama: "Sampoerna A Mild 16", qty: 2 }],
       setoran:   [{ metode: "transfer", jumlah: 110 * 19500 + 48 * 25500 }],
     })
@@ -320,7 +320,7 @@ async function main() {
       tgl: "2026-04-26", salesNama: "Agus Prasetyo",
       keluar:    [{ nama: "Dunhill Filter", qty: 40 }, { nama: "Marlboro Merah", qty: 30 }],
       penjualan: [{ nama: "Dunhill Filter", kategori: "perorangan", qty: 36, harga: 32000 },
-                  { nama: "Marlboro Merah", kategori: "retail",     qty: 27, harga: 32500 }],
+                  { nama: "Marlboro Merah", kategori: "toko",     qty: 27, harga: 32500 }],
       kembali:   [{ nama: "Dunhill Filter", qty: 4 }, { nama: "Marlboro Merah", qty: 3 }],
       setoran:   [{ metode: "cash", jumlah: 36 * 32000 + 27 * 32500 }],
     })
@@ -329,8 +329,8 @@ async function main() {
     const s7 = await buatSesiSelesai({
       tgl: "2026-04-28", salesNama: "Siti Rahayu",
       keluar:    [{ nama: "LA Bold", qty: 60 }, { nama: "Gudang Garam Surya 12", qty: 70 }],
-      penjualan: [{ nama: "LA Bold",              kategori: "retail", qty: 55, harga: 22500 },
-                  { nama: "Gudang Garam Surya 12", kategori: "retail", qty: 65, harga: 23000 }],
+      penjualan: [{ nama: "LA Bold",              kategori: "toko", qty: 55, harga: 22500 },
+                  { nama: "Gudang Garam Surya 12", kategori: "toko", qty: 65, harga: 23000 }],
       kembali:   [{ nama: "LA Bold", qty: 5 }, { nama: "Gudang Garam Surya 12", qty: 5 }],
       setoran:   [{ metode: "cash", jumlah: 55 * 22500 + 65 * 23000 }],
     })
@@ -373,7 +373,7 @@ async function main() {
     const tj1 = await tx.titipJual.create({
       data: {
         sesi_id: s1.id, sales_id: salesMap["Budi Santoso"].id,
-        retail_id: retailMap["Toko Berkah"].id, kategori: "retail",
+        toko_id: tokoMap["Toko Berkah"].id, kategori: "toko",
         tanggal_jatuh_tempo: new Date("2026-04-25"),
         tanggal_selesai:     new Date("2026-04-22"),
         status: "selesai",
@@ -388,7 +388,7 @@ async function main() {
     const tj2 = await tx.titipJual.create({
       data: {
         sesi_id: s3.id, sales_id: salesMap["Siti Rahayu"].id,
-        retail_id: retailMap["Grosir Jaya"].id, kategori: "grosir",
+        toko_id: tokoMap["Grosir Jaya"].id, kategori: "grosir",
         tanggal_jatuh_tempo: new Date("2026-04-30"),
         tanggal_selesai:     new Date("2026-04-28"),
         status: "selesai",
@@ -408,7 +408,7 @@ async function main() {
     const tj3 = await tx.titipJual.create({
       data: {
         sesi_id: s6.id, sales_id: salesMap["Agus Prasetyo"].id,
-        retail_id: retailMap["Grosir Sentral"].id, kategori: "grosir",
+        toko_id: tokoMap["Grosir Sentral"].id, kategori: "grosir",
         tanggal_jatuh_tempo: new Date("2026-05-05"),
         status: "aktif",
         items: { create: [{ rokok_id: rokok["Marlboro Merah"].id, qty_keluar: 20, harga: 31000 }] },
@@ -420,7 +420,7 @@ async function main() {
     const tj4 = await tx.titipJual.create({
       data: {
         sesi_id: s7.id, sales_id: salesMap["Siti Rahayu"].id,
-        retail_id: retailMap["Minimarket Almaz"].id, kategori: "retail",
+        toko_id: tokoMap["Minimarket Almaz"].id, kategori: "toko",
         tanggal_jatuh_tempo: new Date("2026-05-01"),
         status: "aktif",
         items: { create: [{ rokok_id: rokok["LA Bold"].id, qty_keluar: 15, harga: 22500 }] },
@@ -432,7 +432,7 @@ async function main() {
     const tj5 = await tx.titipJual.create({
       data: {
         sesi_id: s5.id, sales_id: salesMap["Budi Santoso"].id,
-        retail_id: retailMap["Warung Bu Siti"].id, kategori: "retail",
+        toko_id: tokoMap["Warung Bu Siti"].id, kategori: "toko",
         tanggal_jatuh_tempo: new Date("2026-04-28"),
         status: "aktif",
         catatan: "Pemilik toko minta perpanjangan, belum ada kabar",
@@ -459,8 +459,8 @@ async function main() {
           change_type: "Harga Retail & Perorangan",
           entity_id:   rokok["Dji Sam Soe 234"].id,
           action:      "UPDATE",
-          old_values:  { harga_retail: 28000, harga_perorangan: 29500 },
-          new_values:  { harga_retail: 28500, harga_perorangan: 30000 },
+          old_values:  { harga_toko: 28000, harga_perorangan: 29500 },
+          new_values:  { harga_toko: 28500, harga_perorangan: 30000 },
           alasan:      "Penyesuaian harga sesuai kenaikan harga dari supplier",
           user_id:     superadmin.id,
           user_name:   superadmin.name,
@@ -532,7 +532,7 @@ async function main() {
   console.log("✅ Seed data berhasil dibuat!")
   console.log("   Users   : 5 (2 superadmin/admin, 3 staff)")
   console.log("   Rokok   : 8 jenis")
-  console.log("   Sales   : 5 orang | Retail: 6")
+  console.log("   Sales   : 5 orang | Toko: 6")
   console.log("   Distribusi: 7 selesai, 2 aktif")
   console.log("   Titip Jual: 2 selesai, 3 aktif (1 hari ini, 1 overdue)")
   console.log("   Pengeluaran: 10 | Retur: 5 | Audit Log: 6")

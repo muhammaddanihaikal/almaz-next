@@ -164,6 +164,7 @@ model TitipJual {
   tanggal_jatuh_tempo DateTime  @db.Date
   tanggal_selesai     DateTime? @db.Date
   status              String    @default("aktif") // "aktif" | "selesai"
+  flag_selisih_setoran Boolean   @default(false)
   catatan             String?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt

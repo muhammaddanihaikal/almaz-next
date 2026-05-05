@@ -7,7 +7,7 @@ import { SelectInput, inputCls, IconButton, MoneyInput, Field, Button } from "@/
 
 const KATEGORI_COLOR = {
   grosir: "bg-violet-100 text-violet-700",
-  retail: "bg-blue-100 text-blue-700",
+  toko: "bg-blue-100 text-blue-700",
 }
 
 function Badge({ label, colorClass }) {
@@ -85,7 +85,7 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
       {/* Info */}
       <div className="grid grid-cols-2 gap-3 text-xs">
         <div><p className="text-neutral-500">Sales</p><p className="font-medium">{konsinyasi.sales}</p></div>
-        <div><p className="text-neutral-500">Retail</p><p className="font-medium">{konsinyasi.nama_retail}</p></div>
+        <div><p className="text-neutral-500">Toko</p><p className="font-medium">{konsinyasi.nama_toko}</p></div>
         <div>
           <p className="text-neutral-500">Jatuh Tempo</p>
           <p className={`font-medium ${konsinyasi.selisihHari <= 0 ? "text-red-600" : ""}`}>
