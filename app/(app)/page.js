@@ -7,6 +7,10 @@ import DashboardPage from "@/components/pages/DashboardPage"
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 
+export const metadata = {
+  title: "Dashboard",
+}
+
 export default async function Page() {
   const [sesiList, titipJualList, titipJualJatuhTempo, rokokList, pengeluaranList] = await Promise.all([
     getSesiList(),

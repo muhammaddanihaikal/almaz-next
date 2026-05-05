@@ -193,6 +193,9 @@ export async function deleteTitipJual(id, alasan) {
     const k = await tx.titipJual.findUnique({ where: { id }, include: { items: { include: { rokok: true } }, retail: true, sales: true } })
     if (k.status !== "aktif") throw new Error("Hanya titip jual aktif yang bisa dihapus")
 
+    const sesi    = await tx.sesiHarian.findUnique({ where: { id: k.sesi_id }, select: { tanggal: true } })
+    const tanggal = sesi?.tanggal || k.createdAt
+
     await logAudit({
       tx,
       entity_type: AUDIT_ENTITY.TITIP_JUAL,
@@ -212,17 +215,20 @@ export async function deleteTitipJual(id, alasan) {
     })
 
     for (const it of k.items) {
-      await mutateStock({
-        tx,
-        rokok_id: it.rokok_id,
-        tanggal: k.createdAt,
-        jenis: 'in',
-        qty: it.qty_keluar,
-        source: MUTATION_SOURCE.REVERT,
-        reference_id: id,
-        keterangan: "Revert titip jual keluar (delete)",
-        user_id: session?.user?.id
-      })
+      if (it.qty_keluar > 0) {
+        await mutateStock({
+          tx,
+          rokok_id: it.rokok_id,
+          tanggal,
+          jenis: 'in',
+          qty: it.qty_keluar,
+          source: MUTATION_SOURCE.REVERT,
+          reference_id: id,
+          keterangan: "Revert titip jual keluar (delete)",
+          user_id: session?.user?.id,
+          allowNegative: true,
+        })
+      }
     }
     await tx.titipJual.delete({ where: { id } })
   })
@@ -240,6 +246,9 @@ export async function createTitipJual(sesiId, salesId, k) {
 
   const session = await auth()
   const result = await prisma.$transaction(async (tx) => {
+    const sesi    = await tx.sesiHarian.findUnique({ where: { id: sesiId }, select: { tanggal: true } })
+    const tanggal = sesi?.tanggal || new Date()
+
     const created = await tx.titipJual.create({
       data: {
         sesi_id:             sesiId,
@@ -260,6 +269,22 @@ export async function createTitipJual(sesiId, salesId, k) {
       },
       include,
     })
+
+    for (const it of created.items) {
+      if (it.qty_keluar > 0) {
+        await mutateStock({
+          tx,
+          rokok_id: it.rokok_id,
+          tanggal,
+          jenis:    'out',
+          qty:      it.qty_keluar,
+          source:   MUTATION_SOURCE.KONSINYASI_KELUAR,
+          reference_id: created.id,
+          user_id:  session?.user?.id,
+        })
+      }
+    }
+
     await logAudit({
       tx,
       entity_type: AUDIT_ENTITY.TITIP_JUAL,

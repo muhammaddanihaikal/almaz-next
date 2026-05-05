@@ -478,16 +478,37 @@ export function Card({ title, subtitle, action, children }) {
   )
 }
 
-export function KpiCard({ icon: Icon, label, value }) {
+export function KpiCard({ icon: Icon, label, value, tooltipData }) {
+  const [show, setShow] = useState(false)
   return (
-    <div className="rounded-xl border border-neutral-200 bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+    <div 
+      className="relative rounded-xl border border-neutral-200 bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all hover:border-neutral-300 hover:shadow-md"
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+    >
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium uppercase tracking-wide text-neutral-500">{label}</span>
         <div className="flex h-8 w-8 items-center justify-center rounded-md bg-neutral-100 text-neutral-700">
           <Icon className="h-4 w-4" strokeWidth={2} />
         </div>
       </div>
-      <div className="mt-3 text-xl font-semibold tracking-tight">{value}</div>
+      <div className="mt-3 text-xl font-semibold tracking-tight text-neutral-900">{value}</div>
+      
+      {show && tooltipData && tooltipData.length > 0 && (
+        <div className="absolute left-0 top-full z-[110] mt-2 w-full min-w-[220px] overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-2xl ring-1 ring-black/5 animate-in fade-in slide-in-from-top-1">
+          <div className="bg-neutral-900 px-3.5 py-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-white/70">Rincian Per Produk</span>
+          </div>
+          <div className="max-h-60 overflow-y-auto py-1">
+            {tooltipData.map((item, i) => (
+              <div key={i} className="flex items-center justify-between px-3.5 py-1.5 text-xs transition hover:bg-neutral-50">
+                <span className="text-neutral-500 truncate mr-4">{item.label}</span>
+                <span className="font-bold text-neutral-900 shrink-0">{item.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

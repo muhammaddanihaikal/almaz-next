@@ -9,12 +9,13 @@ import { Card, PageHeader, SelectInput, Field, FormActions, inputCls, useConfirm
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
 import SettlementForm from "@/components/SettlementForm"
+import RokokItemsTooltip from "@/components/RokokItemsTooltip"
 
 const PAGE_SIZE = 10
 
 const KATEGORI_COLOR = {
   grosir: "bg-violet-100 text-violet-700",
-  retail: "bg-blue-100 text-blue-700",
+  toko:   "bg-blue-100 text-blue-700",
 }
 
 const STATUS_COLOR = {
@@ -47,15 +48,14 @@ function TabButton({ active, onClick, children }) {
   )
 }
 
-export default function KonsinyasiPage({ titipJualList, salesList }) {
+export default function KonsinyasiPage({ role, titipJualList, salesList }) {
   const konsinyasiList = titipJualList
   const router = useRouter()
   const [activeTab,    setActiveTab]    = useState("aktif")
   const [search,       setSearch]       = useState("")
   const [salesFilter,  setSalesFilter]  = useState("")
-  const [statusAktifFilter,   setStatusAktifFilter]   = useState("")
-  const [statusSelesaiFilter, setStatusSelesaiFilter] = useState("")
-  const [dateRange, setDateRange] = useState(defaultDateRange("semua"))
+  const [statusAktifFilter, setStatusAktifFilter] = useState("")
+  const [dateRange, setDateRange] = useState(defaultDateRange("minggu_ini"))
   const [expandedHariIni, setExpandedHariIni] = useState(false)
   const [expandedSegera,  setExpandedSegera]  = useState(false)
   const { confirmWithReason, ConfirmWithReasonModal } = useConfirmWithReason()
@@ -67,38 +67,50 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
   const jatuhTempoHariIni = konsinyasiList.filter((k) => k.status === "aktif" && k.selisihHari <= 0)
   const jatuhTempoSegera  = konsinyasiList.filter((k) => k.status === "aktif" && k.selisihHari > 0 && k.selisihHari <= 3)
 
-  const rows = useMemo(() => {
-    let filtered = konsinyasiList.filter((r) => r.status === activeTab)
+  const { rows, countAktif, countSelesai } = useMemo(() => {
+    const listAktif   = konsinyasiList.filter(r => r.status === "aktif")
+    const listSelesai = konsinyasiList.filter(r => r.status === "selesai")
 
-    if (activeTab === "aktif" && statusAktifFilter) {
-      if (statusAktifFilter === "terlewat") filtered = filtered.filter(r => r.selisihHari < 0)
-      else if (statusAktifFilter === "hari_ini") filtered = filtered.filter(r => r.selisihHari === 0)
-      else if (statusAktifFilter === "segera") filtered = filtered.filter(r => r.selisihHari > 0 && r.selisihHari <= 3)
-      else if (statusAktifFilter === "aman") filtered = filtered.filter(r => r.selisihHari > 3)
-    }
-    if (activeTab === "selesai" && statusSelesaiFilter === "selisih") {
-      filtered = filtered.filter(r => r.flag_selisih_setoran)
+    // Apply filters to Aktif
+    let filteredAktif = [...listAktif]
+    if (statusAktifFilter) {
+      if (statusAktifFilter === "terlewat") filteredAktif = filteredAktif.filter(r => r.selisihHari < 0)
+      else if (statusAktifFilter === "hari_ini") filteredAktif = filteredAktif.filter(r => r.selisihHari === 0)
+      else if (statusAktifFilter === "segera") filteredAktif = filteredAktif.filter(r => r.selisihHari > 0 && r.selisihHari <= 3)
+      else if (statusAktifFilter === "aman") filteredAktif = filteredAktif.filter(r => r.selisihHari > 3)
     }
 
+    // Apply filters to Selesai (always respect date)
+    let filteredSelesai = [...listSelesai]
     if (dateRange?.start && dateRange?.end) {
-      filtered = filtered.filter((r) => {
-        const tgl = r.tanggal_jatuh_tempo
+      filteredSelesai = filteredSelesai.filter((r) => {
+        const tgl = r.tanggal_selesai || r.tanggal_jatuh_tempo
         return tgl >= dateRange.start && tgl <= dateRange.end
       })
     }
 
-    if (salesFilter) filtered = filtered.filter((r) => r.sales_id === salesFilter)
-    if (search.trim()) {
-      const q = search.trim().toLowerCase()
-      filtered = filtered.filter(
-        (r) => r.sales.toLowerCase().includes(q) || r.nama_retail.toLowerCase().includes(q)
-      )
+    // Common filters (sales & search)
+    const applyCommonFilters = (items) => {
+      let temp = [...items]
+      if (salesFilter) temp = temp.filter((r) => r.sales_id === salesFilter)
+      if (search.trim()) {
+        const q = search.trim().toLowerCase()
+        temp = temp.filter(
+          (r) => r.sales.toLowerCase().includes(q) || r.nama_toko.toLowerCase().includes(q)
+        )
+      }
+      return temp
     }
-    return filtered
-  }, [konsinyasiList, activeTab, salesFilter, search, statusAktifFilter, dateRange])
 
-  const countAktif   = konsinyasiList.filter((r) => r.status === "aktif").length
-  const countSelesai = konsinyasiList.filter((r) => r.status === "selesai").length
+    const finalAktif   = applyCommonFilters(filteredAktif)
+    const finalSelesai = applyCommonFilters(filteredSelesai)
+
+    return {
+      rows: activeTab === "aktif" ? finalAktif : finalSelesai,
+      countAktif: finalAktif.length,
+      countSelesai: finalSelesai.length
+    }
+  }, [konsinyasiList, activeTab, salesFilter, search, statusAktifFilter, dateRange])
 
   return (
     <div className="space-y-6">
@@ -129,7 +141,7 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
             <div className="border-t border-red-200 p-4 space-y-1">
               {jatuhTempoHariIni.map((k) => (
                 <div key={k.id} className="flex items-center justify-between text-xs text-red-600">
-                  <span>{k.sales} → {k.nama_retail} ({k.kategori})</span>
+                  <span>{k.sales} → {k.nama_toko} ({k.kategori})</span>
                   <span>{fmtIDR(k.nilaiTotal)}</span>
                 </div>
               ))}
@@ -160,7 +172,7 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
             <div className="border-t border-amber-200 p-4 space-y-1">
               {jatuhTempoSegera.map((k) => (
                 <div key={k.id} className="flex items-center justify-between text-xs text-amber-600">
-                  <span>{k.sales} → {k.nama_retail} ({k.kategori}) — {k.selisihHari} hari lagi</span>
+                  <span>{k.sales} → {k.nama_toko} ({k.kategori}) — {k.selisihHari} hari lagi</span>
                   <span>{fmtIDR(k.nilaiTotal)}</span>
                 </div>
               ))}
@@ -169,82 +181,84 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
         </div>
       )}
 
-      <Card>
-        {/* Tabs */}
-        <div className="flex border-b border-neutral-200 -mx-4 -mt-4 px-4 mb-4">
-          <TabButton active={activeTab === "aktif"} onClick={() => setActiveTab("aktif")}>
-            Aktif <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-yellow-500 px-1 text-xs text-white">{countAktif}</span>
-          </TabButton>
-          <TabButton active={activeTab === "selesai"} onClick={() => setActiveTab("selesai")}>
-            Selesai <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-green-600 px-1 text-xs text-white">{countSelesai}</span>
-          </TabButton>
-        </div>
-
-        {/* Filter bar */}
-        <div className="flex flex-col gap-3 mb-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-400 pointer-events-none" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Cari sales atau toko..."
-                className={inputCls + " pl-8 text-sm"}
-              />
-            </div>
-            <div className="w-full sm:w-44 shrink-0">
-              <SelectInput value={salesFilter} onChange={(e) => setSalesFilter(e.target.value)}>
-                <option value="">Semua Sales</option>
-                {salesList.map((s) => (
-                  <option key={s.id} value={s.id}>{s.nama}</option>
-                ))}
-              </SelectInput>
-            </div>
-          </div>
-          
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center bg-neutral-50/50 p-3 rounded-lg border border-neutral-100">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-              <label className="text-sm font-medium text-neutral-600 shrink-0">Jatuh Tempo:</label>
+      <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] space-y-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-4">
+          <Field label="Jatuh Tempo" className="flex-1">
+            <div className="w-full">
               <DateFilter value={dateRange} onChange={setDateRange} />
             </div>
-            
-            {activeTab === "aktif" && (
-              <>
-                <div className="hidden sm:block w-px h-6 bg-neutral-200 mx-2"></div>
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-                  <label className="text-sm font-medium text-neutral-600 shrink-0">Status:</label>
-                  <div className="w-full sm:w-56 shrink-0">
-                    <SelectInput value={statusAktifFilter} onChange={(e) => setStatusAktifFilter(e.target.value)}>
-                      <option value="">Semua Status Aktif</option>
-                      <option value="terlewat">Terlewat</option>
-                      <option value="hari_ini">Hari Ini</option>
-                      <option value="segera">Segera (1-3 Hari)</option>
-                      <option value="aman">Aman (&gt;3 Hari)</option>
-                    </SelectInput>
-                  </div>
-                </div>
-              </>
-            )}
-            {activeTab === "selesai" && (
-              <>
-                <div className="hidden sm:block w-px h-6 bg-neutral-200 mx-2"></div>
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-                  <label className="text-sm font-medium text-neutral-600 shrink-0">Filter:</label>
-                  <div className="w-full sm:w-56 shrink-0">
-                    <SelectInput value={statusSelesaiFilter} onChange={(e) => setStatusSelesaiFilter(e.target.value)}>
-                      <option value="">Semua Selesai</option>
-                      <option value="selisih">Ada Selisih Setoran</option>
-                    </SelectInput>
-                  </div>
-                </div>
-              </>
-            )}
+          </Field>
+
+          <Field label="Sales" className="flex-1">
+            <SelectInput value={salesFilter} onChange={(e) => setSalesFilter(e.target.value)}>
+              <option value="">Semua Sales</option>
+              {salesList.map((s) => (
+                <option key={s.id} value={s.id}>{s.nama}</option>
+              ))}
+            </SelectInput>
+          </Field>
+
+          {activeTab === "aktif" && (
+            <Field label="Status" className="flex-1">
+              <SelectInput value={statusAktifFilter} onChange={(e) => setStatusAktifFilter(e.target.value)}>
+                <option value="">Semua Status Aktif</option>
+                <option value="terlewat">Terlewat</option>
+                <option value="hari_ini">Hari Ini</option>
+                <option value="segera">Segera (1-3 Hari)</option>
+                <option value="aman">Aman (&gt;3 Hari)</option>
+              </SelectInput>
+            </Field>
+          )}
+        </div>
+
+        <Field label="Cari" className="w-full">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 pointer-events-none" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Cari sales atau toko..."
+              className={inputCls + " pl-9 w-full"}
+            />
           </div>
+        </Field>
+      </div>
+
+      <Card>
+
+        {/* Tabs */}
+        <div className="flex border-b border-neutral-200">
+          <button
+            onClick={() => setActiveTab("aktif")}
+            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 flex items-center gap-2 ${
+              activeTab === "aktif"
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-neutral-500 hover:text-neutral-700"
+            }`}
+          >
+            Aktif
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-yellow-500 px-1.5 text-xs font-semibold text-white">
+              {countAktif}
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab("selesai")}
+            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 flex items-center gap-2 ${
+              activeTab === "selesai"
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-neutral-500 hover:text-neutral-700"
+            }`}
+          >
+            Selesai
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-green-600 px-1.5 text-xs font-semibold text-white">
+              {countSelesai}
+            </span>
+          </button>
         </div>
 
         <DataTable
-          key={`${activeTab}-${salesFilter}-${search}-${statusAktifFilter}-${statusSelesaiFilter}-${dateRange?.start}-${dateRange?.end}`}
+          key={`${activeTab}-${salesFilter}-${search}-${statusAktifFilter}-${dateRange?.start}-${dateRange?.end}`}
           pageSize={PAGE_SIZE}
           rows={rows}
           empty={`Tidak ada titip jual ${activeTab}.`}
@@ -256,17 +270,11 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
               </span>
             )},
             { key: "sales",      label: "Sales",        render: (r) => r.sales },
-            { key: "nama_retail",  label: "Retail",         render: (r) => r.nama_retail },
+            { key: "nama_toko",  label: "Toko",         render: (r) => r.nama_toko },
             { key: "kategori",   label: "Kategori",     render: (r) => <Badge label={r.kategori} colorClass={KATEGORI_COLOR[r.kategori] || "bg-neutral-100 text-neutral-600"} /> },
             {
               key: "items", label: "Rokok",
-              render: (r) => (
-                <div className="space-y-0.5">
-                  {r.items.map((it, i) => (
-                    <div key={i} className="text-xs text-neutral-700">{it.rokok} ×{it.qty_keluar}</div>
-                  ))}
-                </div>
-              ),
+              render: (r) => <RokokItemsTooltip items={r.items.map(it => ({ ...it, qty: it.qty_keluar }))} />,
             },
             { key: "nilai", label: "Nilai", align: "right", render: (r) => fmtIDR(r.nilaiTotal) },
             { key: "tgl_selesai", label: "Tgl Selesai", render: (r) => r.tanggal_selesai ? <span className="text-green-700 font-medium">{fmtTanggal(r.tanggal_selesai)}</span> : <span className="text-neutral-300">—</span> },
@@ -288,35 +296,49 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
                 <div className="flex items-center justify-end gap-1.5">
                   {r.status === "aktif" && (
                     <>
+                      {role !== "staff" && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setSettling(r)}
+                          className="border border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
+                        >
+                          Selesaikan
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => setSettling(r)}
-                        className="border border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
-                      >
-                        Selesaikan
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setEditingDetail(r)}
+                        onClick={() => setDetail(r)}
                         className="border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
                       >
-                        Edit
+                        Detail
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={async () => {
-                          const alasan = await confirmWithReason(`Hapus titip jual "${r.nama_retail}"? Stok akan dikembalikan.`, { title: "Hapus Titip Jual", variant: "danger", confirmLabel: "Ya, Hapus" })
-                          if (!alasan) return
-                          await deleteTitipJual(r.id, alasan)
-                          router.refresh()
-                        }}
-                        className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-                      >
-                        Hapus
-                      </Button>
+                      {role !== "staff" && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setEditingDetail(r)}
+                            className="border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={async () => {
+                              const alasan = await confirmWithReason(`Hapus titip jual "${r.nama_toko}"? Stok akan dikembalikan.`, { title: "Hapus Titip Jual", variant: "danger", confirmLabel: "Ya, Hapus" })
+                              if (!alasan) return
+                              await deleteTitipJual(r.id, alasan)
+                              router.refresh()
+                            }}
+                            className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                          >
+                            Hapus
+                          </Button>
+                        </>
+                      )}
                     </>
                   )}
                   {r.status === "selesai" && (
@@ -324,33 +346,38 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => setEditingSettlement(r)}
+                        onClick={() => setDetail(r)}
                         className="border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
                       >
-                        Edit
+                        Detail
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={async () => {
-                          const alasan = await confirmWithReason(`Batalkan penyelesaian titip jual "${r.nama_retail}"? Status akan kembali ke Aktif.`, { title: "Batalkan Penyelesaian", variant: "danger", confirmLabel: "Ya, Batalkan" })
-                          if (!alasan) return
-                          await revertSettlement(r.id, alasan)
-                          router.refresh()
-                        }}
-                        className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-                      >
-                        Batalkan
-                      </Button>
+                      {role !== "staff" && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setEditingSettlement(r)}
+                            className="border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={async () => {
+                              const alasan = await confirmWithReason(`Batalkan penyelesaian titip jual "${r.nama_toko}"? Status akan kembali ke Aktif.`, { title: "Batalkan Penyelesaian", variant: "danger", confirmLabel: "Ya, Batalkan" })
+                              if (!alasan) return
+                              await revertSettlement(r.id, alasan)
+                              router.refresh()
+                            }}
+                            className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                          >
+                            Batalkan
+                          </Button>
+                        </>
+                      )}
                     </>
                   )}
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => setDetail(r)}
-                  >
-                    Detail
-                  </Button>
                 </div>
               ),
             },
@@ -360,14 +387,14 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
 
       {/* Detail Modal */}
       {detail && (
-        <Modal title={`Detail Titip Jual — ${detail.nama_retail}`} onClose={() => setDetail(null)} width="max-w-2xl">
+        <Modal title={`Detail Titip Jual — ${detail.nama_toko}`} onClose={() => setDetail(null)} width="max-w-2xl">
           <KonsinyasiDetail record={detail} />
         </Modal>
       )}
 
       {/* Settlement Modal */}
       {settling && (
-        <Modal title={`Selesaikan Titip Jual — ${settling.nama_retail}`} onClose={() => setSettling(null)} width="max-w-2xl">
+        <Modal title={`Selesaikan Titip Jual — ${settling.nama_toko}`} onClose={() => setSettling(null)} width="max-w-2xl">
           <SettlementForm
             konsinyasi={settling}
             onSubmit={async (data) => {
@@ -382,13 +409,13 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
 
       {/* Edit Detail Modal (untuk aktif) */}
       {editingDetail && (
-        <Modal title={`Edit Titip Jual — ${editingDetail.nama_retail}`} onClose={() => setEditingDetail(null)} width="max-w-md">
+        <Modal title={`Edit Titip Jual — ${editingDetail.nama_toko}`} onClose={() => setEditingDetail(null)} width="max-w-md">
           <KonsinyasiDetailForm
             record={editingDetail}
             onSubmit={async (data) => {
               const captured = editingDetail
               setEditingDetail(null)
-              const alasan = await confirmWithReason(`Edit detail titip jual "${captured.nama_retail}"?`, { title: "Edit Titip Jual", confirmLabel: "Ya, Simpan" })
+              const alasan = await confirmWithReason(`Edit detail titip jual "${captured.nama_toko}"?`, { title: "Edit Titip Jual", confirmLabel: "Ya, Simpan" })
               if (!alasan) return
               await editTitipJualDetail(captured.id, data, alasan)
               router.refresh()
@@ -400,14 +427,14 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
 
       {/* Edit Settlement Modal */}
       {editingSettlement && (
-        <Modal title={`Edit Penyelesaian — ${editingSettlement.nama_retail}`} onClose={() => setEditingSettlement(null)} width="max-w-2xl">
+        <Modal title={`Edit Penyelesaian — ${editingSettlement.nama_toko}`} onClose={() => setEditingSettlement(null)} width="max-w-2xl">
           <SettlementForm
             konsinyasi={editingSettlement}
             initialSetoran={editingSettlement.setoran}
             onSubmit={async (data) => {
               const captured = editingSettlement
               setEditingSettlement(null)
-              const alasan = await confirmWithReason(`Edit penyelesaian titip jual "${captured.nama_retail}"?`, { title: "Edit Penyelesaian", confirmLabel: "Ya, Simpan" })
+              const alasan = await confirmWithReason(`Edit penyelesaian titip jual "${captured.nama_toko}"?`, { title: "Edit Penyelesaian", confirmLabel: "Ya, Simpan" })
               if (!alasan) return
               await editSettlement(captured.id, data, alasan)
               router.refresh()
@@ -442,7 +469,7 @@ function KonsinyasiDetailForm({ record, onSubmit, onCancel }) {
     <form onSubmit={handleSubmit} className="space-y-4 text-sm">
       <div className="grid grid-cols-2 gap-3 text-xs pb-2 border-b border-neutral-100">
         <div><p className="text-neutral-500">Sales</p><p className="font-medium">{record.sales}</p></div>
-        <div><p className="text-neutral-500">Retail</p><p className="font-medium">{record.nama_retail}</p></div>
+        <div><p className="text-neutral-500">Toko</p><p className="font-medium">{record.nama_toko}</p></div>
         <div><p className="text-neutral-500">Kategori</p><p className="font-medium capitalize">{record.kategori}</p></div>
       </div>
       <Field label="Jatuh Tempo">
@@ -463,7 +490,7 @@ function KonsinyasiDetail({ record }) {
     <div className="space-y-4 text-sm">
       <div className="grid grid-cols-2 gap-3">
         <div><p className="text-xs text-neutral-500">Sales</p><p className="font-medium">{record.sales}</p></div>
-        <div><p className="text-xs text-neutral-500">Retail</p><p className="font-medium">{record.nama_retail}</p></div>
+        <div><p className="text-xs text-neutral-500">Toko</p><p className="font-medium">{record.nama_toko}</p></div>
         <div><p className="text-xs text-neutral-500">Kategori</p><Badge label={record.kategori} colorClass={KATEGORI_COLOR[record.kategori] || "bg-neutral-100 text-neutral-600"} /></div>
         <div><p className="text-xs text-neutral-500">Status</p><Badge label={record.status === "selesai" ? "Selesai" : "Aktif"} colorClass={STATUS_COLOR[record.status]} /></div>
         <div><p className="text-xs text-neutral-500">Jatuh Tempo</p><p className={`font-medium ${record.status === "aktif" && record.selisihHari <= 0 ? "text-red-600" : ""}`}>{fmtTanggal(record.tanggal_jatuh_tempo)}</p></div>

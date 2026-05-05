@@ -10,7 +10,7 @@ import Modal from "@/components/Modal"
 
 const PAGE_SIZE = 10
 
-export default function SalesPage({ salesList, sesiList }) {
+export default function SalesPage({ role, salesList, sesiList }) {
   const router = useRouter()
   const { confirm, ConfirmModal } = useConfirm()
   const [mode, setMode] = useState(null)
@@ -50,9 +50,11 @@ export default function SalesPage({ salesList, sesiList }) {
         title="Sales"
         subtitle={`${salesList.length} sales terdaftar.`}
         action={
-          <PrimaryButton onClick={() => { setEditing(null); setMode("add") }} icon={Plus}>
-            Tambah Sales
-          </PrimaryButton>
+          role !== "staff" && (
+            <PrimaryButton onClick={() => { setEditing(null); setMode("add") }} icon={Plus}>
+              Tambah Sales
+            </PrimaryButton>
+          )
         }
       />
 
@@ -67,14 +69,14 @@ export default function SalesPage({ salesList, sesiList }) {
             { key: "no_hp", label: "No HP",       render: (r) => r.no_hp || <span className="text-neutral-400">—</span> },
             {
               key: "aktif", label: "Aktif", align: "center",
-              render: (r) => <Toggle checked={r.aktif ?? true} onChange={() => handleToggle(r.id)} />,
+              render: (r) => <Toggle checked={r.aktif ?? true} onChange={() => handleToggle(r.id)} disabled={role === "staff"} />,
             },
             {
               key: "actions", label: "", align: "right",
               render: (r) => (
                 <RowActions
-                  onEdit={() => { setEditing(r); setMode("edit") }}
-                  onDelete={() => handleDelete(r)}
+                  onEdit={role !== "staff" ? () => { setEditing(r); setMode("edit") } : null}
+                  onDelete={role !== "staff" ? () => handleDelete(r) : null}
                   deleteDisabled={isUsed(r.id)}
                   deleteTitle="Sales sudah digunakan di data distribusi/retur"
                   deleteLoading={deletingId === r.id}
@@ -89,10 +91,10 @@ export default function SalesPage({ salesList, sesiList }) {
                 {r.no_hp && <p className="text-xs text-neutral-500">{r.no_hp}</p>}
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <Toggle checked={r.aktif ?? true} onChange={() => handleToggle(r.id)} />
+                <Toggle checked={r.aktif ?? true} onChange={() => handleToggle(r.id)} disabled={role === "staff"} />
                 <RowActions
-                  onEdit={() => { setEditing(r); setMode("edit") }}
-                  onDelete={() => handleDelete(r)}
+                  onEdit={role !== "staff" ? () => { setEditing(r); setMode("edit") } : null}
+                  onDelete={role !== "staff" ? () => handleDelete(r) : null}
                   deleteDisabled={isUsed(r.id)}
                   deleteTitle="Sales sudah digunakan di data distribusi/retur"
                   deleteLoading={deletingId === r.id}

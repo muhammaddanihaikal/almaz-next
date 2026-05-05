@@ -1,3 +1,4 @@
+import { auth } from "@/lib/auth"
 import { getAbsensi } from "@/actions/absensi"
 import { getSalesList } from "@/actions/sales"
 import AbsensiPage from "@/components/pages/AbsensiPage"
@@ -5,9 +6,10 @@ import AbsensiPage from "@/components/pages/AbsensiPage"
 export const revalidate = 60
 
 export default async function Page() {
-  const [absensiList, salesList] = await Promise.all([
+  const [session, absensiList, salesList] = await Promise.all([
+    auth(),
     getAbsensi(),
     getSalesList(),
   ])
-  return <AbsensiPage absensiList={absensiList} salesList={salesList} />
+  return <AbsensiPage role={session?.user?.role} absensiList={absensiList} salesList={salesList} />
 }

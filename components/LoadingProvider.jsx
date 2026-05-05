@@ -27,6 +27,23 @@ export function LoadingProvider({ children }) {
 
   return (
     <LoadingContext.Provider value={{ isPending, loadingPath, navigate }}>
+      {isPending && (
+        <div className="fixed top-0 left-0 right-0 z-[100] h-1 overflow-hidden bg-neutral-200">
+          <div 
+            className="h-full bg-neutral-900 transition-all duration-500 ease-out"
+            style={{ 
+              width: "100%",
+              animation: "loading-bar 2s infinite linear"
+            }}
+          />
+          <style>{`
+            @keyframes loading-bar {
+              0% { transform: translateX(-100%); }
+              100% { transform: translateX(100%); }
+            }
+          `}</style>
+        </div>
+      )}
       {children}
     </LoadingContext.Provider>
   )

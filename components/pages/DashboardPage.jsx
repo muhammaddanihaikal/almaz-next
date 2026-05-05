@@ -2,12 +2,12 @@
 
 import { useMemo, useState } from "react"
 import { Wallet, TrendingUp, Package, ArrowDownCircle } from "lucide-react"
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } from "recharts"
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, PieChart, Pie, Cell, Legend } from "recharts"
 import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange } from "@/lib/utils"
 import { Card, KpiCard, DateFilter } from "@/components/ui"
 
 export default function DashboardPage({ sesiList, titipJualList, titipJualJatuhTempo, rokokList, pengeluaranList }) {
-  const [dateRange, setDateRange] = useState(defaultDateRange("bulan_ini"))
+  const [dateRange, setDateRange] = useState(defaultDateRange("minggu_ini"))
 
   const sesiF = useMemo(() => filterByDateRange(sesiList, dateRange), [sesiList, dateRange])
   const pengeluaranF = useMemo(() => filterByDateRange(pengeluaranList, dateRange), [pengeluaranList, dateRange])
@@ -92,6 +92,10 @@ export default function DashboardPage({ sesiList, titipJualList, titipJualJatuhT
     return rokokList.map((r) => ({ rokok: r.nama, qty: map.get(r.nama) || 0 }))
   }, [sesiF, titipJualF, rokokList])
 
+  const totalQtyVolume = useMemo(() => {
+    return qtyPerRokok.reduce((sum, r) => sum + r.qty, 0)
+  }, [qtyPerRokok])
+
   const penjualanHarian = useMemo(() => {
     const map = new Map()
     for (const sesi of sesiF) {
@@ -99,15 +103,30 @@ export default function DashboardPage({ sesiList, titipJualList, titipJualJatuhT
       map.set(sesi.tanggal, (map.get(sesi.tanggal) || 0) + total)
     }
     for (const k of titipJualF) {
-      if (!k.tanggal_selesai) continue // Skip if completion date is missing to avoid crash
+      if (!k.tanggal_selesai) continue
       const total = k.nilaiTerjual
       map.set(k.tanggal_selesai, (map.get(k.tanggal_selesai) || 0) + total)
     }
     return [...map.entries()]
-      .filter(([tanggal]) => tanggal) // Ensure no null keys
+      .filter(([tanggal]) => tanggal)
       .sort((a, b) => String(a[0]).localeCompare(String(b[0])))
       .map(([tanggal, total]) => ({ tanggal: fmtTanggal(tanggal), total }))
   }, [sesiF, titipJualF])
+
+
+
+  const CHART_COLORS = [
+    "#171717", // Neutral 900
+    "#262626", // Neutral 800
+    "#404040", // Neutral 700
+    "#525252", // Neutral 600
+    "#737373", // Neutral 500
+    "#a3a3a3", // Neutral 400
+    "#d4d4d4", // Neutral 300
+    "#1e293b", // Slate 800
+    "#334155", // Slate 700
+    "#475569", // Slate 600
+  ]
 
   const dateStr = dateRange?.start && dateRange?.end
     ? `${fmtTanggal(dateRange.start)} s/d ${fmtTanggal(dateRange.end)}`
@@ -128,34 +147,73 @@ export default function DashboardPage({ sesiList, titipJualList, titipJualJatuhT
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard icon={Wallet}          label="Total Penjualan"   value={fmtIDR(stats.totalPenjualan)} />
         <KpiCard icon={TrendingUp}      label="Total Profit"      value={fmtIDR(stats.profit)} />
-        <KpiCard icon={Package}         label="Barang Keluar"     value={`${stats.totalKeluar} pcs`} />
+        <KpiCard icon={Package}         label="Barang Keluar"     value={`${stats.totalKeluar} pcs`} tooltipData={qtyPerRokok.filter(r => r.qty > 0).map(r => ({ label: r.rokok, value: `${r.qty} pcs` }))} />
         <KpiCard icon={ArrowDownCircle} label="Total Pengeluaran" value={fmtIDR(stats.totalPengeluaran)} />
       </div>
 
-      <Card 
-        title="Barang Keluar per Rokok" 
-        action={
-          <div className="rounded-md border border-neutral-200 bg-neutral-50 px-2.5 py-1">
-            <span className="text-xs font-medium text-neutral-600">{dateStr}</span>
-          </div>
-        }
-      >
-        {qtyPerRokok.every((r) => r.qty === 0) ? (
-          <p className="py-8 text-center text-sm text-neutral-400">Tidak ada data pada periode ini.</p>
-        ) : (
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={qtyPerRokok}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="rokok" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Bar dataKey="qty" fill="#171717" radius={[3, 3, 0, 0]}>
-                <LabelList dataKey="qty" position="top" style={{ fontSize: 10, fill: "#666", fontWeight: 500 }} />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        )}
-      </Card>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Card 
+          title="Barang Keluar per Rokok" 
+          action={
+            <div className="rounded-md border border-neutral-200 bg-neutral-50 px-2.5 py-1">
+              <span className="text-xs font-medium text-neutral-600">{dateStr}</span>
+            </div>
+          }
+        >
+          {qtyPerRokok.every((r) => r.qty === 0) ? (
+            <p className="py-8 text-center text-sm text-neutral-400">Tidak ada data pada periode ini.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={qtyPerRokok}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                <XAxis dataKey="rokok" tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip cursor={{ fill: '#f5f5f5' }} />
+                <Bar dataKey="qty" fill="#171717" radius={[4, 4, 0, 0]}>
+                  <LabelList dataKey="qty" position="top" style={{ fontSize: 10, fill: "#666", fontWeight: 500 }} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </Card>
+
+        <Card title="Komposisi Penjualan">
+          {qtyPerRokok.every((r) => r.qty === 0) ? (
+            <p className="py-8 text-center text-sm text-neutral-400">Tidak ada data pada periode ini.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <PieChart>
+                <Pie
+                  data={qtyPerRokok.filter(r => r.qty > 0)}
+                  dataKey="qty"
+                  nameKey="rokok"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={85}
+                  paddingAngle={5}
+                  label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
+                  labelLine={false}
+                >
+                  {qtyPerRokok.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(val) => `${val} pcs (${((val / totalQtyVolume) * 100).toFixed(1)}%)`} />
+                <Legend 
+                  iconType="circle" 
+                  wrapperStyle={{ fontSize: 10, paddingTop: 20 }}
+                  formatter={(value, entry) => {
+                    const { payload } = entry;
+                    const percent = ((payload.qty / totalQtyVolume) * 100).toFixed(1);
+                    return <span className="text-neutral-600">{value} ({percent}%)</span>;
+                  }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </Card>
+      </div>
 
       <Card 
         title="Total Penjualan Harian"
@@ -168,13 +226,13 @@ export default function DashboardPage({ sesiList, titipJualList, titipJualJatuhT
         {penjualanHarian.length === 0 ? (
           <p className="py-8 text-center text-sm text-neutral-400">Tidak ada data pada periode ini.</p>
         ) : (
-          <ResponsiveContainer width="100%" height={220}>
+          <ResponsiveContainer width="100%" height={300}>
             <LineChart data={penjualanHarian}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
               <XAxis dataKey="tanggal" tick={{ fontSize: 10 }} tickFormatter={(val) => val.split(" ")[0]} />
-              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => fmtIDR(v)} width={90} />
+              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => fmtIDR(v)} width={80} />
               <Tooltip formatter={(v) => fmtIDR(v)} />
-              <Line type="monotone" dataKey="total" stroke="#171717" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+              <Line type="monotone" dataKey="total" stroke="#171717" strokeWidth={2.5} dot={{ r: 4, fill: "#fff", stroke: "#171717", strokeWidth: 2 }} activeDot={{ r: 6 }} />
             </LineChart>
           </ResponsiveContainer>
         )}
