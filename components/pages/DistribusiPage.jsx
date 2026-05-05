@@ -2170,7 +2170,7 @@ function TukarInputBlock({ data, onChange, rokokDibawa, rokokList, type, kategor
   const updateRokok = (field, rowIdx, rokok_id) => {
     const rokok = rokokList.find((r) => r.id === rokok_id)
     const standar = hargaDefault(rokok)
-    const items = data[field].map((it, i) => i === rowIdx ? { ...it, rokok_id, harga_satuan: it.harga_satuan || String(standar) } : it)
+    const items = data[field].map((it, i) => i === rowIdx ? { ...it, rokok_id, harga_satuan: String(standar) } : it)
     updateItems(field, items)
   }
   const addRow    = (field) => updateItems(field, [...data[field], { rokok_id: "", qty: "", harga_satuan: "" }])
@@ -2179,7 +2179,10 @@ function TukarInputBlock({ data, onChange, rokokDibawa, rokokList, type, kategor
   const rokokForKeluar = rokokDibawa
   const rokokForMasuk  = rokokList.filter((r) => r.aktif !== false)
 
-  const renderItems = (field, label, available) => (
+  const renderItems = (field, label, available) => {
+    const isFirstRow = data[field]?.length > 0 && data[field]?.[0]?.rokok_id
+
+    return (
     <div className="space-y-2">
       <p className="text-xs font-medium text-neutral-600">{label}</p>
       {data[field]?.map((item, rowIdx) => {
@@ -2222,7 +2225,22 @@ function TukarInputBlock({ data, onChange, rokokDibawa, rokokList, type, kategor
         }
 
         return (
-          <div key={rowIdx} className="grid grid-cols-12 items-end gap-2">
+          <div key={rowIdx}>
+            {rowIdx === 0 && (
+              <div className="grid grid-cols-12 gap-2 px-1 mb-1">
+                <div className="col-span-12 sm:col-span-5">
+                  <p className="text-xs font-semibold text-neutral-700">Rokok</p>
+                </div>
+                <div className="col-span-3 sm:col-span-2">
+                  <p className="text-xs font-semibold text-neutral-700">Qty</p>
+                </div>
+                <div className="col-span-7 sm:col-span-4">
+                  <p className="text-xs font-semibold text-neutral-700">Harga</p>
+                </div>
+                <div className="col-span-2 sm:col-span-1" />
+              </div>
+            )}
+            <div className="grid grid-cols-12 items-end gap-2">
             <div className="col-span-12 sm:col-span-5">
               <div className="flex items-center justify-between mb-1">
                 <span />
@@ -2239,15 +2257,17 @@ function TukarInputBlock({ data, onChange, rokokDibawa, rokokList, type, kategor
                 placeholder="Qty" className={inputCls + (!item.rokok_id ? " bg-neutral-50 opacity-50" : "")} />
             </div>
             <div className="col-span-7 sm:col-span-4">
-              <MoneyInput value={item.harga_satuan} disabled
-                onChange={(v) => updateRow(field, rowIdx, "harga_satuan", v)}
+              <MoneyInput value={String(standar) || ""}
+                disabled
+                onChange={() => {}}
                 className={inputCls + " bg-neutral-50 opacity-70"}
-                placeholder={standar ? `Standar ${standar.toLocaleString("id-ID")}` : "Harga"} />
+                placeholder="Harga" />
             </div>
             <div className="col-span-2 sm:col-span-1 flex justify-end">
               {data[field].length > 1 && (
                 <IconButton icon={Trash2} onClick={() => removeRow(field, rowIdx)} variant="danger" label="Hapus" />
               )}
+            </div>
             </div>
           </div>
         )
@@ -2256,7 +2276,8 @@ function TukarInputBlock({ data, onChange, rokokDibawa, rokokList, type, kategor
         + Tambah baris
       </Button>
     </div>
-  )
+    )
+  }
 
   const totalMasuk  = (data.itemsMasuk || []).reduce((s, it)  => s + Number(it.qty || 0) * Number(it.harga_satuan || 0), 0)
   const totalKeluar = (data.itemsKeluar || []).reduce((s, it) => s + Number(it.qty || 0) * Number(it.harga_satuan || 0), 0)
@@ -2264,10 +2285,14 @@ function TukarInputBlock({ data, onChange, rokokDibawa, rokokList, type, kategor
   const invalid     = type === "selesai" && selisih < 0
 
   const labelKat = label || (kategori === "grosir" ? "Grosir" : "Toko")
+  const dotColor = kategori === "grosir" ? "bg-blue-600" : "bg-emerald-600"
 
   return (
     <div className="rounded-lg border border-neutral-200 p-4 space-y-4">
-      <p className="text-sm font-bold text-neutral-700">{labelKat}</p>
+      <p className="text-sm font-bold text-neutral-700 flex items-center gap-2">
+        <span className={`inline-block w-2 h-2 rounded-full ${dotColor}`} />
+        {labelKat}
+      </p>
       {renderItems("itemsMasuk", `Barang Return (dari ${labelKat})`, rokokForMasuk)}
       
       {type === "selesai" && (
