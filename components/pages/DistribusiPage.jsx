@@ -109,20 +109,20 @@ function exportToExcel(rows, rokokList, dateRange, onNoData) {
   const border = { top: bThin, bottom: bThin, left: bThin, right: bThin }
 
   // Styles
-  const sH     = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, alignment: { horizontal: "center", vertical: "center" }, border }
-  const sSub   = { font: { bold: true }, fill: { fgColor: { rgb: "E5E7EB" } }, alignment: { horizontal: "center", vertical: "center" }, border }
-  const sData  = { alignment: { horizontal: "center" }, border }
-  const sNum   = { alignment: { horizontal: "right" }, border }
+  const sH     = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, alignment: { horizontal: "left", vertical: "center" }, border }
+  const sSub   = { font: { bold: true }, fill: { fgColor: { rgb: "E5E7EB" } }, alignment: { horizontal: "left", vertical: "center" }, border }
+  const sData  = { alignment: { horizontal: "left" }, border }
+  const sNum   = { alignment: { horizontal: "left" }, border }
   const sMoney = { alignment: { horizontal: "left" }, border }
-  const sTotal = { font: { bold: true }, fill: { fgColor: { rgb: "1F2937" } }, alignment: { horizontal: "center" }, border, font: { bold: true, color: { rgb: "FFFFFF" } } }
-  const sTotalNum = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, alignment: { horizontal: "right" }, border }
+  const sTotal = { font: { bold: true }, fill: { fgColor: { rgb: "1F2937" } }, alignment: { horizontal: "left" }, border, font: { bold: true, color: { rgb: "FFFFFF" } } }
+  const sTotalNum = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, alignment: { horizontal: "left" }, border }
   const sTotalMoney = { ...sTotalNum, alignment: { horizontal: "left" } }
 
   const fmtExcelMoney = (v) => "Rp. " + (v || 0).toLocaleString("id-ID")
 
   const wsData = [
     // Baris 1: judul
-    [{ v: title, s: { font: { bold: true, sz: 12 } } }, ...Array(totalCols - 1).fill({ v: "" })],
+    [{ v: title, s: { font: { bold: true, sz: 12 }, alignment: { horizontal: "left" } } }, ...Array(totalCols - 1).fill({ v: "" })],
     // Baris 2: kosong
     Array(totalCols).fill({ v: "" }),
     // Baris 3: header atas
@@ -237,22 +237,22 @@ function exportToExcelBySales(rows, rokokList, dateRange, onNoData) {
 
   const bThin = { style: "thin", color: { rgb: "9CA3AF" } }
   const border = { top: bThin, bottom: bThin, left: bThin, right: bThin }
-  const sH     = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, alignment: { horizontal: "center", vertical: "center" }, border }
-  const sData  = { border, alignment: { vertical: "center" } }
-  const sCenter = { ...sData, alignment: { horizontal: "center", vertical: "center" } }
-  const sNum    = { ...sData, alignment: { horizontal: "center", vertical: "center" }, z: "#,##0" }
+  const sH     = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, alignment: { horizontal: "left", vertical: "center" }, border }
+  const sData  = { border, alignment: { vertical: "center", horizontal: "left" } }
+  const sCenter = { ...sData, alignment: { horizontal: "left", vertical: "center" } }
+  const sNum    = { ...sData, alignment: { horizontal: "left", vertical: "center" }, z: "#,##0" }
   const sNumLeft = { ...sData, alignment: { horizontal: "left", vertical: "center" }, z: "#,##0" }
   const sMoney  = { ...sData, alignment: { horizontal: "left", vertical: "center" } }
-  const sTotal  = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, border }
-  const sTotalNum = { ...sTotal, alignment: { horizontal: "right" }, z: "#,##0" }
-  const sTotalNumCenter = { ...sTotal, alignment: { horizontal: "center" }, z: "#,##0" }
+  const sTotal  = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, border, alignment: { horizontal: "left" } }
+  const sTotalNum = { ...sTotal, alignment: { horizontal: "left" }, z: "#,##0" }
+  const sTotalNumCenter = { ...sTotal, alignment: { horizontal: "left" }, z: "#,##0" }
   const sTotalNumLeft = { ...sTotal, alignment: { horizontal: "left" }, z: "#,##0" }
   const sTotalMoney = { ...sTotal, alignment: { horizontal: "left" } }
 
   const fmtExcelMoney = (v) => "Rp. " + (v || 0).toLocaleString("id-ID")
 
   const wsData = [
-    [{ v: title, s: { font: { bold: true, sz: 12 } } }, ...Array(totalCols-1).fill("")],
+    [{ v: title, s: { font: { bold: true, sz: 12 }, alignment: { horizontal: "left" } } }, ...Array(totalCols-1).fill("")],
     Array(totalCols).fill(""),
     [
       { v: "NO",             s: sH },
@@ -422,7 +422,8 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
                 onClick={() => setShowExportMenu(!showExportMenu)}
                 icon={Download}
                 iconRight={ChevronDown}
-                iconRightClassName={`transition-transform ${showExportMenu ? "rotate-180" : ""}`}
+                iconRightClassName={`ml-auto transition-transform ${showExportMenu ? "rotate-180" : ""}`}
+                className="w-44 justify-start"
               >
                 Export Excel
               </Button>
@@ -433,34 +434,30 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
                   <div className="absolute right-0 z-20 mt-1.5 w-56 origin-top-right rounded-xl border border-neutral-200 bg-white p-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
                     <Button
                       variant="ghost"
-                      className="w-full justify-start gap-2 h-auto py-2"
+                      className="w-full justify-start gap-3 h-auto py-3 px-3"
                       onClick={() => {
                         setShowExportMenu(false)
                         exportToExcel(rows, rokokList, dateRange, () => confirm("Tidak ada data untuk diekspor.", { title: "Export Excel", hideCancel: true }))
                       }}
                     >
-                      <div className="flex h-7 w-7 items-center justify-center rounded-md bg-blue-50 text-blue-600">
-                        <Download className="h-4 w-4" />
-                      </div>
+                      <Download className="h-4 w-4 shrink-0 text-blue-600" />
                       <div className="text-left">
-                        <p className="font-medium">Rekap Harian</p>
-                        <p className="text-[10px] text-neutral-500 text-nowrap text-ellipsis overflow-hidden">Ringkasan per tanggal</p>
+                        <p className="text-sm font-semibold text-neutral-900">Rekap Harian</p>
+                        <p className="text-xs text-neutral-500">Ringkasan per tanggal</p>
                       </div>
                     </Button>
                     <Button
                       variant="ghost"
-                      className="w-full justify-start gap-2 h-auto py-2"
+                      className="w-full justify-start gap-3 h-auto py-3 px-3 mt-0.5"
                       onClick={() => {
                         setShowExportMenu(false)
                         exportToExcelBySales(rows, rokokList, dateRange, () => confirm("Tidak ada data untuk diekspor.", { title: "Export Excel", hideCancel: true }))
                       }}
                     >
-                      <div className="flex h-7 w-7 items-center justify-center rounded-md bg-green-50 text-green-600">
-                        <Download className="h-4 w-4" />
-                      </div>
+                      <Download className="h-4 w-4 shrink-0 text-green-600" />
                       <div className="text-left">
-                        <p className="font-medium">Rincian per Sales</p>
-                        <p className="text-[10px] text-neutral-500 text-nowrap text-ellipsis overflow-hidden">Detail per produk & motoris</p>
+                        <p className="text-sm font-semibold text-neutral-900">Rincian per Sales</p>
+                        <p className="text-xs text-neutral-500">Detail per produk & motoris</p>
                       </div>
                     </Button>
                   </div>

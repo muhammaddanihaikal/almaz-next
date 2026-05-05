@@ -262,7 +262,19 @@ export function PrimaryButton({ onClick, icon: Icon, children, type = "button", 
   )
 }
 
-export function Button({ onClick, children, variant = "primary", size = "md", loading: manualLoading, disabled, icon: Icon, type = "button", className = "" }) {
+export function Button({ 
+  onClick, 
+  children, 
+  variant = "primary", 
+  size = "md", 
+  loading: manualLoading, 
+  disabled, 
+  icon: Icon, 
+  iconRight: IconRight,
+  iconRightClassName = "",
+  type = "button", 
+  className = "" 
+}) {
   const [internalLoading, setInternalLoading] = useState(false)
   const loading = manualLoading || internalLoading
 
@@ -292,12 +304,14 @@ export function Button({ onClick, children, variant = "primary", size = "md", lo
     lg: "h-11 px-6 text-base"
   }
 
+  const alignment = className.includes("justify-") ? "" : "justify-center"
+
   return (
     <button
       type={type}
       onClick={handleClick}
       disabled={isDisabled}
-      className={`inline-flex items-center justify-center gap-2 rounded-lg font-medium transition whitespace-nowrap ${variants[variant]} ${sizes[size]} ${className}`}
+      className={`inline-flex items-center ${alignment} gap-2 rounded-lg font-medium transition whitespace-nowrap ${variants[variant]} ${sizes[size]} ${className}`}
     >
       {loading ? (
         <Loader2 className="h-4 w-4 animate-spin" />
@@ -305,6 +319,9 @@ export function Button({ onClick, children, variant = "primary", size = "md", lo
         <Icon className="h-4 w-4" strokeWidth={2} />
       )}
       {children}
+      {!loading && IconRight && (
+        <IconRight className={`h-4 w-4 ${iconRightClassName}`} strokeWidth={2} />
+      )}
     </button>
   )
 }
