@@ -357,7 +357,7 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
   const [detail,    setDetail]    = useState(null)
   const [laporanSesi, setLaporanSesi] = useState(null)
   const [editLaporan, setEditLaporan] = useState(null)
-  const [dateRange,   setDateRange]   = useState(defaultDateRange("bulan_ini"))
+  const [dateRange,   setDateRange]   = useState(defaultDateRange("minggu_ini"))
   const [salesFilter, setSalesFilter] = useState([])
   const [rokokFilter, setRokokFilter] = useState([])
   const [statusFilter, setStatusFilter] = useState("")

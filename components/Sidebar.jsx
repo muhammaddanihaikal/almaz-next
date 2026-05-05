@@ -27,7 +27,6 @@ function buildMenus(role, titipJualCounts, tukarAktifCount) {
         { id: "distribusi",   href: "/distribusi",   label: "Distribusi",   icon: Truck           },
         { id: "titip-jual",   href: "/titip-jual",   label: "Titip Jual",   icon: PackageCheck, badges: titipJualCounts },
         { id: "tukar-barang", href: "/tukar-barang", label: "Tukar Barang", icon: Repeat,       badges: tukarBadge },
-        { id: "pengeluaran",  href: "/pengeluaran",  label: "Pengeluaran",  icon: ArrowDownCircle },
       ],
     },
     {
@@ -64,7 +63,7 @@ function buildMenus(role, titipJualCounts, tukarAktifCount) {
 
 export default function Sidebar({ role, userName, titipJualCounts, tukarAktifCount = 0 }) {
   const pathname    = usePathname()
-  const { isPending, loadingPath } = useLoading()
+  const { isPending, loadingPath, navigate } = useLoading()
   
   const [mobileOpen, setMobileOpen]       = useState(false)
   const [confirmLogout, setConfirmLogout] = useState(false)
@@ -93,7 +92,13 @@ export default function Sidebar({ role, userName, titipJualCounts, tukarAktifCou
       <Link
         key={item.id}
         href={item.href}
-        onClick={() => setMobileOpen(false)}
+        onClick={(e) => {
+          e.preventDefault()
+          setMobileOpen(false)
+          if (item.href !== pathname) {
+            navigate(item.href)
+          }
+        }}
         className={
           "flex w-full items-center gap-3 rounded-lg py-2.5 pl-9 pr-3 text-sm font-medium transition-colors lg:pl-3 " +
           (active ? "bg-neutral-900 text-white" : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900")

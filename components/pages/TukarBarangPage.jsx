@@ -38,7 +38,7 @@ export default function TukarBarangPage({ list, salesList, rokokList }) {
   const router = useRouter()
   const { confirmWithReason, ConfirmWithReasonModal } = useConfirmWithReason()
   const [detail, setDetail] = useState(null)
-  const [dateRange, setDateRange] = useState(defaultDateRange("bulan_ini"))
+  const [dateRange, setDateRange] = useState(defaultDateRange("minggu_ini"))
   const [statusFilter, setStatusFilter] = useState("aktif")
   const [salesFilter, setSalesFilter]   = useState("")
   const [deletingId, setDeletingId]     = useState(null)

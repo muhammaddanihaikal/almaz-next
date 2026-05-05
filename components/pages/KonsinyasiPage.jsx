@@ -55,7 +55,7 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
   const [search,       setSearch]       = useState("")
   const [salesFilter,  setSalesFilter]  = useState("")
   const [statusAktifFilter, setStatusAktifFilter] = useState("")
-  const [dateRange, setDateRange] = useState(defaultDateRange("semua"))
+  const [dateRange, setDateRange] = useState(defaultDateRange("minggu_ini"))
   const [expandedHariIni, setExpandedHariIni] = useState(false)
   const [expandedSegera,  setExpandedSegera]  = useState(false)
   const { confirmWithReason, ConfirmWithReasonModal } = useConfirmWithReason()
