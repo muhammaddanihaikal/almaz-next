@@ -1283,7 +1283,20 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
       {activeTab === "penjualan" && (
         <div className="space-y-6">
           {/* Penjualan Langsung */}
-          <SectionCard title="Penjualan Langsung">
+          <SectionCard 
+            title="Penjualan Langsung"
+            rightAction={
+              <label className="flex cursor-pointer items-center gap-1.5 text-xs text-neutral-600 select-none">
+                <input
+                  type="checkbox"
+                  checked={showPerorangan}
+                  onChange={(e) => setShowPerorangan(e.target.checked)}
+                  className="h-3.5 w-3.5 rounded border-neutral-300 text-blue-600 focus:ring-blue-500"
+                />
+                Tampilkan Perorangan
+              </label>
+            }
+          >
             <PenjualanLangsungInput
               penjualan={penjualan}
               setPenjualan={setPenjualan}
@@ -1293,15 +1306,68 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
               showPerorangan={showPerorangan}
               setShowPerorangan={setShowPerorangan}
             />
-            {nilaiPenjualan > 0 && (
-              <p className="text-xs text-neutral-500 mt-2">Total nilai penjualan: <span className="font-semibold text-neutral-900">{fmtIDR(nilaiPenjualan)}</span></p>
-            )}
+          </SectionCard>
+
+          {/* Ringkasan Penjualan */}
+          <SectionCard title="Ringkasan Penjualan">
+            <div className="space-y-4">
+              {/* Rincian per Kategori */}
+              {["grosir", "toko", "perorangan"].map((cat) => {
+                const items = penjualan.filter(p => p.kategori === cat && Number(p.qty) > 0)
+                if (items.length === 0) return null
+                
+                const KATEGORI_LABEL = { grosir: "Grosir", toko: "Toko", perorangan: "Perorangan" }
+                const KATEGORI_COLOR = { grosir: "text-violet-600", toko: "text-blue-600", perorangan: "text-emerald-600" }
+
+                return (
+                  <div key={cat} className="space-y-1.5">
+                    <p className={`text-[10px] font-bold uppercase tracking-wider ${KATEGORI_COLOR[cat]}`}>{KATEGORI_LABEL[cat]}</p>
+                    <div className="space-y-1 border-l-2 border-neutral-200 pl-3 ml-1">
+                      {items.map((it, idx) => {
+                        const h = rokokList.find(r => r.id === it.rokok_id)?.[`harga_${cat}`] || 0
+                        const subtotal = Number(it.qty) * h
+                        return (
+                          <div key={idx} className="flex items-center justify-between text-xs">
+                            <span className="text-neutral-600">
+                              {it.rokok} <span className="text-neutral-400 mx-1">×</span> {it.qty}
+                            </span>
+                            <span className="text-neutral-500 tabular-nums">{fmtIDR(subtotal)}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+
+              <div className="pt-3 border-t border-neutral-200 space-y-2">
+                {["grosir", "toko", "perorangan"].map((cat) => {
+                  const items = penjualan.filter(p => p.kategori === cat && Number(p.qty) > 0)
+                  if (items.length === 0) return null
+                  const catTotal = items.reduce((sum, it) => {
+                    const h = rokokList.find(r => r.id === it.rokok_id)?.[`harga_${cat}`] || 0
+                    return sum + (Number(it.qty) * h)
+                  }, 0)
+                  const KATEGORI_LABEL = { grosir: "Grosir", toko: "Toko", perorangan: "Perorangan" }
+                  return (
+                    <div key={cat} className="flex items-center justify-between text-sm">
+                      <span className="text-neutral-500">Total {KATEGORI_LABEL[cat]}</span>
+                      <span className="font-medium text-neutral-700">{fmtIDR(catTotal)}</span>
+                    </div>
+                  )
+                })}
+                <div className="pt-2 border-t border-neutral-100 flex items-center justify-between text-base font-bold">
+                  <span className="text-neutral-800">Total Nilai Penjualan</span>
+                  <span className="text-blue-600">{fmtIDR(nilaiPenjualan)}</span>
+                </div>
+              </div>
+            </div>
           </SectionCard>
 
           {/* Setoran */}
-          <SectionCard title="Setoran">
-            <div className="flex items-center justify-between mb-1">
-              <span />
+          <SectionCard 
+            title="Setoran"
+            rightAction={
               <label className="flex cursor-pointer items-center gap-1.5 text-xs text-neutral-600 select-none">
                 <input
                   type="checkbox"
@@ -1313,11 +1379,12 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
                     }
                   }}
                   disabled={nilaiPenjualan === 0}
-                  className="h-3.5 w-3.5 rounded"
+                  className="h-3.5 w-3.5 rounded border-neutral-300 text-blue-600 focus:ring-blue-500"
                 />
                 Sesuai nilai penjualan
               </label>
-            </div>
+            }
+          >
             {setoran.map((it, idx) => (
               <div key={idx} className="flex items-end gap-3">
                 <div className="w-36">
@@ -1579,10 +1646,13 @@ function buildPenjualanFromExisting(barangKeluar, penjualanLama) {
   })
 }
 
-function SectionCard({ title, children }) {
+function SectionCard({ title, children, rightAction }) {
   return (
     <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 space-y-3">
-      <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">{title}</p>
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">{title}</p>
+        {rightAction}
+      </div>
       {children}
     </div>
   )
@@ -1665,10 +1735,6 @@ function PenjualanLangsungInput({ penjualan, setPenjualan, barangKeluar = [], qt
           })}
         </tbody>
       </table>
-      <div className="flex items-center gap-2">
-        <label className="text-xs font-medium text-neutral-600">Tampilkan Perorangan</label>
-        <input type="checkbox" checked={showPerorangan} onChange={(e) => setShowPerorangan(e.target.checked)} className="h-4 w-4 rounded" />
-      </div>
     </div>
   )
 }
@@ -2162,15 +2228,16 @@ function TukarInputBlock({ data, onChange, rokokDibawa, rokokList, type, kategor
   const invalid     = type === "selesai" && selisih < 0
 
   const labelKat = label || (kategori === "grosir" ? "Grosir" : "Toko")
-  const KATEGORI_STYLE = {
-    grosir: "bg-violet-100 text-violet-700",
-    toko:   "bg-blue-100 text-blue-700",
+  const KATEGORI_DOT = {
+    grosir: "bg-violet-500",
+    toko:   "bg-blue-500",
   }
 
   return (
     <div className="rounded-lg border border-neutral-200 p-4 space-y-4">
-      <div className="flex items-center gap-2">
-        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${KATEGORI_STYLE[kategori] || "bg-neutral-100 text-neutral-600"}`}>
+      <div className="flex items-center gap-1.5 px-0.5">
+        <div className={`h-1.5 w-1.5 rounded-full ${KATEGORI_DOT[kategori] || "bg-neutral-400"}`} />
+        <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-600">
           {labelKat}
         </span>
       </div>

@@ -11,6 +11,7 @@ const ENTITY_LABELS = {
   TitipJual:    "Titip Jual",
   Pengeluaran:  "Pengeluaran",
   Rokok:        "Rokok",
+  TukarBarang:  "Tukar Barang",
 }
 
 const ACTION_LABELS = {
