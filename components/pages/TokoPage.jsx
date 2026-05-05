@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Plus } from "lucide-react"
-import { addRetail, updateRetail, deleteRetail, toggleAktifRetail } from "@/actions/retail"
+import { addToko, updateToko, deleteToko, toggleAktifToko } from "@/actions/toko"
 import { Card, PageHeader, PrimaryButton, RowActions, Field, FormActions, Toggle, SelectInput, inputCls, useConfirm } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
@@ -12,10 +12,10 @@ const PAGE_SIZE = 10
 
 const KATEGORI_COLOR = {
   grosir: "bg-violet-100 text-violet-700",
-  retail: "bg-blue-100 text-blue-700",
+  toko:   "bg-blue-100 text-blue-700",
 }
 
-export default function RetailPage({ retailList, titipJualList }) {
+export default function TokoPage({ role, tokoList, titipJualList }) {
   const router = useRouter()
   const { confirm, ConfirmModal } = useConfirm()
   const [mode,    setMode]    = useState(null)
@@ -23,21 +23,21 @@ export default function RetailPage({ retailList, titipJualList }) {
   const [deletingId, setDeletingId] = useState(null)
 
   const rows = useMemo(
-    () => [...retailList].sort((a, b) => a.nama.localeCompare(b.nama, "id")),
-    [retailList]
+    () => [...tokoList].sort((a, b) => a.nama.localeCompare(b.nama, "id")),
+    [tokoList]
   )
 
-  const isUsed = (id) => titipJualList.some((k) => k.retail_id === id)
+  const isUsed = (id) => titipJualList.some((k) => k.toko_id === id)
 
   const close = () => { setMode(null); setEditing(null) }
 
   const handleDelete = async (t) => {
-    const ok = await confirm(`Hapus retail "${t.nama}"?`, { title: "Hapus Retail", variant: "danger", confirmLabel: "Ya, Hapus" })
+    const ok = await confirm(`Hapus toko "${t.nama}"?`, { title: "Hapus Toko", variant: "danger", confirmLabel: "Ya, Hapus" })
     if (!ok) return
-
+    
     setDeletingId(t.id)
     try {
-      await deleteRetail(t.id)
+      await deleteToko(t.id)
       router.refresh()
     } finally {
       setDeletingId(null)
@@ -45,19 +45,21 @@ export default function RetailPage({ retailList, titipJualList }) {
   }
 
   const handleToggle = async (id) => {
-    await toggleAktifRetail(id)
+    await toggleAktifToko(id)
     router.refresh()
   }
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Master Retail"
-        subtitle={`${retailList.length} retail terdaftar — digunakan untuk titip jual.`}
+        title="Master Toko"
+        subtitle={`${tokoList.length} toko terdaftar — digunakan untuk titip jual.`}
         action={
-          <PrimaryButton onClick={() => { setEditing(null); setMode("add") }} icon={Plus}>
-            Tambah Retail
-          </PrimaryButton>
+          role !== "staff" && (
+            <PrimaryButton onClick={() => { setEditing(null); setMode("add") }} icon={Plus}>
+              Tambah Toko
+            </PrimaryButton>
+          )
         }
       />
 
@@ -65,10 +67,10 @@ export default function RetailPage({ retailList, titipJualList }) {
         <DataTable
           pageSize={PAGE_SIZE}
           rows={rows}
-          empty="Belum ada data retail."
+          empty="Belum ada data toko."
           columns={[
             { key: "no",       label: "No",       render: (_, idx) => idx + 1 },
-            { key: "nama",     label: "Nama Retail" },
+            { key: "nama",     label: "Nama Toko" },
             { key: "alamat",   label: "Alamat",   render: (r) => r.alamat || <span className="text-neutral-400">—</span> },
             {
               key: "kategori", label: "Kategori Default",
@@ -80,16 +82,16 @@ export default function RetailPage({ retailList, titipJualList }) {
             },
             {
               key: "aktif", label: "Aktif", align: "center",
-              render: (r) => <Toggle checked={r.aktif ?? true} onChange={() => handleToggle(r.id)} />,
+              render: (r) => <Toggle checked={r.aktif ?? true} onChange={() => handleToggle(r.id)} disabled={role === "staff"} />,
             },
             {
               key: "actions", label: "", align: "right",
               render: (r) => (
                 <RowActions
-                  onEdit={() => { setEditing(r); setMode("edit") }}
-                  onDelete={() => handleDelete(r)}
+                  onEdit={role !== "staff" ? () => { setEditing(r); setMode("edit") } : null}
+                  onDelete={role !== "staff" ? () => handleDelete(r) : null}
                   deleteDisabled={isUsed(r.id)}
-                  deleteTitle="Retail sudah digunakan di data konsinyasi"
+                  deleteTitle="Toko sudah digunakan di data konsinyasi"
                   deleteLoading={deletingId === r.id}
                 />
               ),
@@ -107,12 +109,12 @@ export default function RetailPage({ retailList, titipJualList }) {
                 {r.alamat && <p className="text-xs text-neutral-500">{r.alamat}</p>}
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <Toggle checked={r.aktif ?? true} onChange={() => handleToggle(r.id)} />
+                <Toggle checked={r.aktif ?? true} onChange={() => handleToggle(r.id)} disabled={role === "staff"} />
                 <RowActions
-                  onEdit={() => { setEditing(r); setMode("edit") }}
-                  onDelete={() => handleDelete(r)}
+                  onEdit={role !== "staff" ? () => { setEditing(r); setMode("edit") } : null}
+                  onDelete={role !== "staff" ? () => handleDelete(r) : null}
                   deleteDisabled={isUsed(r.id)}
-                  deleteTitle="Retail sudah digunakan di data konsinyasi"
+                  deleteTitle="Toko sudah digunakan di data konsinyasi"
                 />
               </div>
             </div>
@@ -121,13 +123,13 @@ export default function RetailPage({ retailList, titipJualList }) {
       </Card>
 
       {mode && (
-        <Modal title={mode === "add" ? "Tambah Retail" : "Edit Retail"} onClose={close} width="max-w-lg">
-          <RetailForm
+        <Modal title={mode === "add" ? "Tambah Toko" : "Edit Toko"} onClose={close} width="max-w-lg">
+          <TokoForm
             initial={editing}
-            retailList={retailList}
+            tokoList={tokoList}
             onSubmit={async (data) => {
-              if (mode === "add") await addRetail(data)
-              else await updateRetail(editing.id, data)
+              if (mode === "add") await addToko(data)
+              else await updateToko(editing.id, data)
               close()
               router.refresh()
             }}
@@ -140,13 +142,13 @@ export default function RetailPage({ retailList, titipJualList }) {
   )
 }
 
-function RetailForm({ initial, retailList, onSubmit, onCancel }) {
+function TokoForm({ initial, tokoList, onSubmit, onCancel }) {
   const [nama,     setNama]     = useState(initial?.nama     || "")
   const [alamat,   setAlamat]   = useState(initial?.alamat   || "")
-  const [kategori, setKategori] = useState(initial?.kategori || "retail")
+  const [kategori, setKategori] = useState(initial?.kategori || "toko")
   const [loading,  setLoading]  = useState(false)
 
-  const isDuplicate = retailList.some(
+  const isDuplicate = tokoList.some(
     (t) => t.nama.toLowerCase() === nama.trim().toLowerCase() && t.id !== initial?.id
   )
   const valid = nama.trim().length > 0 && !isDuplicate
@@ -164,26 +166,26 @@ function RetailForm({ initial, retailList, onSubmit, onCancel }) {
 
   return (
     <form onSubmit={submit} className="space-y-4">
-      <Field label="Nama Retail">
+      <Field label="Nama Toko">
         <input
           type="text" value={nama} onChange={(e) => setNama(e.target.value)}
           placeholder="Contoh: Toko Maju Jaya" className={inputCls} required autoFocus
         />
-        {isDuplicate && <p className="mt-1 text-xs text-red-600">Nama retail sudah terdaftar.</p>}
+        {isDuplicate && <p className="mt-1 text-xs text-red-600">Nama toko sudah terdaftar.</p>}
       </Field>
       <Field label="Kategori Default">
         <SelectInput value={kategori} onChange={(e) => setKategori(e.target.value)}>
-          <option value="retail">Retail</option>
+          <option value="toko">Toko</option>
           <option value="grosir">Grosir</option>
         </SelectInput>
       </Field>
       <Field label="Alamat (opsional)">
         <input
           type="text" value={alamat} onChange={(e) => setAlamat(e.target.value)}
-          placeholder="Alamat retail" className={inputCls}
+          placeholder="Alamat toko" className={inputCls}
         />
       </Field>
-      <FormActions onCancel={onCancel} disabled={!valid} loading={loading} submitLabel={initial ? "Simpan Perubahan" : "Tambah Retail"} />
+      <FormActions onCancel={onCancel} disabled={!valid} loading={loading} submitLabel={initial ? "Simpan Perubahan" : "Tambah Toko"} />
     </form>
   )
 }

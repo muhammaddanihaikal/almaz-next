@@ -1,7 +1,10 @@
 import "./globals.css"
 
 export const metadata = {
-  title: "ALMAZ — Management Penjualan",
+  title: {
+    template: "%s — ALMAZ",
+    default: "ALMAZ — Management Penjualan",
+  },
   description: "Sistem manajemen distribusi dan penjualan rokok",
 }
 

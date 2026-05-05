@@ -36,7 +36,7 @@ function groupByDate(absensiList) {
   return [...map.entries()].map(([tanggal, records]) => ({ tanggal, records }))
 }
 
-export default function AbsensiPage({ absensiList, salesList }) {
+export default function AbsensiPage({ role, absensiList, salesList }) {
   const router = useRouter()
   const { confirm, ConfirmModal } = useConfirm()
   const [mode, setMode] = useState(null)
@@ -85,11 +85,13 @@ export default function AbsensiPage({ absensiList, salesList }) {
         title="Absensi Sales"
         subtitle={`Rekap kehadiran sales harian${dateRange?.start ? ` — ${fmtTanggal(dateRange.start)} s/d ${fmtTanggal(dateRange.end)}` : " — semua waktu"}.`}
         action={
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2">
             <DownloadButton onClick={handleDownload} disabled={!rows.length} />
-            <PrimaryButton onClick={() => { setEditingTanggal(null); setMode("add") }} icon={Plus}>
-              Input Absensi
-            </PrimaryButton>
+            {role !== "staff" && (
+              <PrimaryButton onClick={() => { setEditingTanggal(null); setMode("add") }} icon={Plus}>
+                Input Absensi
+              </PrimaryButton>
+            )}
           </div>
         }
       />
@@ -133,8 +135,8 @@ export default function AbsensiPage({ absensiList, salesList }) {
               render: (r) => (
                 <RowActions
                   onDetail={() => setDetail(r)}
-                  onEdit={() => { setEditingTanggal(r.tanggal); setMode("edit") }}
-                  onDelete={() => handleDelete(r.tanggal)}
+                  onEdit={role !== "staff" ? () => { setEditingTanggal(r.tanggal); setMode("edit") } : null}
+                  onDelete={role !== "staff" ? () => handleDelete(r.tanggal) : null}
                   deleteLoading={deletingId === r.tanggal}
                 />
               ),
@@ -154,8 +156,8 @@ export default function AbsensiPage({ absensiList, salesList }) {
                   </div>
                   <RowActions
                     onDetail={() => setDetail(r)}
-                    onEdit={() => { setEditingTanggal(r.tanggal); setMode("edit") }}
-                    onDelete={() => { handleDelete(r.tanggal) }}
+                    onEdit={role !== "staff" ? () => { setEditingTanggal(r.tanggal); setMode("edit") } : null}
+                    onDelete={role !== "staff" ? () => { handleDelete(r.tanggal) } : null}
                     deleteLoading={deletingId === r.tanggal}
                   />
                 </div>

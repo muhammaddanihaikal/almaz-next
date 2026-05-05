@@ -8,14 +8,15 @@ import {
   LayoutDashboard, Truck, PackageCheck, Cigarette,
   Users, CalendarCheck, Menu, X, ChevronDown, ChevronRight,
   Folder, Database, LogOut, ArrowDownCircle, Store,
-  UserCog, HardDrive, ShieldCheck, History, Loader2,
+  UserCog, HardDrive, ShieldCheck, History, Loader2, Repeat,
 } from "lucide-react"
 
 import { useLoading } from "./LoadingProvider"
 
 const ROLE_LABELS = { superadmin: "Super Admin", admin: "Admin", staff: "Staff" }
 
-function buildMenus(role, titipJualCounts) {
+function buildMenus(role, titipJualCounts, tukarAktifCount) {
+  const tukarBadge = tukarAktifCount > 0 ? { neutral: tukarAktifCount } : null
   const menus = [
     { id: "dashboard", href: "/", label: "Dashboard", icon: LayoutDashboard },
     {
@@ -23,8 +24,9 @@ function buildMenus(role, titipJualCounts) {
       label: "Operasional",
       icon: Folder,
       items: [
-        { id: "distribusi",  href: "/distribusi",  label: "Distribusi",  icon: Truck           },
-        { id: "titip-jual",  href: "/titip-jual",  label: "Titip Jual",  icon: PackageCheck, badges: titipJualCounts },
+        { id: "distribusi",   href: "/distribusi",   label: "Distribusi",   icon: Truck           },
+        { id: "titip-jual",   href: "/titip-jual",   label: "Titip Jual",   icon: PackageCheck, badges: titipJualCounts },
+        { id: "tukar-barang", href: "/tukar-barang", label: "Tukar Barang", icon: Repeat,       badges: tukarBadge },
       ],
     },
     {
@@ -32,9 +34,9 @@ function buildMenus(role, titipJualCounts) {
       label: "Master",
       icon: Database,
       items: [
-        { id: "rokok",  href: "/rokok",  label: "Rokok",  icon: Cigarette },
-        { id: "sales",  href: "/sales",  label: "Sales",  icon: Users     },
-        { id: "retail", href: "/retail", label: "Retail", icon: Store     },
+        { id: "rokok", href: "/rokok", label: "Rokok", icon: Cigarette },
+        { id: "sales", href: "/sales", label: "Sales", icon: Users     },
+        { id: "toko",  href: "/toko",  label: "Toko",  icon: Store     },
       ],
     },
     { id: "absensi", href: "/absensi", label: "Absensi", icon: CalendarCheck },
@@ -59,9 +61,9 @@ function buildMenus(role, titipJualCounts) {
   return menus
 }
 
-export default function Sidebar({ role, userName, titipJualCounts }) {
+export default function Sidebar({ role, userName, titipJualCounts, tukarAktifCount = 0 }) {
   const pathname    = usePathname()
-  const { isPending, loadingPath } = useLoading()
+  const { isPending, loadingPath, navigate } = useLoading()
   
   const [mobileOpen, setMobileOpen]       = useState(false)
   const [confirmLogout, setConfirmLogout] = useState(false)
@@ -77,7 +79,7 @@ export default function Sidebar({ role, userName, titipJualCounts }) {
     "group-admin":       true,
   })
 
-  const MENUS = buildMenus(role, titipJualCounts)
+  const MENUS = buildMenus(role, titipJualCounts, tukarAktifCount)
 
   const isActive    = (href) => (href === "/" ? pathname === "/" : pathname.startsWith(href))
   const toggleGroup = (id) => setOpenGroups((prev) => ({ ...prev, [id]: !prev[id] }))
@@ -90,7 +92,13 @@ export default function Sidebar({ role, userName, titipJualCounts }) {
       <Link
         key={item.id}
         href={item.href}
-        onClick={() => setMobileOpen(false)}
+        onClick={(e) => {
+          e.preventDefault()
+          setMobileOpen(false)
+          if (item.href !== pathname) {
+            navigate(item.href)
+          }
+        }}
         className={
           "flex w-full items-center gap-3 rounded-lg py-2.5 pl-9 pr-3 text-sm font-medium transition-colors lg:pl-3 " +
           (active ? "bg-neutral-900 text-white" : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900")

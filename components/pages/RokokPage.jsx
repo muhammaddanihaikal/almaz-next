@@ -39,7 +39,7 @@ const SOURCE_LABEL = {
   koreksi:            { label: "Koreksi",             cls: "bg-purple-100 text-purple-700"   },
 }
 
-export default function RokokPage({ rokokList, usedIds, mutasiHariIni = [] }) {
+export default function RokokPage({ role, rokokList, usedIds, mutasiHariIni = [] }) {
   const router = useRouter()
   const [isLocalPending, startLocalTransition] = useTransition()
   const { isPending, navigate } = useLoading()
@@ -149,28 +149,33 @@ export default function RokokPage({ rokokList, usedIds, mutasiHariIni = [] }) {
                 </PrimaryButton>
               </>
             ) : (
-              <>
+              <div className="flex items-center gap-2">
                 <Button
                   variant="secondary"
-                  onClick={() => setIsSorting(true)}
-                  icon={MoveVertical}
-                >
-                  Atur Urutan
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    navigate("/rokok/mutasi")
-                  }}
+                  onClick={() => navigate("/rokok/mutasi")}
                   icon={RotateCcw}
                   loading={isPending}
                 >
                   Mutasi Stok
                 </Button>
-                <PrimaryButton onClick={() => { setEditing(null); setMode("add") }} icon={Plus}>
-                  Tambah Rokok
-                </PrimaryButton>
-              </>
+                {role !== "staff" && (
+                  <>
+                    <Button
+                      variant="secondary"
+                      onClick={() => setIsSorting(true)}
+                      icon={MoveVertical}
+                    >
+                      Atur Urutan
+                    </Button>
+                    <PrimaryButton 
+                      onClick={() => { setEditing(null); setMode("add") }} 
+                      icon={Plus}
+                    >
+                      Tambah Rokok
+                    </PrimaryButton>
+                  </>
+                )}
+              </div>
             )}
           </div>
         }
@@ -218,7 +223,9 @@ export default function RokokPage({ rokokList, usedIds, mutasiHariIni = [] }) {
                 render: (r) => (
                   <div className="flex items-center justify-end gap-2">
                     <span className={`font-semibold tabular-nums ${(r.stok ?? 0) < 50 ? "text-red-600" : (r.stok ?? 0) < 150 ? "text-amber-500" : "text-green-600"}`}>{r.stok ?? 0}</span>
-                    <IconButton onClick={() => setStokTarget(r)} icon={Plus} label="Tambah stok" className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border-emerald-100" />
+                    {role !== "staff" && (
+                      <IconButton onClick={() => setStokTarget(r)} icon={Plus} label="Tambah stok" className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border-emerald-100" />
+                    )}
                   </div>
                 ),
               },
@@ -234,8 +241,8 @@ export default function RokokPage({ rokokList, usedIds, mutasiHariIni = [] }) {
                       Detail
                     </button>
                     <RowActions
-                      onEdit={() => { setEditing(r); setMode("edit") }}
-                      onDelete={() => handleDelete(r)}
+                      onEdit={role !== "staff" ? () => { setEditing(r); setMode("edit") } : null}
+                      onDelete={role !== "staff" ? () => handleDelete(r) : null}
                       deleteDisabled={isUsed(r.id)}
                       deleteTitle="Rokok sudah digunakan di data distribusi/retur"
                       deleteLoading={deletingId === r.id}
