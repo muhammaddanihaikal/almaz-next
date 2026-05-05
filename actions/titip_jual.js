@@ -191,6 +191,7 @@ export async function deleteTitipJual(id, alasan) {
   const session = await auth()
   await prisma.$transaction(async (tx) => {
     const k = await tx.titipJual.findUnique({ where: { id }, include: { items: { include: { rokok: true } }, toko: true, sales: true } })
+    if (!k) throw new Error("Data titip jual tidak ditemukan")
     if (k.status !== "aktif") throw new Error("Hanya titip jual aktif yang bisa dihapus")
 
     const sesi    = await tx.sesiHarian.findUnique({ where: { id: k.sesi_id }, select: { tanggal: true } })
