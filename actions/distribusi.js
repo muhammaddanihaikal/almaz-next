@@ -205,343 +205,364 @@ export async function updateSesiPagi(id, data, alasan) {
 }
 
 export async function submitLaporanSore(id, data) {
-  const rokokList = await prisma.rokok.findMany()
-  const hargaMap  = {}
-  for (const r of rokokList) {
-    hargaMap[r.id] = { grosir: r.harga_grosir, toko: r.harga_toko, perorangan: r.harga_perorangan }
-  }
-
   const session = await auth()
-  await prisma.$transaction(async (tx) => {
-    // Revert old PENJUALAN mutations before recreating
-    const oldPenjualanSore = await tx.sesiPenjualan.findMany({ where: { sesi_id: id } })
-    for (const it of oldPenjualanSore) {
-      if (it.qty > 0) {
-        await mutateStock({
-          tx, rokok_id: it.rokok_id, tanggal: data.tanggal, jenis: 'in', qty: it.qty,
-          source: MUTATION_SOURCE.REVERT, reference_id: id,
-          keterangan: "Revert penjualan (re-submit sore)", user_id: session?.user?.id,
-          allowNegative: true,
-        })
-      }
-    }
+  try {
+    const rokokList = await prisma.rokok.findMany()
+    const hargaMap = Object.fromEntries(
+      rokokList.map((r) => [
+        r.id,
+        { grosir: r.harga_grosir, toko: r.harga_toko, perorangan: r.harga_perorangan },
+      ])
+    )
 
-    await tx.sesiPenjualan.deleteMany({ where: { sesi_id: id } })
-    await tx.sesiSetoran.deleteMany({   where: { sesi_id: id } })
-    await tx.sesiBarangKembali.deleteMany({ where: { sesi_id: id } })
-
-    const penjualan = data.penjualan || []
-    await tx.sesiPenjualan.createMany({
-      data: penjualan.map((it) => ({
-        sesi_id:  id,
-        rokok_id: it.rokok_id,
-        kategori: it.kategori,
-        qty:      it.qty,
-        harga:    hargaMap[it.rokok_id]?.[it.kategori] || 0,
-      })),
-    })
-    for (const it of penjualan) {
-      if (it.qty > 0) {
-        await mutateStock({
-          tx, rokok_id: it.rokok_id, tanggal: data.tanggal, jenis: 'out', qty: it.qty,
-          source: MUTATION_SOURCE.PENJUALAN, reference_id: id, user_id: session?.user?.id,
-        })
-      }
-    }
-
-    const setoran = data.setoran || []
-    await tx.sesiSetoran.createMany({
-      data: setoran.map((it) => ({ sesi_id: id, metode: it.metode, jumlah: it.jumlah })),
-    })
-
-    const kembali = data.barangKembali || []
-    await tx.sesiBarangKembali.createMany({
-      data: kembali.map((it) => ({ sesi_id: id, rokok_id: it.rokok_id, qty: it.qty })),
-    })
-
-    const konsinyasiBaru = data.konsinyasiBaru || []
-    for (const k of konsinyasiBaru) {
-      const titipJual = await tx.titipJual.create({
-        data: {
-          sesi_id:             id,
-          sales_id:            data.sales_id,
-          toko_id:             k.toko_id,
-          kategori:            k.kategori,
-          tanggal_jatuh_tempo: new Date(k.tanggal_jatuh_tempo),
-          catatan:             k.catatan || null,
-          items: {
-            create: k.items.map((it) => ({
-              rokok_id:   it.rokok_id,
-              qty_keluar: Number(it.qty),
-              harga:      hargaMap[it.rokok_id]?.[k.kategori] || 0,
-            })),
-          },
-        },
-        include: { items: true },
-      })
-      for (const it of titipJual.items) {
-        if (it.qty_keluar > 0) {
+    await prisma.$transaction(async (tx) => {
+      // Revert old PENJUALAN mutations before recreating
+      const oldPenjualanSore = await tx.sesiPenjualan.findMany({ where: { sesi_id: id } })
+      for (const it of oldPenjualanSore) {
+        if (it.qty > 0) {
           await mutateStock({
-            tx, rokok_id: it.rokok_id, tanggal: data.tanggal, jenis: 'out', qty: it.qty_keluar,
-            source: MUTATION_SOURCE.KONSINYASI_KELUAR, reference_id: titipJual.id, user_id: session?.user?.id,
+            tx, rokok_id: it.rokok_id, tanggal: data.tanggal, jenis: 'in', qty: it.qty,
+            source: MUTATION_SOURCE.REVERT, reference_id: id,
+            keterangan: "Revert penjualan (re-submit sore)", user_id: session?.user?.id,
+            allowNegative: true,
           })
         }
       }
-    }
 
-    // Tukar Barang Baru
-    const tukarBaru = data.tukarBaru || []
-    const sesiObj = { id, tanggal: data.tanggal }
-    for (const t of tukarBaru) {
-      await createTukarBarangInSesi(tx, sesiObj, t, session, !!t.langsungSelesai)
-    }
+      await tx.sesiPenjualan.deleteMany({ where: { sesi_id: id } })
+      await tx.sesiSetoran.deleteMany({   where: { sesi_id: id } })
+      await tx.sesiBarangKembali.deleteMany({ where: { sesi_id: id } })
 
-    // Penyelesaian Tukar Barang yang masih aktif
-    const penyelesaianTukar = data.penyelesaianTukar || []
-    for (const tukar_id of penyelesaianTukar) {
-      await selesaikanTukarBarangInSesi(tx, sesiObj, tukar_id, session)
-    }
-
-    const penyelesaian = data.penyelesaianKonsinyasi || []
-    for (const p of penyelesaian) {
-      for (const it of p.items) {
-        await tx.titipJualItem.update({
-          where: { id: it.id },
-          data:  { qty_terjual: it.qty_terjual, qty_kembali: it.qty_kembali },
-        })
-        if (it.qty_kembali > 0) {
-          await mutateStock({
-            tx,
-            rokok_id: it.rokok_id,
-            tanggal: data.tanggal,
-            jenis: 'in',
-            qty: it.qty_kembali,
-            source: MUTATION_SOURCE.KONSINYASI_KEMBALI,
-            reference_id: p.konsinyasi_id,
-            user_id: session?.user?.id
-          })
-        }
-      }
-      await tx.titipJualSetoran.createMany({
-        data: (p.setoran || []).map((st) => ({
-          titip_jual_id:        p.konsinyasi_id,
-          metode:               st.metode,
-          jumlah:               st.jumlah,
-          tanggal:              new Date(data.tanggal),
-          sesi_penyelesaian_id: id,
+      const penjualan = data.penjualan || []
+      await tx.sesiPenjualan.createMany({
+        data: penjualan.map((it) => ({
+          sesi_id:  id,
+          rokok_id: it.rokok_id,
+          kategori: it.kategori,
+          qty:      it.qty,
+          harga:    hargaMap[it.rokok_id]?.[it.kategori] || 0,
         })),
       })
-      await tx.titipJual.update({
-        where: { id: p.konsinyasi_id },
-        data:  { status: "selesai" },
+      for (const it of penjualan) {
+        if (it.qty > 0) {
+          await mutateStock({
+            tx, rokok_id: it.rokok_id, tanggal: data.tanggal, jenis: 'out', qty: it.qty,
+            source: MUTATION_SOURCE.PENJUALAN, reference_id: id, user_id: session?.user?.id,
+          })
+        }
+      }
+
+      const setoran = data.setoran || []
+      await tx.sesiSetoran.createMany({
+        data: setoran.map((it) => ({ sesi_id: id, metode: it.metode, jumlah: it.jumlah })),
       })
-    }
 
-    await tx.sesiHarian.update({
-      where: { id },
-      data:  { status: "selesai" },
-    })
+      const kembali = data.barangKembali || []
+      await tx.sesiBarangKembali.createMany({
+        data: kembali.map((it) => ({ sesi_id: id, rokok_id: it.rokok_id, qty: it.qty })),
+      })
 
-    await logAudit({
-      tx,
-      entity_type: AUDIT_ENTITY.SESI_HARIAN,
-      change_type: "Laporan Sore - Submit",
-      entity_id:   id,
-      action:      AUDIT_ACTION.UPDATE,
-      new_values:  {
-        status:       "selesai",
-        penjualan:    penjualan.map(it => ({ rokok_id: it.rokok_id, kategori: it.kategori, qty: it.qty })),
-        setoran:      setoran.map(it => ({ metode: it.metode, jumlah: it.jumlah })),
-        barangKembali: kembali.map(it => ({ rokok_id: it.rokok_id, qty: it.qty })),
-      },
-      alasan:    "Submit laporan sore",
-      user_id:   session?.user?.id,
-      user_name: session?.user?.name,
-    })
-  })
-  revalidatePath("/distribusi")
-  revalidatePath("/titip-jual")
-  revalidatePath("/")
-}
-
-export async function editLaporanSore(id, data, alasan) {
-  const rokokList = await prisma.rokok.findMany()
-  const hargaMap  = {}
-  for (const r of rokokList) {
-    hargaMap[r.id] = { grosir: r.harga_grosir, toko: r.harga_toko, perorangan: r.harga_perorangan }
-  }
-
-  const session = await auth()
-  await prisma.$transaction(async (tx) => {
-    const oldKembali  = await tx.sesiBarangKembali.findMany({ where: { sesi_id: id }, include: { rokok: true } })
-    const oldPenjualan = await tx.sesiPenjualan.findMany({ where: { sesi_id: id }, include: { rokok: true } })
-    const oldSetoran  = await tx.sesiSetoran.findMany({ where: { sesi_id: id } })
-
-    for (const it of oldPenjualan) {
-      if (it.qty > 0) {
-        await mutateStock({
-          tx,
-          rokok_id: it.rokok_id,
-          tanggal: data.tanggal,
-          jenis: 'in',
-          qty: it.qty,
-          source: MUTATION_SOURCE.REVERT,
-          reference_id: id,
-          keterangan: "Revert penjualan (edit sore)",
-          user_id: session?.user?.id,
-          allowNegative: true,
+      const konsinyasiBaru = data.konsinyasiBaru || []
+      for (const k of konsinyasiBaru) {
+        const titipJual = await tx.titipJual.create({
+          data: {
+            sesi_id:             id,
+            sales_id:            data.sales_id,
+            toko_id:             k.toko_id,
+            kategori:            k.kategori,
+            tanggal_jatuh_tempo: new Date(k.tanggal_jatuh_tempo),
+            catatan:             k.catatan || null,
+            items: {
+              create: k.items.map((it) => ({
+                rokok_id:   it.rokok_id,
+                qty_keluar: Number(it.qty),
+                harga:      hargaMap[it.rokok_id]?.[k.kategori] || 0,
+              })),
+            },
+          },
+          include: { items: true },
         })
-      }
-    }
-
-    // Revert tukar barang yang dibuat di sesi ini (revert mutasi tukar_masuk + tukar_keluar + delete record)
-    const oldTukarBaru = await tx.tukarBarang.findMany({
-      where: { sesi_id: id },
-      include: { itemsMasuk: true, itemsKeluar: true },
-    })
-    for (const t of oldTukarBaru) {
-      for (const it of t.itemsMasuk) {
-        await mutateStock({
-          tx,
-          rokok_id: it.rokok_id,
-          tanggal: data.tanggal,
-          jenis: 'out',
-          qty: it.qty,
-          source: MUTATION_SOURCE.REVERT,
-          reference_id: t.id,
-          keterangan: "Revert tukar barang masuk (edit sore)",
-          user_id: session?.user?.id,
-          allowNegative: true,
-        })
-      }
-      // Revert TUKAR_KELUAR jika tukar ini sudah selesai (langsungSelesai di sesi yang sama)
-      if (t.status === "selesai") {
-        for (const it of t.itemsKeluar) {
-          if (it.qty > 0) {
+        for (const it of titipJual.items) {
+          if (it.qty_keluar > 0) {
             await mutateStock({
-              tx,
-              rokok_id: it.rokok_id,
-              tanggal: data.tanggal,
-              jenis: 'in',
-              qty: it.qty,
-              source: MUTATION_SOURCE.REVERT,
-              reference_id: t.id,
-              keterangan: "Revert tukar barang keluar (edit sore)",
-              user_id: session?.user?.id,
-              allowNegative: true,
+              tx, rokok_id: it.rokok_id, tanggal: data.tanggal, jenis: 'out', qty: it.qty_keluar,
+              source: MUTATION_SOURCE.KONSINYASI_KELUAR, reference_id: titipJual.id, user_id: session?.user?.id,
             })
           }
         }
       }
-      await tx.tukarBarang.delete({ where: { id: t.id } })
-    }
 
-    // Revert penyelesaian tukar yang diselesaikan di sesi ini (status balik aktif)
-    const oldTukarSelesai = await tx.tukarBarang.findMany({
-      where: { sesi_selesai_id: id, status: "selesai" },
-    })
-    for (const t of oldTukarSelesai) {
-      // skip kalau tukar dibuat di sesi yang sama (langsung selesai) — sudah dihapus di blok atas
-      if (t.sesi_id === id) continue
-      await revertSelesaiTukarBarangInSesi(tx, t.id, session)
-    }
+      // Tukar Barang Baru
+      const tukarBaru = data.tukarBaru || []
+      const sesiObj = { id, tanggal: data.tanggal }
+      for (const t of tukarBaru) {
+        await createTukarBarangInSesi(tx, sesiObj, t, session, !!t.langsungSelesai)
+      }
 
-    await tx.sesiPenjualan.deleteMany({ where: { sesi_id: id } })
-    await tx.sesiSetoran.deleteMany({   where: { sesi_id: id } })
-    await tx.sesiBarangKembali.deleteMany({ where: { sesi_id: id } })
+      // Penyelesaian Tukar Barang yang masih aktif
+      const penyelesaianTukar = data.penyelesaianTukar || []
+      for (const tukar_id of penyelesaianTukar) {
+        await selesaikanTukarBarangInSesi(tx, sesiObj, tukar_id, session)
+      }
 
-    const penjualan = data.penjualan || []
-    await tx.sesiPenjualan.createMany({
-      data: penjualan.map((it) => ({
-        sesi_id:  id,
-        rokok_id: it.rokok_id,
-        kategori: it.kategori,
-        qty:      it.qty,
-        harga:    hargaMap[it.rokok_id]?.[it.kategori] || 0,
-      })),
-    })
-    for (const it of penjualan) {
-      if (it.qty > 0) {
-        await mutateStock({
-          tx, rokok_id: it.rokok_id, tanggal: data.tanggal, jenis: 'out', qty: it.qty,
-          source: MUTATION_SOURCE.PENJUALAN, reference_id: id, user_id: session?.user?.id,
+      // Penyelesaian Titip Jual (Settlement)
+      const penyelesaianKonsinyasi = data.penyelesaianKonsinyasi || []
+      for (const p of penyelesaianKonsinyasi) {
+        await tx.titipJual.update({
+          where: { id: p.konsinyasi_id },
+          data: { status: "selesai", tanggal_selesai: new Date(data.tanggal) }
+        })
+        for (const it of (p.items || [])) {
+          await tx.titipJualItem.update({
+            where: { titip_jual_id_rokok_id: { titip_jual_id: p.konsinyasi_id, rokok_id: it.rokok_id } },
+            data:  { qty_terjual: it.qty_terjual, qty_kembali: it.qty_kembali },
+          })
+          if (it.qty_kembali > 0) {
+            await mutateStock({
+              tx, rokok_id: it.rokok_id, tanggal: data.tanggal, jenis: 'in', qty: it.qty_kembali,
+              source: MUTATION_SOURCE.KONSINYASI_KEMBALI, reference_id: p.konsinyasi_id, user_id: session?.user?.id,
+            })
+          }
+        }
+        await tx.titipJualSetoran.createMany({
+          data: (p.setoran || []).map((st) => ({
+            titip_jual_id:        p.konsinyasi_id,
+            metode:               st.metode,
+            jumlah:               st.jumlah,
+            tanggal:              new Date(data.tanggal),
+            sesi_penyelesaian_id: id,
+          })),
         })
       }
-    }
 
-    const setoran = data.setoran || []
-    await tx.sesiSetoran.createMany({
-      data: setoran.map((it) => ({ sesi_id: id, metode: it.metode, jumlah: it.jumlah })),
-    })
-
-    const kembali = data.barangKembali || []
-    await tx.sesiBarangKembali.createMany({
-      data: kembali.map((it) => ({ sesi_id: id, rokok_id: it.rokok_id, qty: it.qty })),
-    })
-
-    const konsinyasiBaru = data.konsinyasiBaru || []
-    for (const k of konsinyasiBaru) {
-      const titipJual = await tx.titipJual.create({
-        data: {
-          sesi_id:             id,
-          sales_id:            data.sales_id,
-          toko_id:             k.toko_id,
-          kategori:            k.kategori,
-          tanggal_jatuh_tempo: new Date(k.tanggal_jatuh_tempo),
-          catatan:             k.catatan || null,
-          items: {
-            create: k.items.map((it) => ({
-              rokok_id:   it.rokok_id,
-              qty_keluar: Number(it.qty),
-              harga:      hargaMap[it.rokok_id]?.[k.kategori] || 0,
-            })),
-          },
-        },
-        include: { items: true },
+      await tx.sesiHarian.update({
+        where: { id },
+        data:  { status: "selesai" },
       })
-      for (const it of titipJual.items) {
-        if (it.qty_keluar > 0) {
+
+      await logAudit({
+        tx,
+        entity_type: AUDIT_ENTITY.SESI_HARIAN,
+        change_type: "Laporan Sore - Submit",
+        entity_id:   id,
+        action:      AUDIT_ACTION.UPDATE,
+        new_values:  {
+          status:       "selesai",
+          penjualan:    penjualan.map(it => ({ rokok_id: it.rokok_id, kategori: it.kategori, qty: it.qty })),
+          setoran:      setoran.map(it => ({ metode: it.metode, jumlah: it.jumlah })),
+          barangKembali: kembali.map(it => ({ rokok_id: it.rokok_id, qty: it.qty })),
+        },
+        alasan:    "Submit laporan sore",
+        user_id:   session?.user?.id,
+        user_name: session?.user?.name,
+      })
+    })
+    revalidatePath("/distribusi")
+    revalidatePath("/titip-jual")
+    revalidatePath("/")
+    return { success: true }
+  } catch (error) {
+    console.error(`[submitLaporanSore ERROR] id: ${id}`, {
+      message: error.message,
+      stack: error.stack,
+      data: JSON.stringify(data),
+    })
+    throw error
+  }
+}
+
+export async function editLaporanSore(id, data, alasan) {
+  const session = await auth()
+  try {
+    const rokokList = await prisma.rokok.findMany()
+    const hargaMap = Object.fromEntries(
+      rokokList.map((r) => [
+        r.id,
+        { grosir: r.harga_grosir, toko: r.harga_toko, perorangan: r.harga_perorangan },
+      ])
+    )
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Ambil data lama
+      const oldPenjualan     = await tx.sesiPenjualan.findMany({ where: { sesi_id: id }, include: { rokok: true } })
+      const oldSetoran       = await tx.sesiSetoran.findMany({ where: { sesi_id: id } })
+      const oldKembali       = await tx.sesiBarangKembali.findMany({ where: { sesi_id: id }, include: { rokok: true } })
+
+      // 2. Revert stok penjualan lama
+      for (const it of oldPenjualan) {
+        if (it.qty > 0) {
           await mutateStock({
-            tx, rokok_id: it.rokok_id, tanggal: data.tanggal, jenis: 'out', qty: it.qty_keluar,
-            source: MUTATION_SOURCE.KONSINYASI_KELUAR, reference_id: titipJual.id, user_id: session?.user?.id,
+            tx, rokok_id: it.rokok_id, tanggal: data.tanggal, jenis: 'in', qty: it.qty,
+            source: MUTATION_SOURCE.REVERT, reference_id: id,
+            keterangan: `Revert stok penjualan untuk edit laporan (alasan: ${alasan})`, user_id: session?.user?.id,
+            allowNegative: true,
           })
         }
       }
-    }
 
-    // Apply tukar barang baru & penyelesaian (mirror submitLaporanSore)
-    const sesiObjEdit = { id, tanggal: data.tanggal }
-    for (const t of (data.tukarBaru || [])) {
-      await createTukarBarangInSesi(tx, sesiObjEdit, t, session, !!t.langsungSelesai)
-    }
-    for (const tukar_id of (data.penyelesaianTukar || [])) {
-      await selesaikanTukarBarangInSesi(tx, sesiObjEdit, tukar_id, session)
-    }
+      // Revert tukar barang yang dibuat di sesi ini (revert mutasi tukar_masuk + tukar_keluar + delete record)
+      const oldTukarBaru = await tx.tukarBarang.findMany({
+        where: { sesi_id: id },
+        include: { itemsMasuk: true, itemsKeluar: true },
+      })
+      for (const t of oldTukarBaru) {
+        for (const it of t.itemsMasuk) {
+          await mutateStock({
+            tx,
+            rokok_id: it.rokok_id,
+            tanggal: data.tanggal,
+            jenis: 'out',
+            qty: it.qty,
+            source: MUTATION_SOURCE.REVERT,
+            reference_id: t.id,
+            keterangan: "Revert tukar barang masuk (edit sore)",
+            user_id: session?.user?.id,
+            allowNegative: true,
+          })
+        }
+        // Revert TUKAR_KELUAR jika tukar ini sudah selesai (langsungSelesai di sesi yang sama)
+        if (t.status === "selesai") {
+          for (const it of t.itemsKeluar) {
+            if (it.qty > 0) {
+              await mutateStock({
+                tx,
+                rokok_id: it.rokok_id,
+                tanggal: data.tanggal,
+                jenis: 'in',
+                qty: it.qty,
+                source: MUTATION_SOURCE.REVERT,
+                reference_id: t.id,
+                keterangan: "Revert tukar barang keluar (edit sore)",
+                user_id: session?.user?.id,
+                allowNegative: true,
+              })
+            }
+          }
+        }
+        await tx.tukarBarang.delete({ where: { id: t.id } })
+      }
 
-    await logAudit({
-      tx,
-      entity_type: AUDIT_ENTITY.SESI_HARIAN,
-      change_type: "Laporan Sore - Edit",
-      entity_id:   id,
-      action:      AUDIT_ACTION.UPDATE,
-      old_values:  {
-        penjualan:    oldPenjualan.map(it => ({ rokok: it.rokok?.nama, kategori: it.kategori, qty: it.qty, harga: it.harga })),
-        setoran:      oldSetoran.map(it => ({ metode: it.metode, jumlah: it.jumlah })),
-        barangKembali: oldKembali.map(it => ({ rokok: it.rokok?.nama, qty: it.qty })),
-      },
-      new_values:  {
-        penjualan:    penjualan.map(it => ({ rokok_id: it.rokok_id, kategori: it.kategori, qty: it.qty })),
-        setoran:      setoran.map(it => ({ metode: it.metode, jumlah: it.jumlah })),
-        barangKembali: kembali.map(it => ({ rokok_id: it.rokok_id, qty: it.qty })),
-      },
-      alasan,
-      user_id:   session?.user?.id,
-      user_name: session?.user?.name,
+      // Revert penyelesaian tukar yang diselesaikan di sesi ini (status balik aktif)
+      const oldTukarSelesai = await tx.tukarBarang.findMany({
+        where: { sesi_selesai_id: id, status: "selesai" },
+      })
+      for (const t of oldTukarSelesai) {
+        // skip kalau tukar dibuat di sesi yang sama (langsung selesai) — sudah dihapus di blok atas
+        if (t.sesi_id === id) continue
+        await revertSelesaiTukarBarangInSesi(tx, t.id, session)
+      }
+
+      // 3. Hapus data lama
+      await tx.sesiPenjualan.deleteMany({ where: { sesi_id: id } })
+      await tx.sesiSetoran.deleteMany({   where: { sesi_id: id } })
+      await tx.sesiBarangKembali.deleteMany({ where: { sesi_id: id } })
+
+      // 4. Buat data baru
+      const penjualan = data.penjualan || []
+      await tx.sesiPenjualan.createMany({
+        data: penjualan.map((it) => ({
+          sesi_id:  id,
+          rokok_id: it.rokok_id,
+          kategori: it.kategori,
+          qty:      it.qty,
+          harga:    hargaMap[it.rokok_id]?.[it.kategori] || 0,
+        })),
+      })
+      for (const it of penjualan) {
+        if (it.qty > 0) {
+          await mutateStock({
+            tx, rokok_id: it.rokok_id, tanggal: data.tanggal, jenis: 'out', qty: it.qty,
+            source: MUTATION_SOURCE.PENJUALAN, reference_id: id, user_id: session?.user?.id,
+          })
+        }
+      }
+
+      const setoran = data.setoran || []
+      await tx.sesiSetoran.createMany({
+        data: setoran.map((it) => ({ sesi_id: id, metode: it.metode, jumlah: it.jumlah })),
+      })
+
+      const kembali = data.barangKembali || []
+      await tx.sesiBarangKembali.createMany({
+        data: kembali.map((it) => ({ sesi_id: id, rokok_id: it.rokok_id, qty: it.qty })),
+      })
+
+      // 5. Konsinyasi Baru
+      const konsinyasiBaru = data.konsinyasiBaru || []
+      for (const k of konsinyasiBaru) {
+        const titipJual = await tx.titipJual.create({
+          data: {
+            sesi_id:             id,
+            sales_id:            data.sales_id,
+            toko_id:             k.toko_id,
+            kategori:            k.kategori,
+            tanggal_jatuh_tempo: new Date(k.tanggal_jatuh_tempo),
+            catatan:             k.catatan || null,
+            items: {
+              create: k.items.map((it) => ({
+                rokok_id:   it.rokok_id,
+                qty_keluar: Number(it.qty),
+                harga:      hargaMap[it.rokok_id]?.[k.kategori] || 0,
+              })),
+            },
+          },
+          include: { items: true },
+        })
+        for (const it of titipJual.items) {
+          if (it.qty_keluar > 0) {
+            await mutateStock({
+              tx, rokok_id: it.rokok_id, tanggal: data.tanggal, jenis: 'out', qty: it.qty_keluar,
+              source: MUTATION_SOURCE.KONSINYASI_KELUAR, reference_id: titipJual.id, user_id: session?.user?.id,
+            })
+          }
+        }
+      }
+
+      // 6. Tukar Barang
+      const sesiObjEdit = { id, tanggal: data.tanggal }
+      for (const t of (data.tukarBaru || [])) {
+        await createTukarBarangInSesi(tx, sesiObjEdit, t, session, !!t.langsungSelesai)
+      }
+      for (const tukar_id of (data.penyelesaianTukar || [])) {
+        await selesaikanTukarBarangInSesi(tx, sesiObjEdit, tukar_id, session)
+      }
+
+      // 7. Audit Log
+      await logAudit({
+        tx,
+        entity_type: AUDIT_ENTITY.SESI_HARIAN,
+        change_type: "Laporan Sore - Edit",
+        entity_id:   id,
+        action:      AUDIT_ACTION.UPDATE,
+        old_values:  {
+          penjualan:    oldPenjualan.map(it => ({ rokok: it.rokok?.nama, kategori: it.kategori, qty: it.qty, harga: it.harga })),
+          setoran:      oldSetoran.map(it => ({ metode: it.metode, jumlah: it.jumlah })),
+          barangKembali: oldKembali.map(it => ({ rokok: it.rokok?.nama, qty: it.qty })),
+        },
+        new_values:  {
+          penjualan:    penjualan.map(it => ({ rokok_id: it.rokok_id, kategori: it.kategori, qty: it.qty })),
+          setoran:      setoran.map(it => ({ metode: it.metode, jumlah: it.jumlah })),
+          barangKembali: kembali.map(it => ({ rokok_id: it.rokok_id, qty: it.qty })),
+        },
+        alasan,
+        user_id:   session?.user?.id,
+        user_name: session?.user?.name,
+      })
     })
-  })
-  revalidatePath("/distribusi")
-  revalidatePath("/titip-jual")
-  revalidatePath("/")
+
+    revalidatePath("/distribusi")
+    revalidatePath("/titip-jual")
+    revalidatePath("/")
+    return { success: true }
+  } catch (error) {
+    console.error(`[editLaporanSore ERROR] id: ${id}`, {
+      message: error.message,
+      stack: error.stack,
+      data: JSON.stringify(data),
+      alasan
+    })
+    throw error
+  }
 }
 
 export async function deleteSesi(id, alasan) {

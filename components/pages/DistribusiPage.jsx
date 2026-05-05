@@ -396,6 +396,28 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
     return temp.sort((a, b) => b.tanggal.localeCompare(a.tanggal))
   }, [sesiList, dateRange, salesFilter, rokokFilter, statusFilter])
 
+  const summary = useMemo(() => {
+    let grosir = 0
+    let toko = 0
+    let perorangan = 0
+    let total = 0
+
+    rows.forEach((r) => {
+      if (r.status === "selesai") {
+        // Use pre-calculated r.nilaiPenjualan if available, but for per-category we need to sum up
+        r.penjualan?.forEach((pj) => {
+          const subtotal = (pj.qty || 0) * (pj.harga || 0)
+          if (pj.kategori === "grosir") grosir += subtotal
+          else if (pj.kategori === "toko") toko += subtotal
+          else if (pj.kategori === "perorangan") perorangan += subtotal
+        })
+        total += (r.nilaiPenjualan || 0)
+      }
+    })
+
+    return { grosir, toko, perorangan, total }
+  }, [rows])
+
   const close = () => { setMode(null); setEditing(null) }
 
   const handleDelete = async (r) => {
@@ -508,6 +530,22 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
             options={[{ value: "", label: "Semua Produk" }, ...rokokList.map((r) => ({ value: r.id, label: r.nama }))]}
           />
         </Field>
+      </div>
+
+      {/* Summary Row */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="rounded-xl border border-violet-100 bg-violet-50/50 p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wider text-violet-600">Total Grosir</p>
+          <p className="mt-1 text-xl font-bold text-violet-900">{fmtIDR(summary.grosir)}</p>
+        </div>
+        <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">Total Toko</p>
+          <p className="mt-1 text-xl font-bold text-blue-900">{fmtIDR(summary.toko)}</p>
+        </div>
+        <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600">Total Penjualan</p>
+          <p className="mt-1 text-xl font-bold text-emerald-900">{fmtIDR(summary.total)}</p>
+        </div>
       </div>
 
       <Card>
@@ -1136,22 +1174,63 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
         .filter(([_, qty]) => qty > 0)
         .map(([rokok_id, qty]) => ({ rokok_id, qty }))
 
-      await onSubmit({
-        penjualan:      validPenjualan.map((it) => ({ rokok_id: it.rokok_id, kategori: it.kategori, qty: Number(it.qty) })),
-        setoran:        validSetoran.map((it) => ({ metode: it.metode, jumlah: Number(it.jumlah) })),
-        barangKembali:  validKembali,
-        konsinyasiBaru: validKonsinyasi,
+      const payload = {
+        penjualan:      validPenjualan.map((it) => ({ 
+          rokok_id: it.rokok_id, 
+          kategori: it.kategori, 
+          qty: Number(it.qty) || 0 
+        })),
+        setoran:        validSetoran.map((it) => ({ 
+          metode: it.metode, 
+          jumlah: Number(it.jumlah) || 0 
+        })),
+        barangKembali:  validKembali.map(it => ({
+          rokok_id: it.rokok_id,
+          qty: Number(it.qty) || 0
+        })),
+        konsinyasiBaru: validKonsinyasi.map(k => ({
+          ...k,
+          items: k.items.map(it => ({
+            rokok_id: it.rokok_id,
+            qty_keluar: Number(it.qty) || 0
+          }))
+        })),
         tukarBaru: validTukarBaru.map((t) => ({
           kategori:    t.kategori || "grosir",
           itemsMasuk:  t.itemsMasuk.filter((it) => it.rokok_id && Number(it.qty) > 0)
-            .map((it) => ({ rokok_id: it.rokok_id, qty: Number(it.qty), harga_satuan: Number(it.harga_satuan || 0) })),
+            .map((it) => ({ 
+              rokok_id: it.rokok_id, 
+              qty: Number(it.qty) || 0, 
+              harga_satuan: Number(it.harga_satuan) || 0 
+            })),
           itemsKeluar: (t.itemsKeluar || []).filter((it) => it.rokok_id && Number(it.qty) > 0)
-            .map((it) => ({ rokok_id: it.rokok_id, qty: Number(it.qty), harga_satuan: Number(it.harga_satuan || 0) })),
+            .map((it) => ({ 
+              rokok_id: it.rokok_id, 
+              qty: Number(it.qty) || 0, 
+              harga_satuan: Number(it.harga_satuan) || 0 
+            })),
           catatan: t.catatan || null,
           langsungSelesai: !!t.langsungSelesai,
         })),
         penyelesaianTukar: Array.from(penyelesaianTukar),
-      })
+      }
+
+      // Final validation to prevent NaN in production
+      const hasNaN = (obj) => {
+        for (const key in obj) {
+          if (typeof obj[key] === 'number' && isNaN(obj[key])) return true;
+          if (obj[key] && typeof obj[key] === 'object') {
+            if (hasNaN(obj[key])) return true;
+          }
+        }
+        return false;
+      }
+
+      if (hasNaN(payload)) {
+        throw new Error("Terdapat input angka yang tidak valid (NaN). Silakan cek kembali data Anda.")
+      }
+
+      await onSubmit(payload)
     } catch (err) {
       setSubmitError(err?.message || "Terjadi kesalahan saat menyimpan laporan sore.")
     } finally {
