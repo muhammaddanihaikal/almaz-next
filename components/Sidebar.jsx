@@ -95,9 +95,8 @@ export default function Sidebar({ role, userName, titipJualCounts, tukarAktifCou
         onClick={(e) => {
           e.preventDefault()
           setMobileOpen(false)
-          if (item.href !== pathname) {
-            navigate(item.href)
-          }
+          setMobileOpen(false)
+          navigate(item.href)
         }}
         className={
           "flex w-full items-center gap-3 rounded-lg py-2.5 pl-9 pr-3 text-sm font-medium transition-colors lg:pl-3 " +

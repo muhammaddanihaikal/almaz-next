@@ -17,7 +17,7 @@ export default function AppContent({ children }) {
   if (!mounted) return children
 
   // If we are pending AND the path is actually changing
-  if (isPending && loadingPath && loadingPath !== pathname) {
+  if (isPending && loadingPath) {
     // Specific skeletons based on path
     if (loadingPath.includes("/mutasi")) return <MutasiSkeleton />
     

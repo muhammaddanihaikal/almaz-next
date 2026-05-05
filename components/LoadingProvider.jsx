@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, useTransition } from "react"
+import { createContext, useContext, useState, useTransition, useEffect } from "react"
 import { useRouter } from "next/navigation"
 
 const LoadingContext = createContext({
@@ -17,13 +17,20 @@ export function LoadingProvider({ children }) {
   const navigate = (href) => {
     setLoadingPath(href)
     startTransition(() => {
-      router.push(href)
+      if (window.location.pathname === href) {
+        router.refresh()
+      } else {
+        router.push(href)
+      }
     })
   }
 
   // Reset loadingPath when transition finishes
-  // Note: transition finish happens when the component that uses isPending rerenders.
-  // We'll handle resetting in a way that feels smooth.
+  useEffect(() => {
+    if (!isPending) {
+      setLoadingPath(null)
+    }
+  }, [isPending])
 
   return (
     <LoadingContext.Provider value={{ isPending, loadingPath, navigate }}>
