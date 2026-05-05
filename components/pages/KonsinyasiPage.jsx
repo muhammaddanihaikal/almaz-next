@@ -277,7 +277,7 @@ export default function KonsinyasiPage({ role, titipJualList, salesList }) {
               render: (r) => <RokokItemsTooltip items={r.items.map(it => ({ ...it, qty: it.qty_keluar }))} />,
             },
             { key: "nilai", label: "Nilai", align: "right", render: (r) => fmtIDR(r.nilaiTotal) },
-            { key: "tgl_selesai", label: "Tgl Selesai", render: (r) => r.tanggal_selesai ? <span className="text-green-700 font-medium">{fmtTanggal(r.tanggal_selesai)}</span> : <span className="text-neutral-300">—</span> },
+            ...(activeTab === "selesai" ? [{ key: "tgl_selesai", label: "Tgl Selesai", render: (r) => r.tanggal_selesai ? <span className="text-green-700 font-medium">{fmtTanggal(r.tanggal_selesai)}</span> : <span className="text-neutral-300">—</span> }] : []),
             {
               key: "flag", label: "",
               render: (r) => r.flagSetoran ? (
@@ -487,66 +487,122 @@ function KonsinyasiDetailForm({ record, onSubmit, onCancel }) {
 
 function KonsinyasiDetail({ record }) {
   return (
-    <div className="space-y-4 text-sm">
-      <div className="grid grid-cols-2 gap-3">
-        <div><p className="text-xs text-neutral-500">Sales</p><p className="font-medium">{record.sales}</p></div>
-        <div><p className="text-xs text-neutral-500">Toko</p><p className="font-medium">{record.nama_toko}</p></div>
-        <div><p className="text-xs text-neutral-500">Kategori</p><Badge label={record.kategori} colorClass={KATEGORI_COLOR[record.kategori] || "bg-neutral-100 text-neutral-600"} /></div>
-        <div><p className="text-xs text-neutral-500">Status</p><Badge label={record.status === "selesai" ? "Selesai" : "Aktif"} colorClass={STATUS_COLOR[record.status]} /></div>
-        <div><p className="text-xs text-neutral-500">Jatuh Tempo</p><p className={`font-medium ${record.status === "aktif" && record.selisihHari <= 0 ? "text-red-600" : ""}`}>{fmtTanggal(record.tanggal_jatuh_tempo)}</p></div>
-        {record.tanggal_selesai && <div><p className="text-xs text-neutral-500">Tgl Selesai</p><p className="font-medium text-green-700">{fmtTanggal(record.tanggal_selesai)}</p></div>}
-        {record.catatan && <div><p className="text-xs text-neutral-500">Catatan</p><p>{record.catatan}</p></div>}
-      </div>
-
-      <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">Detail Barang</p>
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-b border-neutral-200 text-neutral-500">
-              <th className="pb-1.5 text-left">Rokok</th>
-              <th className="pb-1.5 text-right">Keluar</th>
-              <th className="pb-1.5 text-right">Terjual</th>
-              <th className="pb-1.5 text-right">Kembali</th>
-              <th className="pb-1.5 text-right">Harga</th>
-              <th className="pb-1.5 text-right">Nilai Terjual</th>
-            </tr>
-          </thead>
-          <tbody>
-            {record.items.map((it, i) => (
-              <tr key={i} className="border-b border-neutral-100">
-                <td className="py-1.5">{it.rokok}</td>
-                <td className="py-1.5 text-right tabular-nums">{it.qty_keluar}</td>
-                <td className="py-1.5 text-right tabular-nums">{it.qty_terjual}</td>
-                <td className="py-1.5 text-right tabular-nums">{it.qty_kembali}</td>
-                <td className="py-1.5 text-right tabular-nums">{fmtIDR(it.harga)}</td>
-                <td className="py-1.5 text-right tabular-nums">{fmtIDR(it.qty_terjual * it.harga)}</td>
-              </tr>
-            ))}
-            <tr className="border-t-2 border-neutral-200 font-semibold">
-              <td colSpan={5} className="py-1.5">Total Nilai Terjual</td>
-              <td className="py-1.5 text-right tabular-nums">{fmtIDR(record.nilaiTerjual)}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      {record.setoran.length > 0 && (
-        <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">Setoran</p>
+    <div className="space-y-6 text-sm">
+      {/* SECTION 1: Informasi Transaksi */}
+      <div className="rounded-xl border border-neutral-200 bg-neutral-50/50 p-4 space-y-4">
+        <div className="flex items-center justify-between border-b border-neutral-200 pb-2">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Informasi Transaksi</h3>
+          <div className="flex gap-2">
+            <Badge label={record.kategori} colorClass={KATEGORI_COLOR[record.kategori] || "bg-neutral-100 text-neutral-600"} />
+            <Badge label={record.status === "selesai" ? "Selesai" : "Aktif"} colorClass={STATUS_COLOR[record.status]} />
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
           <div className="space-y-1">
+            <p className="text-[10px] uppercase font-bold text-neutral-400">Sales</p>
+            <p className="font-semibold text-neutral-900">{record.sales}</p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-[10px] uppercase font-bold text-neutral-400">Toko / Customer</p>
+            <p className="font-semibold text-neutral-900">{record.nama_toko}</p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-[10px] uppercase font-bold text-neutral-400">Jatuh Tempo</p>
+            <p className={`font-semibold ${record.status === "aktif" && record.selisihHari <= 0 ? "text-red-600" : "text-neutral-900"}`}>
+              {fmtTanggal(record.tanggal_jatuh_tempo)}
+            </p>
+          </div>
+          {record.tanggal_selesai && (
+            <div className="space-y-1">
+              <p className="text-[10px] uppercase font-bold text-neutral-400">Tgl Selesai</p>
+              <p className="font-semibold text-green-700">{fmtTanggal(record.tanggal_selesai)}</p>
+            </div>
+          )}
+        </div>
+
+        {record.catatan && (
+          <div className="mt-2 pt-3 border-t border-dashed border-neutral-200">
+            <p className="text-[10px] uppercase font-bold text-neutral-400 mb-1">Catatan Admin</p>
+            <div className="bg-amber-50/50 border border-amber-100 rounded-lg p-2.5 text-xs text-amber-900 italic leading-relaxed">
+              "{record.catatan}"
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* SECTION 2: Detail Barang */}
+      <div className="rounded-xl border border-neutral-200 bg-white p-4 space-y-3">
+        <div className="flex items-center justify-between border-b border-neutral-200 pb-2">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Detail Barang Penjualan</h3>
+          <span className="text-xs text-neutral-400 font-medium">{record.items.length} jenis rokok</span>
+        </div>
+
+        <div className="overflow-hidden rounded-lg border border-neutral-100">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-neutral-50 text-neutral-500 border-b border-neutral-100">
+                <th className="px-3 py-2 text-left font-semibold">Rokok</th>
+                <th className="px-3 py-2 text-center font-semibold">Keluar</th>
+                <th className="px-3 py-2 text-center font-semibold">Terjual</th>
+                <th className="px-3 py-2 text-center font-semibold">Kembali</th>
+                <th className="px-3 py-2 text-right font-semibold">Harga</th>
+                <th className="px-3 py-2 text-right font-semibold">Nilai</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-neutral-50">
+              {record.items.map((it, i) => (
+                <tr key={i} className="hover:bg-neutral-50/50 transition-colors">
+                  <td className="px-3 py-2.5 font-medium text-neutral-700">{it.rokok}</td>
+                  <td className="px-3 py-2.5 text-center tabular-nums text-neutral-600">{it.qty_keluar}</td>
+                  <td className="px-3 py-2.5 text-center tabular-nums font-bold text-neutral-900">{it.qty_terjual}</td>
+                  <td className="px-3 py-2.5 text-center tabular-nums text-neutral-400">{it.qty_kembali}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-neutral-500">{fmtIDR(it.harga)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums font-bold text-neutral-900">{fmtIDR(it.qty_terjual * it.harga)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="bg-neutral-900 text-white font-bold">
+                <td colSpan={5} className="px-3 py-2 text-right uppercase tracking-wider text-[10px]">Total Nilai Terjual</td>
+                <td className="px-3 py-2 text-right tabular-nums text-sm">{fmtIDR(record.nilaiTerjual)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      {/* SECTION 3: Setoran */}
+      {record.setoran.length > 0 && (
+        <div className="rounded-xl border border-neutral-200 bg-white p-4 space-y-4">
+          <div className="flex items-center justify-between border-b border-neutral-200 pb-2">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Detail Setoran</h3>
+          </div>
+
+          <div className="space-y-2">
             {record.setoran.map((it, i) => (
-              <div key={i} className="flex justify-between text-xs">
-                <span className="capitalize font-medium">{it.metode} — {fmtTanggal(it.tanggal)}</span>
-                <span className="tabular-nums">{fmtIDR(it.jumlah)}</span>
+              <div key={i} className="flex items-center justify-between p-2.5 rounded-lg border border-neutral-100 bg-neutral-50/50">
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold uppercase tracking-wide text-neutral-700 capitalize">{it.metode}</span>
+                  <span className="text-[10px] text-neutral-400 font-medium">{fmtTanggal(it.tanggal)}</span>
+                </div>
+                <span className="font-bold tabular-nums text-neutral-900">{fmtIDR(it.jumlah)}</span>
               </div>
             ))}
-            <div className="flex justify-between text-xs font-semibold border-t border-neutral-200 pt-1">
-              <span>Total Setoran</span>
-              <span className={`tabular-nums ${record.flagSetoran ? "text-red-600" : "text-green-700"}`}>{fmtIDR(record.totalSetoran)}</span>
+          </div>
+
+          <div className={`mt-2 flex items-center justify-between rounded-xl border px-4 py-3 transition-all ${record.flagSetoran ? "border-red-200 bg-red-50 text-red-700" : "border-green-200 bg-green-50 text-green-700"}`}>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] uppercase font-bold opacity-70">Total Setoran Diterima</span>
+              <div className="flex items-center gap-1.5 text-sm font-bold">
+                {record.flagSetoran ? <AlertCircle className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}
+                {fmtIDR(record.totalSetoran)}
+              </div>
             </div>
             {record.flagSetoran && (
-              <div className="flex items-center gap-1 text-xs text-red-600 mt-1">
-                <AlertCircle className="h-3 w-3" /> Selisih: {fmtIDR(Math.abs(record.nilaiTerjual - record.totalSetoran))}
+              <div className="text-right">
+                <p className="text-[10px] uppercase font-bold opacity-70">Selisih Penagihan</p>
+                <p className="font-bold text-sm">{fmtIDR(Math.abs(record.nilaiTerjual - record.totalSetoran))}</p>
               </div>
             )}
           </div>

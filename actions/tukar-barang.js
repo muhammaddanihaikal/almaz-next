@@ -377,3 +377,82 @@ export async function selesaikanTukarBarang(tukar_id, itemsKeluarData) {
   })
   revalidatePath("/tukar-barang")
 }
+
+export async function editTukarBarangAktif(id, data, alasan) {
+  const session = await auth()
+  await prisma.$transaction(async (tx) => {
+    const old = await tx.tukarBarang.findUnique({
+      where: { id },
+      include: { itemsMasuk: true }
+    })
+    if (!old) throw new Error("Data tidak ditemukan")
+    if (old.status !== "aktif") throw new Error("Hanya bisa edit tukar barang yang masih aktif")
+
+    // 1. Revert old stock (masuk -> out)
+    for (const it of old.itemsMasuk) {
+       await mutateStock({
+        tx,
+        rokok_id: it.rokok_id, 
+        tanggal: old.tanggal, 
+        jenis: 'out', 
+        qty: it.qty,
+        source: MUTATION_SOURCE.REVERT, 
+        reference_id: id,
+        keterangan: "Revert tukar barang masuk (edit)",
+        user_id: session?.user?.id,
+        allowNegative: true
+      })
+    }
+
+    // 2. Delete old items
+    await tx.tukarBarangItemMasuk.deleteMany({ where: { tukar_id: id } })
+
+    // 3. Create new items
+    const itemsMasuk = data.itemsMasuk.filter(it => it.rokok_id && Number(it.qty) > 0)
+    const totalMasuk = itemsMasuk.reduce((s, it) => s + Number(it.qty) * Number(it.harga_satuan), 0)
+
+    await tx.tukarBarang.update({
+      where: { id },
+      data: {
+        catatan: data.catatan ? String(data.catatan).trim() : null,
+        itemsMasuk: {
+          create: itemsMasuk.map(it => ({
+            rokok_id: it.rokok_id,
+            qty: Number(it.qty),
+            harga_satuan: Number(it.harga_satuan)
+          }))
+        }
+      }
+    })
+
+    // 4. Mutate new stock (masuk -> in)
+    for (const it of itemsMasuk) {
+      await mutateStock({
+        tx,
+        rokok_id: it.rokok_id, 
+        tanggal: old.tanggal, 
+        jenis: 'in', 
+        qty: Number(it.qty),
+        source: MUTATION_SOURCE.TUKAR_MASUK, 
+        reference_id: id,
+        user_id: session?.user?.id
+      })
+    }
+
+    await logAudit({
+      tx,
+      entity_type: AUDIT_ENTITY.TUKAR_BARANG,
+      change_type: "Edit Tukar Barang Aktif",
+      entity_id: id,
+      action: AUDIT_ACTION.UPDATE,
+      new_values: { 
+        catatan: data.catatan,
+        itemsMasuk: itemsMasuk.map(it => ({ rokok_id: it.rokok_id, qty: it.qty, harga_satuan: it.harga_satuan }))
+      },
+      alasan,
+      user_id: session?.user?.id,
+      user_name: session?.user?.name
+    })
+  })
+  revalidatePath("/tukar-barang")
+}

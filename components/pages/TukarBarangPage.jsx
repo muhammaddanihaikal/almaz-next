@@ -2,12 +2,12 @@
 
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowUp } from "lucide-react"
+import { ArrowUp, Trash2, Edit } from "lucide-react"
 import { fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc, fmtIDR } from "@/lib/utils"
-import { deleteTukarBarang, selesaikanTukarBarang } from "@/actions/tukar-barang"
+import { deleteTukarBarang, selesaikanTukarBarang, editTukarBarangAktif } from "@/actions/tukar-barang"
 import {
   Card, PageHeader, DateFilter, Field, SelectInput, SearchableSelect,
-  RowActions, useConfirmWithReason, Button, MoneyInput, IconButton
+  RowActions, useConfirmWithReason, Button, MoneyInput, IconButton, inputCls
 } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
@@ -43,6 +43,7 @@ export default function TukarBarangPage({ role, list, salesList, rokokList }) {
   const [salesFilter, setSalesFilter]   = useState("")
   const [deletingId, setDeletingId]     = useState(null)
   const [selesaiModal, setSelesaiModal] = useState(null)
+  const [editingModal, setEditingModal] = useState(null)
 
   const { rows, countAktif, countSelesai } = useMemo(() => {
     const listAktif   = list.filter(r => r.status === "aktif")
@@ -88,8 +89,8 @@ export default function TukarBarangPage({ role, list, salesList, rokokList }) {
         subtitle={`Tracking transaksi tukar antara toko & sales. Input dilakukan dari Laporan Sore di halaman Distribusi.${countAktif > 0 ? ` — ${countAktif} tukar aktif.` : ""}`}
       />
 
-      <div className="flex flex-col gap-4 rounded-xl border border-neutral-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] lg:flex-row lg:items-end lg:gap-4">
-        <Field label="Rentang Waktu" className="flex-1">
+      <div className="flex flex-col gap-4 rounded-xl border border-neutral-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] lg:flex-row lg:items-end lg:justify-start lg:gap-8">
+        <Field label="Rentang Waktu" className="w-full lg:w-auto">
           <div className="w-full">
             <DateFilter value={dateRange} onChange={setDateRange} />
           </div>
@@ -148,9 +149,14 @@ export default function TukarBarangPage({ role, list, salesList, rokokList }) {
             { key: "actions", label: "", align: "right", render: (r) => (
               <div className="flex items-center justify-end gap-1.5">
                 {role !== "staff" && (
-                  <Button size="sm" variant="ghost" className="border border-green-200 bg-green-50 text-green-700 hover:bg-green-100" onClick={() => setSelesaiModal(r)}>
-                    Selesaikan
-                  </Button>
+                  <>
+                    <Button size="sm" variant="ghost" className="border border-green-200 bg-green-50 text-green-700 hover:bg-green-100" onClick={() => setSelesaiModal(r)}>
+                      Selesaikan
+                    </Button>
+                    <Button size="sm" variant="ghost" className="border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100" onClick={() => setEditingModal(r)}>
+                      Edit
+                    </Button>
+                  </>
                 )}
                 <Button size="sm" variant="ghost" className="border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100" onClick={() => setDetail(r)}>
                   Detail
@@ -206,6 +212,23 @@ export default function TukarBarangPage({ role, list, salesList, rokokList }) {
         </Modal>
       )}
       {ConfirmWithReasonModal}
+      {editingModal && (
+        <Modal title="Edit Tukar Barang Aktif" onClose={() => setEditingModal(null)} width="max-w-3xl">
+          <EditTukarAktifForm
+            record={editingModal}
+            rokokList={rokokList}
+            onClose={() => setEditingModal(null)}
+            onSubmit={async (data) => {
+              const captured = editingModal
+              setEditingModal(null)
+              const alasan = await confirmWithReason(`Edit data tukar barang "${captured.nama_sales}"? Stok akan disesuaikan.`, { title: "Edit Tukar Barang", confirmLabel: "Ya, Simpan" })
+              if (!alasan) return
+              await editTukarBarangAktif(captured.id, data, alasan)
+              router.refresh()
+            }}
+          />
+        </Modal>
+      )}
     </div>
   )
 }
@@ -415,6 +438,95 @@ function SelesaikanTukarForm({ record, rokokList, onClose, onSuccess }) {
         <Button type="submit" disabled={loading || invalid || isFormEmpty} loading={loading} className="bg-green-600 hover:bg-green-700 text-white border-green-600">
           Selesaikan Tukar
         </Button>
+      </div>
+    </form>
+  )
+}
+
+function EditTukarAktifForm({ record, rokokList, onClose, onSubmit }) {
+  const [itemsMasuk, setItemsMasuk] = useState(
+    record.itemsMasuk.map(it => ({ 
+      rokok_id: it.rokok_id, 
+      qty: String(it.qty), 
+      harga_satuan: String(it.harga_satuan) 
+    }))
+  )
+  const [catatan, setCatatan] = useState(record.catatan || "")
+  const [loading, setLoading] = useState(false)
+
+  const addRow = () => setItemsMasuk([...itemsMasuk, { rokok_id: "", qty: "", harga_satuan: "" }])
+  const removeRow = (idx) => setItemsMasuk(itemsMasuk.filter((_, i) => i !== idx))
+  const updateRow = (idx, key, val) => {
+    setItemsMasuk(itemsMasuk.map((it, i) => i === idx ? { ...it, [key]: val } : it))
+  }
+
+  const hargaDefault = (rokok_id) => {
+    const rokok = rokokList.find(r => r.id === rokok_id)
+    if (!rokok) return 0
+    return rokok.harga_toko || rokok.harga_standar
+  }
+
+  const updateRokok = (idx, rokok_id) => {
+    const standar = hargaDefault(rokok_id)
+    setItemsMasuk(itemsMasuk.map((it, i) => i === idx ? { ...it, rokok_id, harga_satuan: it.harga_satuan || String(standar) } : it))
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setLoading(true)
+    try {
+      await onSubmit({ itemsMasuk, catatan })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const isValid = itemsMasuk.some(it => it.rokok_id && Number(it.qty) > 0)
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-4 border-b border-neutral-100">
+        <div><p className="text-[10px] uppercase font-bold text-neutral-400">Sales</p><p className="font-semibold">{record.nama_sales}</p></div>
+        <div><p className="text-[10px] uppercase font-bold text-neutral-400">Kategori</p><p className="font-semibold capitalize">{record.kategori}</p></div>
+      </div>
+
+      <div className="space-y-3">
+        <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Barang Return (dari Toko)</h4>
+        <div className="space-y-2">
+          {itemsMasuk.map((item, idx) => (
+            <div key={idx} className="grid grid-cols-12 gap-2 items-start">
+              <div className="col-span-12 sm:col-span-5">
+                <SelectInput value={item.rokok_id} onChange={(e) => updateRokok(idx, e.target.value)}>
+                  <option value="">Pilih rokok</option>
+                  {rokokList.filter(r => r.aktif !== false || r.id === item.rokok_id).map(r => (
+                    <option key={r.id} value={r.id}>{r.nama}</option>
+                  ))}
+                </SelectInput>
+              </div>
+              <div className="col-span-4 sm:col-span-2">
+                <input type="number" min="1" value={item.qty} onChange={e => updateRow(idx, "qty", e.target.value)} placeholder="Qty" className={inputCls} />
+              </div>
+              <div className="col-span-6 sm:col-span-4">
+                <MoneyInput value={item.harga_satuan} onChange={v => updateRow(idx, "harga_satuan", v)} placeholder="Harga" className={inputCls} />
+              </div>
+              <div className="col-span-2 sm:col-span-1 flex justify-end pt-2">
+                {itemsMasuk.length > 1 && (
+                  <IconButton icon={Trash2} onClick={() => removeRow(idx)} variant="danger" label="Hapus" />
+                )}
+              </div>
+            </div>
+          ))}
+          <Button type="button" variant="ghost" size="sm" onClick={addRow} className="text-blue-600 hover:bg-blue-50">+ Tambah Baris</Button>
+        </div>
+      </div>
+
+      <Field label="Catatan (opsional)">
+        <input type="text" value={catatan} onChange={e => setCatatan(e.target.value)} placeholder="Contoh: Barang rusak atau salah kirim" className={inputCls} />
+      </Field>
+
+      <div className="flex justify-end gap-3 border-t border-neutral-200 pt-4">
+        <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>Batal</Button>
+        <Button type="submit" disabled={loading || !isValid} loading={loading} className="px-8 shadow-md">Simpan Perubahan</Button>
       </div>
     </form>
   )

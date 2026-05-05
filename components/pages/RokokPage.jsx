@@ -2,7 +2,11 @@
 
 import { useMemo, useState, useEffect, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { Plus, GripVertical, Save, X, MoveVertical, RotateCcw, ChevronDown, ChevronRight, Info } from "lucide-react"
+import { 
+  Plus, GripVertical, Save, X, MoveVertical, RotateCcw, ChevronDown, 
+  ChevronRight, Info, Package, TrendingUp, ShoppingCart, Store, Users, 
+  CheckCircle, AlertCircle, Eye
+} from "lucide-react"
 import { fmtIDR } from "@/lib/utils"
 import { addRokok, updateRokok, deleteRokok, toggleAktifRokok, tambahStok, updateRokokOrder } from "@/actions/rokok"
 import { Card, PageHeader, PrimaryButton, IconButton, RowActions, Field, FormActions, Toggle, inputCls, useConfirmWithReason, Button } from "@/components/ui"
@@ -233,13 +237,12 @@ export default function RokokPage({ role, rokokList, usedIds, mutasiHariIni = []
                 key: "actions", label: "", align: "right",
                 render: (r) => (
                   <div className="flex items-center justify-end gap-1">
-                    <button
+                    <IconButton
                       onClick={() => setDetailTarget(r)}
-                      className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700 transition"
-                    >
-                      <Info className="h-3.5 w-3.5" />
-                      Detail
-                    </button>
+                      icon={Eye}
+                      label="Detail"
+                      className="bg-white text-neutral-500 hover:bg-neutral-50 border-neutral-200 shadow-sm"
+                    />
                     <RowActions
                       onEdit={role !== "staff" ? () => { setEditing(r); setMode("edit") } : null}
                       onDelete={role !== "staff" ? () => handleDelete(r) : null}
@@ -283,7 +286,7 @@ export default function RokokPage({ role, rokokList, usedIds, mutasiHariIni = []
                       onClick={() => setDetailTarget(r)}
                       className="inline-flex items-center gap-0.5 text-xs text-neutral-500 hover:text-neutral-700"
                     >
-                      <Info className="h-3 w-3" />
+                      <Eye className="h-3 w-3" />
                       Detail
                     </button>
                     <button
@@ -360,42 +363,76 @@ export default function RokokPage({ role, rokokList, usedIds, mutasiHariIni = []
       {/* Modal Detail */}
       {detailTarget && (
         <Modal
-          title={`Detail — ${detailTarget.nama}`}
+          title={`Detail Rokok — ${detailTarget.nama}`}
           onClose={() => setDetailTarget(null)}
-          width="max-w-sm"
+          width="max-w-md"
         >
-          <div className="space-y-3">
-            <div className="flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3">
-              <span className="text-sm text-neutral-600">Stok</span>
-              <span className={`text-sm font-semibold tabular-nums ${(detailTarget.stok ?? 0) < 50 ? "text-red-600" : (detailTarget.stok ?? 0) < 150 ? "text-amber-500" : "text-green-600"}`}>
-                {detailTarget.stok ?? 0} bungkus
-              </span>
-            </div>
-            {[
-              { label: "Harga Beli",       value: detailTarget.harga_beli },
-              { label: "Harga Grosir",     value: detailTarget.harga_grosir },
-              { label: "Harga Toko",        value: detailTarget.harga_toko },
-              { label: "Harga Perorangan", value: detailTarget.harga_perorangan },
-            ].map(({ label, value }) => (
-              <div key={label} className="flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3">
-                <span className="text-sm text-neutral-600">{label}</span>
-                <span className="text-sm font-semibold tabular-nums text-neutral-900">{fmtIDR(value)}</span>
+          <div className="space-y-6">
+            {/* Header Info: Stok & Status */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
+                    <Package className="h-4 w-4" />
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Stok Tersedia</span>
+                </div>
+                <p className={`text-2xl font-bold tabular-nums ${(detailTarget.stok ?? 0) < 50 ? "text-red-600" : (detailTarget.stok ?? 0) < 150 ? "text-amber-500" : "text-green-600"}`}>
+                  {detailTarget.stok ?? 0}
+                </p>
+                <p className="text-xs text-neutral-500 mt-1">bungkus di gudang</p>
               </div>
-            ))}
-            <div className="flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3">
-              <span className="text-sm text-neutral-600">Status</span>
-              <span className={`text-sm font-semibold ${detailTarget.aktif ? "text-green-600" : "text-red-500"}`}>
-                {detailTarget.aktif ? "Aktif" : "Nonaktif"}
-              </span>
+
+              <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm text-right">
+                <div className="flex items-center justify-end gap-2 mb-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Status Produk</span>
+                  <div className={`p-1.5 rounded-lg ${detailTarget.aktif ? "bg-green-50 text-green-600" : "bg-red-50 text-red-600"}`}>
+                    {detailTarget.aktif ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+                  </div>
+                </div>
+                <p className={`text-2xl font-bold ${detailTarget.aktif ? "text-green-600" : "text-red-600"}`}>
+                  {detailTarget.aktif ? "Aktif" : "Nonaktif"}
+                </p>
+                <p className="text-xs text-neutral-500 mt-1">{detailTarget.aktif ? "Siap didistribusikan" : "Tidak muncul di form"}</p>
+              </div>
+            </div>
+
+            {/* Pricing Section */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 px-1">
+                <TrendingUp className="h-4 w-4 text-neutral-400" />
+                <h4 className="text-sm font-bold text-neutral-700">Daftar Harga Jual</h4>
+              </div>
+              
+              <div className="grid grid-cols-1 gap-2">
+                {[
+                  { label: "Harga Beli",       value: detailTarget.harga_beli,       icon: ShoppingCart, bg: "bg-neutral-50", text: "text-neutral-600" },
+                  { label: "Harga Grosir",     value: detailTarget.harga_grosir,     icon: TrendingUp,   bg: "bg-indigo-50/50", text: "text-indigo-700" },
+                  { label: "Harga Toko",        value: detailTarget.harga_toko,       icon: Store,        bg: "bg-blue-50/50",   text: "text-blue-700" },
+                  { label: "Harga Perorangan", value: detailTarget.harga_perorangan, icon: Users,        bg: "bg-violet-50/50", text: "text-violet-700" },
+                ].map((p) => (
+                  <div key={p.label} className={`flex items-center justify-between rounded-xl border border-neutral-200/60 ${p.bg} px-4 py-3.5 transition-all hover:border-neutral-300`}>
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-lg bg-white shadow-sm ${p.text}`}>
+                        <p.icon className="h-4 w-4" />
+                      </div>
+                      <span className="text-sm font-medium text-neutral-600">{p.label}</span>
+                    </div>
+                    <span className="text-lg font-bold tabular-nums text-neutral-900">{fmtIDR(p.value)}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-          <div className="mt-4 flex justify-end">
-            <button
+
+          <div className="mt-8 pt-4 border-t border-neutral-100 flex justify-end">
+            <Button
+              variant="secondary"
               onClick={() => setDetailTarget(null)}
-              className="rounded-md px-4 py-2 text-sm font-medium text-neutral-700 border border-neutral-200 hover:bg-neutral-50 transition"
+              className="px-8 shadow-sm"
             >
               Tutup
-            </button>
+            </Button>
           </div>
         </Modal>
       )}
@@ -456,7 +493,6 @@ function TambahStokForm({ rokok, onSubmit, onCancel }) {
   const submit = async (e) => {
     e.preventDefault()
     if (!valid || loading) return
-    setLoading(true)
     try {
       await onSubmit(totalBungkus, tanggal, keterangan)
     } finally {
@@ -465,78 +501,126 @@ function TambahStokForm({ rokok, onSubmit, onCancel }) {
   }
 
   return (
-    <form onSubmit={submit} className="space-y-5">
-      {/* Info stok saat ini */}
-      <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 flex items-center justify-between">
-        <span className="text-sm text-neutral-600">Stok saat ini</span>
-        <span className="text-lg font-semibold tabular-nums text-neutral-900">{rokok.stok ?? 0} bungkus</span>
-      </div>
-
-      {/* Input slop & bungkus */}
-      <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">Jumlah Masuk</p>
+    <form onSubmit={submit} className="space-y-3.5">
+      {/* SECTION 1: INFORMASI STOK */}
+      <section className="space-y-2">
+        <div className="flex items-center gap-2 px-1">
+          <div className="h-3 w-1 bg-blue-500 rounded-full" />
+          <h4 className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Informasi Stok</h4>
+        </div>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Slop (1 slop = 10 bungkus)">
+          <div className="rounded-xl border border-neutral-200 bg-neutral-50/50 p-2.5">
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <Package className="h-3 w-3 text-neutral-400" />
+              <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-400">Stok Saat Ini</span>
+            </div>
+            <p className="text-lg font-bold tabular-nums text-neutral-900">{rokok.stok ?? 0} <span className="text-[10px] font-normal text-neutral-500 uppercase">Bks</span></p>
+          </div>
+          <div className="rounded-xl border border-emerald-100 bg-emerald-50/30 p-2.5">
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <Plus className="h-3 w-3 text-emerald-500" />
+              <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-500">Tambahan</span>
+            </div>
+            <p className="text-lg font-bold tabular-nums text-emerald-600">+{totalBungkus} <span className="text-[10px] font-normal text-neutral-500 uppercase">Bks</span></p>
+          </div>
+        </div>
+      </section>
+
+      {/* SECTION 2: INPUT JUMLAH */}
+      <section className="space-y-1.5">
+        <div className="flex items-center gap-2 px-1">
+          <div className="h-3 w-1 bg-emerald-500 rounded-full" />
+          <h4 className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Input Jumlah</h4>
+        </div>
+        <div className="pt-1">
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Slop (x10)">
+              <div className="relative">
+                <input
+                  type="number"
+                  min="0"
+                  value={slop}
+                  onChange={(e) => setSlop(e.target.value)}
+                  placeholder="0"
+                  className={`${inputCls} pl-10 pr-4 text-lg font-semibold tabular-nums border-neutral-200 focus:border-emerald-500 focus:ring-emerald-500/10`}
+                  autoFocus
+                />
+                <Package className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+              </div>
+            </Field>
+            <Field label="Bungkus">
+              <div className="relative">
+                <input
+                  type="number"
+                  min="0"
+                  value={bungkus}
+                  onChange={(e) => setBungkus(e.target.value)}
+                  placeholder="0"
+                  className={`${inputCls} pl-10 pr-4 text-lg font-semibold tabular-nums border-neutral-200 focus:border-emerald-500 focus:ring-emerald-500/10`}
+                />
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 rounded bg-neutral-100 flex items-center justify-center text-[10px] font-bold text-neutral-500 uppercase">
+                  B
+                </div>
+              </div>
+            </Field>
+          </div>
+        </div>
+      </section>
+
+      {/* SECTION 3: DETAIL PENGISIAN */}
+      <section className="space-y-1.5">
+        <div className="flex items-center gap-2 px-1">
+          <div className="h-3 w-1 bg-amber-500 rounded-full" />
+          <h4 className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Detail</h4>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Tanggal">
             <input
-              type="number"
-              min="0"
-              value={slop}
-              onChange={(e) => setSlop(e.target.value)}
-              placeholder="0"
-              className={inputCls}
-              autoFocus
+              type="date"
+              value={tanggal}
+              onChange={(e) => setTanggal(e.target.value)}
+              className={`${inputCls} h-9 text-xs`}
+              required
             />
           </Field>
-          <Field label="Bungkus (satuan)">
+          <Field label="Keterangan">
             <input
-              type="number"
-              min="0"
-              value={bungkus}
-              onChange={(e) => setBungkus(e.target.value)}
-              placeholder="0"
-              className={inputCls}
+              type="text"
+              value={keterangan}
+              onChange={(e) => setKeterangan(e.target.value)}
+              placeholder="Opsional..."
+              className={`${inputCls} h-9 text-xs`}
             />
           </Field>
         </div>
+      </section>
+
+      {/* SECTION 4: KONFIRMASI */}
+      <div className="pt-1">
+        <div className="rounded-xl border-2 border-emerald-500/10 bg-emerald-500/5 p-2.5 flex items-center justify-between border-dashed">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-lg bg-emerald-500 text-white shadow-sm">
+              <CheckCircle className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-600/70 leading-none mb-1">Stok Akhir</p>
+              <p className="text-[10px] font-medium text-neutral-500 italic leading-none">Estimasi total</p>
+            </div>
+          </div>
+          <div className="text-right leading-none">
+            <p className="text-xl font-black tabular-nums text-emerald-700">{(rokok.stok ?? 0) + totalBungkus}</p>
+            <p className="text-[8px] font-bold text-emerald-600 tracking-wider">BUNGKUS</p>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <Field label="Tanggal Masuk">
-          <input
-            type="date"
-            value={tanggal}
-            onChange={(e) => setTanggal(e.target.value)}
-            className={inputCls}
-            required
-          />
-        </Field>
-        <Field label="Keterangan (Opsional)">
-          <input
-            type="text"
-            value={keterangan}
-            onChange={(e) => setKeterangan(e.target.value)}
-            placeholder="Misal: Stok dari Supplier A"
-            className={inputCls}
-          />
-        </Field>
+      <div className="pt-1">
+        <FormActions onCancel={onCancel} disabled={!valid} loading={loading} submitLabel="Simpan Stok" />
       </div>
-
-      {/* Preview total */}
-      <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-center justify-between">
-        <span className="text-sm text-emerald-700">Total tambahan</span>
-        <span className="text-base font-semibold tabular-nums text-emerald-700">+{totalBungkus} bungkus</span>
-      </div>
-
-      {/* Preview stok sesudah */}
-      <div className="rounded-lg border border-neutral-200 bg-white px-4 py-3 flex items-center justify-between">
-        <span className="text-sm text-neutral-600">Stok setelah tambah</span>
-        <span className="text-lg font-semibold tabular-nums text-neutral-900">{(rokok.stok ?? 0) + totalBungkus} bungkus</span>
-      </div>
-
-      <FormActions onCancel={onCancel} disabled={!valid} loading={loading} submitLabel="Simpan Stok" />
     </form>
   )
 }
+
 
 // ─── Form Tambah/Edit Rokok ───────────────────────────────────────────────────
 
