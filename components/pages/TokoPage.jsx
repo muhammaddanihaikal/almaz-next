@@ -15,7 +15,7 @@ const KATEGORI_COLOR = {
   toko:   "bg-blue-100 text-blue-700",
 }
 
-export default function TokoPage({ tokoList, titipJualList }) {
+export default function TokoPage({ role, tokoList, titipJualList }) {
   const router = useRouter()
   const { confirm, ConfirmModal } = useConfirm()
   const [mode,    setMode]    = useState(null)
@@ -55,9 +55,11 @@ export default function TokoPage({ tokoList, titipJualList }) {
         title="Master Toko"
         subtitle={`${tokoList.length} toko terdaftar — digunakan untuk titip jual.`}
         action={
-          <PrimaryButton onClick={() => { setEditing(null); setMode("add") }} icon={Plus}>
-            Tambah Toko
-          </PrimaryButton>
+          role !== "staff" && (
+            <PrimaryButton onClick={() => { setEditing(null); setMode("add") }} icon={Plus}>
+              Tambah Toko
+            </PrimaryButton>
+          )
         }
       />
 
@@ -80,14 +82,14 @@ export default function TokoPage({ tokoList, titipJualList }) {
             },
             {
               key: "aktif", label: "Aktif", align: "center",
-              render: (r) => <Toggle checked={r.aktif ?? true} onChange={() => handleToggle(r.id)} />,
+              render: (r) => <Toggle checked={r.aktif ?? true} onChange={() => handleToggle(r.id)} disabled={role === "staff"} />,
             },
             {
               key: "actions", label: "", align: "right",
               render: (r) => (
                 <RowActions
-                  onEdit={() => { setEditing(r); setMode("edit") }}
-                  onDelete={() => handleDelete(r)}
+                  onEdit={role !== "staff" ? () => { setEditing(r); setMode("edit") } : null}
+                  onDelete={role !== "staff" ? () => handleDelete(r) : null}
                   deleteDisabled={isUsed(r.id)}
                   deleteTitle="Toko sudah digunakan di data konsinyasi"
                   deleteLoading={deletingId === r.id}
@@ -107,10 +109,10 @@ export default function TokoPage({ tokoList, titipJualList }) {
                 {r.alamat && <p className="text-xs text-neutral-500">{r.alamat}</p>}
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <Toggle checked={r.aktif ?? true} onChange={() => handleToggle(r.id)} />
+                <Toggle checked={r.aktif ?? true} onChange={() => handleToggle(r.id)} disabled={role === "staff"} />
                 <RowActions
-                  onEdit={() => { setEditing(r); setMode("edit") }}
-                  onDelete={() => handleDelete(r)}
+                  onEdit={role !== "staff" ? () => { setEditing(r); setMode("edit") } : null}
+                  onDelete={role !== "staff" ? () => handleDelete(r) : null}
                   deleteDisabled={isUsed(r.id)}
                   deleteTitle="Toko sudah digunakan di data konsinyasi"
                 />

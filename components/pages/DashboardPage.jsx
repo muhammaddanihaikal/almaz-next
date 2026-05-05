@@ -115,7 +115,18 @@ export default function DashboardPage({ sesiList, titipJualList, titipJualJatuhT
 
 
 
-  const CHART_COLORS = ["#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#f97316", "#06b6d4", "#ec4899", "#14b8a6", "#6366f1"]
+  const CHART_COLORS = [
+    "#171717", // Neutral 900
+    "#262626", // Neutral 800
+    "#404040", // Neutral 700
+    "#525252", // Neutral 600
+    "#737373", // Neutral 500
+    "#a3a3a3", // Neutral 400
+    "#d4d4d4", // Neutral 300
+    "#1e293b", // Slate 800
+    "#334155", // Slate 700
+    "#475569", // Slate 600
+  ]
 
   const dateStr = dateRange?.start && dateRange?.end
     ? `${fmtTanggal(dateRange.start)} s/d ${fmtTanggal(dateRange.end)}`
@@ -158,7 +169,7 @@ export default function DashboardPage({ sesiList, titipJualList, titipJualJatuhT
                 <XAxis dataKey="rokok" tick={{ fontSize: 10 }} />
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip cursor={{ fill: '#f5f5f5' }} />
-                <Bar dataKey="qty" fill="#0ea5e9" radius={[4, 4, 0, 0]}>
+                <Bar dataKey="qty" fill="#171717" radius={[4, 4, 0, 0]}>
                   <LabelList dataKey="qty" position="top" style={{ fontSize: 10, fill: "#666", fontWeight: 500 }} />
                 </Bar>
               </BarChart>

@@ -48,7 +48,7 @@ function TabButton({ active, onClick, children }) {
   )
 }
 
-export default function KonsinyasiPage({ titipJualList, salesList }) {
+export default function KonsinyasiPage({ role, titipJualList, salesList }) {
   const konsinyasiList = titipJualList
   const router = useRouter()
   const [activeTab,    setActiveTab]    = useState("aktif")
@@ -67,35 +67,50 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
   const jatuhTempoHariIni = konsinyasiList.filter((k) => k.status === "aktif" && k.selisihHari <= 0)
   const jatuhTempoSegera  = konsinyasiList.filter((k) => k.status === "aktif" && k.selisihHari > 0 && k.selisihHari <= 3)
 
-  const rows = useMemo(() => {
-    let filtered = konsinyasiList.filter((r) => r.status === activeTab)
+  const { rows, countAktif, countSelesai } = useMemo(() => {
+    const listAktif   = konsinyasiList.filter(r => r.status === "aktif")
+    const listSelesai = konsinyasiList.filter(r => r.status === "selesai")
 
-    if (activeTab === "aktif" && statusAktifFilter) {
-      if (statusAktifFilter === "terlewat") filtered = filtered.filter(r => r.selisihHari < 0)
-      else if (statusAktifFilter === "hari_ini") filtered = filtered.filter(r => r.selisihHari === 0)
-      else if (statusAktifFilter === "segera") filtered = filtered.filter(r => r.selisihHari > 0 && r.selisihHari <= 3)
-      else if (statusAktifFilter === "aman") filtered = filtered.filter(r => r.selisihHari > 3)
+    // Apply filters to Aktif
+    let filteredAktif = [...listAktif]
+    if (statusAktifFilter) {
+      if (statusAktifFilter === "terlewat") filteredAktif = filteredAktif.filter(r => r.selisihHari < 0)
+      else if (statusAktifFilter === "hari_ini") filteredAktif = filteredAktif.filter(r => r.selisihHari === 0)
+      else if (statusAktifFilter === "segera") filteredAktif = filteredAktif.filter(r => r.selisihHari > 0 && r.selisihHari <= 3)
+      else if (statusAktifFilter === "aman") filteredAktif = filteredAktif.filter(r => r.selisihHari > 3)
     }
 
+    // Apply filters to Selesai (always respect date)
+    let filteredSelesai = [...listSelesai]
     if (dateRange?.start && dateRange?.end) {
-      filtered = filtered.filter((r) => {
-        const tgl = r.tanggal_jatuh_tempo
+      filteredSelesai = filteredSelesai.filter((r) => {
+        const tgl = r.tanggal_selesai || r.tanggal_jatuh_tempo
         return tgl >= dateRange.start && tgl <= dateRange.end
       })
     }
 
-    if (salesFilter) filtered = filtered.filter((r) => r.sales_id === salesFilter)
-    if (search.trim()) {
-      const q = search.trim().toLowerCase()
-      filtered = filtered.filter(
-        (r) => r.sales.toLowerCase().includes(q) || r.nama_toko.toLowerCase().includes(q)
-      )
+    // Common filters (sales & search)
+    const applyCommonFilters = (items) => {
+      let temp = [...items]
+      if (salesFilter) temp = temp.filter((r) => r.sales_id === salesFilter)
+      if (search.trim()) {
+        const q = search.trim().toLowerCase()
+        temp = temp.filter(
+          (r) => r.sales.toLowerCase().includes(q) || r.nama_toko.toLowerCase().includes(q)
+        )
+      }
+      return temp
     }
-    return filtered
-  }, [konsinyasiList, activeTab, salesFilter, search, statusAktifFilter, dateRange])
 
-  const countAktif   = konsinyasiList.filter((r) => r.status === "aktif").length
-  const countSelesai = konsinyasiList.filter((r) => r.status === "selesai").length
+    const finalAktif   = applyCommonFilters(filteredAktif)
+    const finalSelesai = applyCommonFilters(filteredSelesai)
+
+    return {
+      rows: activeTab === "aktif" ? finalAktif : finalSelesai,
+      countAktif: finalAktif.length,
+      countSelesai: finalSelesai.length
+    }
+  }, [konsinyasiList, activeTab, salesFilter, search, statusAktifFilter, dateRange])
 
   return (
     <div className="space-y-6">
@@ -166,26 +181,25 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
         </div>
       )}
 
-      {/* Combined Filter Section */}
-      <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] space-y-3">
-        {/* Filters Row */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:gap-4">
-          <div className="w-full sm:w-44">
-            <label className="text-xs font-medium text-neutral-600 block mb-1.5">Sales</label>
+      <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] space-y-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-4">
+          <Field label="Jatuh Tempo" className="flex-1">
+            <div className="w-full">
+              <DateFilter value={dateRange} onChange={setDateRange} />
+            </div>
+          </Field>
+
+          <Field label="Sales" className="flex-1">
             <SelectInput value={salesFilter} onChange={(e) => setSalesFilter(e.target.value)}>
               <option value="">Semua Sales</option>
               {salesList.map((s) => (
                 <option key={s.id} value={s.id}>{s.nama}</option>
               ))}
             </SelectInput>
-          </div>
-          <div className="flex-1 sm:flex-initial">
-            <label className="text-xs font-medium text-neutral-600 block mb-1.5">Jatuh Tempo</label>
-            <DateFilter value={dateRange} onChange={setDateRange} />
-          </div>
+          </Field>
+
           {activeTab === "aktif" && (
-            <div className="w-full sm:w-56">
-              <label className="text-xs font-medium text-neutral-600 block mb-1.5">Status</label>
+            <Field label="Status" className="flex-1">
               <SelectInput value={statusAktifFilter} onChange={(e) => setStatusAktifFilter(e.target.value)}>
                 <option value="">Semua Status Aktif</option>
                 <option value="terlewat">Terlewat</option>
@@ -193,36 +207,54 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
                 <option value="segera">Segera (1-3 Hari)</option>
                 <option value="aman">Aman (&gt;3 Hari)</option>
               </SelectInput>
-            </div>
+            </Field>
           )}
         </div>
 
-        {/* Search Bar - Full Width */}
-        <div>
-          <label className="text-xs font-medium text-neutral-600 block mb-1.5">Cari</label>
+        <Field label="Cari" className="w-full">
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-400 pointer-events-none" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 pointer-events-none" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Cari sales atau toko..."
-              className={inputCls + " pl-8 text-sm w-full"}
+              className={inputCls + " pl-9 w-full"}
             />
           </div>
-        </div>
+        </Field>
       </div>
 
       <Card>
 
         {/* Tabs */}
         <div className="flex border-b border-neutral-200">
-          <TabButton active={activeTab === "aktif"} onClick={() => setActiveTab("aktif")}>
-            Aktif <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-yellow-500 px-1 text-xs text-white">{countAktif}</span>
-          </TabButton>
-          <TabButton active={activeTab === "selesai"} onClick={() => setActiveTab("selesai")}>
-            Selesai <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-green-600 px-1 text-xs text-white">{countSelesai}</span>
-          </TabButton>
+          <button
+            onClick={() => setActiveTab("aktif")}
+            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 flex items-center gap-2 ${
+              activeTab === "aktif"
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-neutral-500 hover:text-neutral-700"
+            }`}
+          >
+            Aktif
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-yellow-500 px-1.5 text-xs font-semibold text-white">
+              {countAktif}
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab("selesai")}
+            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 flex items-center gap-2 ${
+              activeTab === "selesai"
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-neutral-500 hover:text-neutral-700"
+            }`}
+          >
+            Selesai
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-green-600 px-1.5 text-xs font-semibold text-white">
+              {countSelesai}
+            </span>
+          </button>
         </div>
 
         <DataTable
@@ -264,14 +296,16 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
                 <div className="flex items-center justify-end gap-1.5">
                   {r.status === "aktif" && (
                     <>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setSettling(r)}
-                        className="border border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
-                      >
-                        Selesaikan
-                      </Button>
+                      {role !== "staff" && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setSettling(r)}
+                          className="border border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
+                        >
+                          Selesaikan
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         variant="ghost"
@@ -280,27 +314,31 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
                       >
                         Detail
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setEditingDetail(r)}
-                        className="border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={async () => {
-                          const alasan = await confirmWithReason(`Hapus titip jual "${r.nama_toko}"? Stok akan dikembalikan.`, { title: "Hapus Titip Jual", variant: "danger", confirmLabel: "Ya, Hapus" })
-                          if (!alasan) return
-                          await deleteTitipJual(r.id, alasan)
-                          router.refresh()
-                        }}
-                        className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-                      >
-                        Hapus
-                      </Button>
+                      {role !== "staff" && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setEditingDetail(r)}
+                            className="border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={async () => {
+                              const alasan = await confirmWithReason(`Hapus titip jual "${r.nama_toko}"? Stok akan dikembalikan.`, { title: "Hapus Titip Jual", variant: "danger", confirmLabel: "Ya, Hapus" })
+                              if (!alasan) return
+                              await deleteTitipJual(r.id, alasan)
+                              router.refresh()
+                            }}
+                            className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                          >
+                            Hapus
+                          </Button>
+                        </>
+                      )}
                     </>
                   )}
                   {r.status === "selesai" && (
@@ -313,27 +351,31 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
                       >
                         Detail
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setEditingSettlement(r)}
-                        className="border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={async () => {
-                          const alasan = await confirmWithReason(`Batalkan penyelesaian titip jual "${r.nama_toko}"? Status akan kembali ke Aktif.`, { title: "Batalkan Penyelesaian", variant: "danger", confirmLabel: "Ya, Batalkan" })
-                          if (!alasan) return
-                          await revertSettlement(r.id, alasan)
-                          router.refresh()
-                        }}
-                        className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-                      >
-                        Batalkan
-                      </Button>
+                      {role !== "staff" && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setEditingSettlement(r)}
+                            className="border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={async () => {
+                              const alasan = await confirmWithReason(`Batalkan penyelesaian titip jual "${r.nama_toko}"? Status akan kembali ke Aktif.`, { title: "Batalkan Penyelesaian", variant: "danger", confirmLabel: "Ya, Batalkan" })
+                              if (!alasan) return
+                              await revertSettlement(r.id, alasan)
+                              router.refresh()
+                            }}
+                            className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                          >
+                            Batalkan
+                          </Button>
+                        </>
+                      )}
                     </>
                   )}
                 </div>

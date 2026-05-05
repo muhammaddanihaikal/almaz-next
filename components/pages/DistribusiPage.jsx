@@ -347,7 +347,7 @@ function exportToExcelBySales(rows, rokokList, dateRange, onNoData) {
   XLSX.writeFile(wb, `laporan_motoris_${new Date().toISOString().slice(0, 10)}.xlsx`)
 }
 
-export default function DistribusiPage({ sesiList, rokokList, salesList, tokoList, tukarBarangList = [] }) {
+export default function DistribusiPage({ role, sesiList, rokokList, salesList, tokoList, tukarBarangList = [] }) {
   const router  = useRouter()
   const { confirm, ConfirmModal } = useConfirm()
   const { confirmWithReason, ConfirmWithReasonModal } = useConfirmWithReason()
@@ -467,53 +467,50 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
                 </>
               )}
             </div>
-            <PrimaryButton onClick={() => { setEditing(null); setMode("add") }} icon={Plus}>
-              Buat Sesi
-            </PrimaryButton>
+            {role !== "staff" && (
+              <PrimaryButton onClick={() => { setEditing(null); setMode("add") }} icon={Plus}>
+                Buat Sesi
+              </PrimaryButton>
+            )}
           </div>
         }
       />
 
-      <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] space-y-3">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-3">
-            <label className="text-sm font-medium text-neutral-600 shrink-0">Waktu:</label>
-            <DateFilter value={dateRange} onChange={setDateRange} />
-          </div>
-          <div className="flex items-center gap-3">
-            <label className="text-sm font-medium text-neutral-600 shrink-0">Sales:</label>
-            <div className="w-56">
-              <MultiSearchableSelect
-                value={salesFilter}
-                onChange={(e) => setSalesFilter(e.target.value)}
-                placeholder="Semua Sales"
-                options={[{ value: "", label: "Semua Sales" }, ...salesList.map((s) => ({ value: s.id, label: s.nama }))]}
-              />
+      <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] space-y-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-4">
+          <Field label="Rentang Waktu" className="flex-1">
+            <div className="w-full">
+              <DateFilter value={dateRange} onChange={setDateRange} />
             </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <label className="text-sm font-medium text-neutral-600 shrink-0">Status:</label>
-            <div className="w-40">
-              <SelectInput value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                <option value="">Semua Status</option>
-                <option value="aktif">Aktif</option>
-                <option value="selesai">Selesai</option>
-                <option value="titip_jual_aktif">Titip Jual Aktif</option>
-              </SelectInput>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <label className="text-sm font-medium text-neutral-600 shrink-0">Produk:</label>
-            <div className="w-64">
-              <MultiSearchableSelect
-                value={rokokFilter}
-                onChange={(e) => setRokokFilter(e.target.value)}
-                placeholder="Semua Produk"
-                options={[{ value: "", label: "Semua Produk" }, ...rokokList.map((r) => ({ value: r.id, label: r.nama }))]}
-              />
-            </div>
-          </div>
+          </Field>
+          
+          <Field label="Sales" className="flex-1">
+            <MultiSearchableSelect
+              value={salesFilter}
+              onChange={(e) => setSalesFilter(e.target.value)}
+              placeholder="Semua Sales"
+              options={[{ value: "", label: "Semua Sales" }, ...salesList.map((s) => ({ value: s.id, label: s.nama }))]}
+            />
+          </Field>
+
+          <Field label="Status" className="flex-1">
+            <SelectInput value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              <option value="">Semua Status</option>
+              <option value="aktif">Aktif</option>
+              <option value="selesai">Selesai</option>
+              <option value="titip_jual_aktif">Titip Jual Aktif</option>
+            </SelectInput>
+          </Field>
         </div>
+
+        <Field label="Produk" className="w-full">
+          <MultiSearchableSelect
+            value={rokokFilter}
+            onChange={(e) => setRokokFilter(e.target.value)}
+            placeholder="Semua Produk"
+            options={[{ value: "", label: "Semua Produk" }, ...rokokList.map((r) => ({ value: r.id, label: r.nama }))]}
+          />
+        </Field>
       </div>
 
       <Card>
@@ -556,7 +553,7 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
               key: "actions", label: "", align: "right",
               render: (r) => (
                 <div className="flex items-center justify-end gap-1">
-                  {r.status === "aktif" && (
+                  {role !== "staff" && r.status === "aktif" && (
                     <Button
                       size="sm"
                       variant="secondary"
@@ -565,7 +562,7 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
                       Input Laporan
                     </Button>
                   )}
-                  {r.status === "selesai" && (
+                  {role !== "staff" && r.status === "selesai" && (
                     <Button
                       size="sm"
                       variant="ghost"
@@ -577,8 +574,8 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
                   )}
                   <RowActions
                     onDetail={() => setDetail(r)}
-                    onEdit={() => { setEditing(r); setMode("edit") }}
-                    onDelete={() => { handleDelete(r) }}
+                    onEdit={role !== "staff" ? () => { setEditing(r); setMode("edit") } : null}
+                    onDelete={role !== "staff" ? () => { handleDelete(r) } : null}
                   />
                 </div>
               ),

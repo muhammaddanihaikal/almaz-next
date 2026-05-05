@@ -7,13 +7,18 @@ import DistribusiPage from "@/components/pages/DistribusiPage"
 
 export const revalidate = 0
 
+export const metadata = {
+  title: "Distribusi",
+}
+
 export default async function Page() {
-  const [sesiList, rokokList, salesList, tokoList, tukarBarangList] = await Promise.all([
+  const [session, sesiList, rokokList, salesList, tokoList, tukarBarangList] = await Promise.all([
+    auth(),
     getSesiList(),
     getRokokList(),
     getSalesList(),
     getTokoList(),
     getTukarBarangList(),
   ])
-  return <DistribusiPage sesiList={sesiList} rokokList={rokokList} salesList={salesList} tokoList={tokoList} tukarBarangList={tukarBarangList} />
+  return <DistribusiPage role={session?.user?.role} sesiList={sesiList} rokokList={rokokList} salesList={salesList} tokoList={tokoList} tukarBarangList={tukarBarangList} />
 }

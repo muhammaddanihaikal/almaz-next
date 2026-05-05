@@ -34,7 +34,7 @@ function SelisihBadge({ selisih }) {
   )
 }
 
-export default function TukarBarangPage({ list, salesList, rokokList }) {
+export default function TukarBarangPage({ role, list, salesList, rokokList }) {
   const router = useRouter()
   const { confirmWithReason, ConfirmWithReasonModal } = useConfirmWithReason()
   const [detail, setDetail] = useState(null)
@@ -44,14 +44,27 @@ export default function TukarBarangPage({ list, salesList, rokokList }) {
   const [deletingId, setDeletingId]     = useState(null)
   const [selesaiModal, setSelesaiModal] = useState(null)
 
-  const rows = useMemo(() => {
-    let filtered = filterByDateRange(list, dateRange)
-    if (statusFilter) filtered = filtered.filter((r) => r.status === statusFilter)
-    if (salesFilter)  filtered = filtered.filter((r) => r.sales_id === salesFilter)
-    return sortByDateDesc(filtered)
-  }, [list, dateRange, statusFilter, salesFilter])
+  const { rows, countAktif, countSelesai } = useMemo(() => {
+    const listAktif   = list.filter(r => r.status === "aktif")
+    const listSelesai = list.filter(r => r.status === "selesai")
 
-  const aktifCount = useMemo(() => list.filter((r) => r.status === "aktif").length, [list])
+    // Filtered Selesai list based on date
+    const filteredSelesai = filterByDateRange(listSelesai, dateRange)
+
+    // Current displayed rows
+    let currentRows = statusFilter === "aktif" ? listAktif : filteredSelesai
+
+    // Apply sales filter if any
+    if (salesFilter) {
+      currentRows = currentRows.filter(r => r.sales_id === salesFilter)
+    }
+
+    return {
+      rows: sortByDateDesc(currentRows),
+      countAktif: listAktif.length,
+      countSelesai: filteredSelesai.length
+    }
+  }, [list, dateRange, statusFilter, salesFilter])
 
   const handleDelete = async (r) => {
     const result = await confirmWithReason(
@@ -72,14 +85,16 @@ export default function TukarBarangPage({ list, salesList, rokokList }) {
     <div className="space-y-6">
       <PageHeader
         title="Tukar Barang"
-        subtitle={`Tracking transaksi tukar antara toko & sales. Input dilakukan dari Laporan Sore di halaman Distribusi.${aktifCount > 0 ? ` — ${aktifCount} tukar aktif.` : ""}`}
+        subtitle={`Tracking transaksi tukar antara toko & sales. Input dilakukan dari Laporan Sore di halaman Distribusi.${countAktif > 0 ? ` — ${countAktif} tukar aktif.` : ""}`}
       />
 
-      <div className="flex flex-col gap-4 rounded-xl border border-neutral-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] lg:flex-row lg:flex-wrap lg:items-end lg:gap-4">
-        <Field label="Rentang Waktu">
-          <DateFilter value={dateRange} onChange={setDateRange} />
+      <div className="flex flex-col gap-4 rounded-xl border border-neutral-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] lg:flex-row lg:items-end lg:gap-4">
+        <Field label="Rentang Waktu" className="flex-1">
+          <div className="w-full">
+            <DateFilter value={dateRange} onChange={setDateRange} />
+          </div>
         </Field>
-        <Field label="Sales" className="w-64">
+        <Field label="Sales" className="flex-1">
           <SearchableSelect
             value={salesFilter}
             onChange={(e) => setSalesFilter(e.target.value)}
@@ -101,7 +116,7 @@ export default function TukarBarangPage({ list, salesList, rokokList }) {
             }`}
           >
             Aktif
-            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-yellow-500 px-1.5 text-xs font-semibold text-white">{aktifCount}</span>
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-yellow-500 px-1.5 text-xs font-semibold text-white">{countAktif}</span>
           </button>
           <button
             onClick={() => setStatusFilter("selesai")}
@@ -112,7 +127,9 @@ export default function TukarBarangPage({ list, salesList, rokokList }) {
             }`}
           >
             Selesai
-            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-green-600 px-1.5 text-xs font-semibold text-white">{list.filter((r) => r.status === "selesai").length}</span>
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-green-600 px-1.5 text-xs font-semibold text-white">
+              {countSelesai}
+            </span>
           </button>
         </div>
 
@@ -130,18 +147,19 @@ export default function TukarBarangPage({ list, salesList, rokokList }) {
             { key: "selisih", label: "Selisih", align: "right", render: (r) => <SelisihBadge selisih={r.selisih_uang} /> },
             { key: "actions", label: "", align: "right", render: (r) => (
               <div className="flex items-center justify-end gap-1.5">
-                <Button size="sm" variant="ghost" className="border border-green-200 bg-green-50 text-green-700 hover:bg-green-100" onClick={() => setSelesaiModal(r)}>
-                  Selesaikan
-                </Button>
+                {role !== "staff" && (
+                  <Button size="sm" variant="ghost" className="border border-green-200 bg-green-50 text-green-700 hover:bg-green-100" onClick={() => setSelesaiModal(r)}>
+                    Selesaikan
+                  </Button>
+                )}
                 <Button size="sm" variant="ghost" className="border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100" onClick={() => setDetail(r)}>
                   Detail
                 </Button>
-                <Button size="sm" variant="ghost" className="border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100" onClick={() => setDetail(r)}>
-                  Edit
-                </Button>
-                <Button size="sm" variant="ghost" className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100" onClick={() => handleDelete(r)} disabled={deletingId === r.id}>
-                  {deletingId === r.id ? "Menghapus..." : "Hapus"}
-                </Button>
+                {role !== "staff" && (
+                  <Button size="sm" variant="ghost" className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100" onClick={() => handleDelete(r)} disabled={deletingId === r.id}>
+                    {deletingId === r.id ? "Menghapus..." : "Hapus"}
+                  </Button>
+                )}
               </div>
             )},
           ] : [
@@ -158,9 +176,11 @@ export default function TukarBarangPage({ list, salesList, rokokList }) {
                 <Button size="sm" variant="ghost" className="border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100" onClick={() => setDetail(r)}>
                   Detail
                 </Button>
-                <Button size="sm" variant="ghost" className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100" onClick={() => handleDelete(r)} disabled={deletingId === r.id}>
-                  {deletingId === r.id ? "Menghapus..." : "Hapus"}
-                </Button>
+                {role !== "staff" && (
+                  <Button size="sm" variant="ghost" className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100" onClick={() => handleDelete(r)} disabled={deletingId === r.id}>
+                    {deletingId === r.id ? "Menghapus..." : "Hapus"}
+                  </Button>
+                )}
               </div>
             )},
           ]}

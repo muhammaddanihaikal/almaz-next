@@ -16,7 +16,7 @@ const SUMBER_LABEL = {
   lainnya: "Di Luar Penjualan",
 }
 
-export default function PengeluaranPage({ pengeluaranList, sesiList, titipJualList }) {
+export default function PengeluaranPage({ role, pengeluaranList, sesiList, titipJualList }) {
   const router = useRouter()
   const { confirmWithReason, ConfirmWithReasonModal } = useConfirmWithReason()
   const [mode, setMode] = useState(null)
@@ -61,11 +61,13 @@ export default function PengeluaranPage({ pengeluaranList, sesiList, titipJualLi
         title="Pengeluaran"
         subtitle={`Daftar pengeluaran${dateRange?.start ? ` — ${fmtTanggal(dateRange.start)} s/d ${fmtTanggal(dateRange.end)}` : " — semua waktu"}.`}
         action={
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2">
             <DownloadButton onClick={handleDownload} disabled={!rows.length} />
-            <PrimaryButton onClick={() => { setEditing(null); setMode("add") }} icon={Plus}>
-              Tambah Pengeluaran
-            </PrimaryButton>
+            {role !== "staff" && (
+              <PrimaryButton onClick={() => { setEditing(null); setMode("add") }} icon={Plus}>
+                Catat Pengeluaran
+              </PrimaryButton>
+            )}
           </div>
         }
       />
@@ -116,14 +118,14 @@ export default function PengeluaranPage({ pengeluaranList, sesiList, titipJualLi
                 <div className="flex items-center justify-end gap-1">
                   <button
                     onClick={() => setDetail(r)}
-                    className="rounded p-1.5 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-700"
-                    title="Lihat detail"
+                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700 transition"
                   >
-                    <Eye className="h-4 w-4" />
+                    <Eye className="h-3.5 w-3.5" />
+                    Detail
                   </button>
                   <RowActions
-                    onEdit={() => { setEditing(r); setMode("edit") }}
-                    onDelete={() => handleDelete(r)}
+                    onEdit={role !== "staff" ? () => { setEditing(r); setMode("edit") } : null}
+                    onDelete={role !== "staff" ? () => handleDelete(r) : null}
                   />
                 </div>
               ),

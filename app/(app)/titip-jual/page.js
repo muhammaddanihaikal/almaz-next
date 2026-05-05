@@ -1,13 +1,19 @@
+import { auth } from "@/lib/auth"
 import { getTitipJualList } from "@/actions/titip_jual"
 import { getSalesList } from "@/actions/sales"
 import KonsinyasiPage from "@/components/pages/KonsinyasiPage"
 
 export const revalidate = 0
 
+export const metadata = {
+  title: "Titip Jual",
+}
+
 export default async function Page() {
-  const [titipJualList, salesList] = await Promise.all([
+  const [session, titipJualList, salesList] = await Promise.all([
+    auth(),
     getTitipJualList(),
     getSalesList(),
   ])
-  return <KonsinyasiPage titipJualList={titipJualList} salesList={salesList} />
+  return <KonsinyasiPage role={session?.user?.role} titipJualList={titipJualList} salesList={salesList} />
 }
