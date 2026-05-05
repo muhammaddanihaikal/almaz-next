@@ -14,6 +14,7 @@ import {
 } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
+import RokokItemsTooltip from "@/components/RokokItemsTooltip"
 
 const PAGE_SIZE = 10
 
@@ -549,16 +550,7 @@ export default function DistribusiPage({ sesiList, rokokList, salesList, tokoLis
             },
             {
               key: "keluar", label: "Barang Keluar",
-              render: (r) => (
-                <div className="space-y-0.5">
-                  {r.barangKeluar.slice(0, 3).map((it, i) => (
-                    <div key={i} className="text-xs text-neutral-700">{it.rokok} ×{it.qty}</div>
-                  ))}
-                  {r.barangKeluar.length > 3 && (
-                    <div className="text-xs text-neutral-500 font-medium">+{r.barangKeluar.length - 3} lebih</div>
-                  )}
-                </div>
-              ),
+              render: (r) => <RokokItemsTooltip items={r.barangKeluar} />
             },
             {
               key: "actions", label: "", align: "right",
@@ -690,7 +682,6 @@ function SesiDetail({ record }) {
           <div><p className="text-xs text-neutral-500">Total Terjual</p><p className="font-medium">{totalQtyTerjual} bungkus</p></div>
         )}
         {record.flagSetoran && <div className="flex items-center gap-1 text-red-600 text-xs col-span-2"><AlertCircle className="h-3 w-3" /> Selisih setoran: {fmtIDR(record.nilaiPenjualan)} vs {fmtIDR(record.totalSetoran)}</div>}
-        {record.flagQty     && <div className="flex items-center gap-1 text-orange-600 text-xs"><AlertCircle className="h-3 w-3" /> Qty barang tidak cocok</div>}
       </div>
 
       <Section title="Barang Keluar (Pagi)">

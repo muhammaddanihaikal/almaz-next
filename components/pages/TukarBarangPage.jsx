@@ -11,6 +11,7 @@ import {
 } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
+import RokokItemsTooltip from "@/components/RokokItemsTooltip"
 
 const PAGE_SIZE = 10
 
@@ -74,30 +75,6 @@ export default function TukarBarangPage({ list, salesList, rokokList }) {
         subtitle={`Tracking transaksi tukar antara toko & sales. Input dilakukan dari Laporan Sore di halaman Distribusi.${aktifCount > 0 ? ` — ${aktifCount} tukar aktif.` : ""}`}
       />
 
-      {/* Tabs */}
-      <div className="flex gap-4 border-b border-neutral-200">
-        <button
-          onClick={() => setStatusFilter("aktif")}
-          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
-            statusFilter === "aktif" || statusFilter === ""
-              ? "border-blue-600 text-blue-600"
-              : "border-transparent text-neutral-500 hover:text-neutral-700"
-          }`}
-        >
-          Tukar Belum Selesai (Aktif)
-        </button>
-        <button
-          onClick={() => setStatusFilter("selesai")}
-          className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
-            statusFilter === "selesai"
-              ? "border-blue-600 text-blue-600"
-              : "border-transparent text-neutral-500 hover:text-neutral-700"
-          }`}
-        >
-          Tukar Selesai
-        </button>
-      </div>
-
       <div className="flex flex-col gap-4 rounded-xl border border-neutral-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] lg:flex-row lg:flex-wrap lg:items-end lg:gap-4">
         <Field label="Rentang Waktu">
           <DateFilter value={dateRange} onChange={setDateRange} />
@@ -113,40 +90,77 @@ export default function TukarBarangPage({ list, salesList, rokokList }) {
       </div>
 
       <Card>
+        {/* Tabs */}
+        <div className="flex border-b border-neutral-200 -mx-4 -mt-4 px-4 mb-4">
+          <button
+            onClick={() => setStatusFilter("aktif")}
+            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 flex items-center gap-2 ${
+              statusFilter === "aktif" || statusFilter === ""
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-neutral-500 hover:text-neutral-700"
+            }`}
+          >
+            Aktif
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-yellow-500 px-1.5 text-xs font-semibold text-white">{aktifCount}</span>
+          </button>
+          <button
+            onClick={() => setStatusFilter("selesai")}
+            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 flex items-center gap-2 ${
+              statusFilter === "selesai"
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-neutral-500 hover:text-neutral-700"
+            }`}
+          >
+            Selesai
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-green-600 px-1.5 text-xs font-semibold text-white">{list.filter((r) => r.status === "selesai").length}</span>
+          </button>
+        </div>
+
         <DataTable
           key={`${dateRange?.start}-${dateRange?.end}-${statusFilter}-${salesFilter}`}
           pageSize={PAGE_SIZE}
           rows={rows}
           empty={dateRange?.start ? `Tidak ada tukar barang dari ${fmtTanggal(dateRange.start)} s/d ${fmtTanggal(dateRange.end)}.` : "Belum ada tukar barang."}
-          columns={[
+          columns={statusFilter === "aktif" ? [
+            { key: "no",      label: "No",     render: (_, idx) => idx + 1 },
+            { key: "tanggal", label: "Tanggal Buat", render: (r) => fmtTanggal(r.tanggal) },
+            { key: "sales",   label: "Sales",  render: (r) => r.nama_sales },
+            { key: "kategori", label: "Kategori", render: (r) => <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${r.kategori === "grosir" ? "bg-violet-100 text-violet-700" : "bg-blue-100 text-blue-700"}`}>{r.kategori}</span> },
+            { key: "masuk",   label: "Dari Toko", render: (r) => <RokokItemsTooltip items={r.itemsMasuk} /> },
+            { key: "selisih", label: "Selisih", align: "right", render: (r) => <SelisihBadge selisih={r.selisih_uang} /> },
+            { key: "actions", label: "", align: "right", render: (r) => (
+              <div className="flex items-center justify-end gap-1.5">
+                <Button size="sm" variant="ghost" className="border border-green-200 bg-green-50 text-green-700 hover:bg-green-100" onClick={() => setSelesaiModal(r)}>
+                  Selesaikan
+                </Button>
+                <Button size="sm" variant="ghost" className="border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100" onClick={() => setDetail(r)}>
+                  Detail
+                </Button>
+                <Button size="sm" variant="ghost" className="border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100" onClick={() => setDetail(r)}>
+                  Edit
+                </Button>
+                <Button size="sm" variant="ghost" className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100" onClick={() => handleDelete(r)} disabled={deletingId === r.id}>
+                  {deletingId === r.id ? "Menghapus..." : "Hapus"}
+                </Button>
+              </div>
+            )},
+          ] : [
             { key: "no",      label: "No",     render: (_, idx) => idx + 1 },
             { key: "tanggal", label: "Tanggal Buat", render: (r) => fmtTanggal(r.tanggal) },
             { key: "tanggal_selesai", label: "Tanggal Selesai", render: (r) => r.tanggal_selesai ? fmtTanggal(r.tanggal_selesai) : <span className="text-neutral-400">—</span> },
             { key: "sales",   label: "Sales",  render: (r) => r.nama_sales },
-            { key: "masuk",   label: "Dari Toko", render: (r) => (
-              <div className="space-y-0.5">
-                {r.itemsMasuk.map((it, i) => <div key={i} className="text-xs text-neutral-700">{it.rokok} ×{it.qty}</div>)}
-              </div>
-            )},
-            { key: "keluar",  label: "Pengganti", render: (r) => (
-              <div className="space-y-0.5">
-                {r.itemsKeluar.map((it, i) => <div key={i} className="text-xs text-neutral-700">{it.rokok} ×{it.qty}</div>)}
-              </div>
-            )},
+            { key: "kategori", label: "Kategori", render: (r) => <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${r.kategori === "grosir" ? "bg-violet-100 text-violet-700" : "bg-blue-100 text-blue-700"}`}>{r.kategori}</span> },
+            { key: "masuk",   label: "Dari Toko", render: (r) => <RokokItemsTooltip items={r.itemsMasuk} /> },
+            { key: "keluar",  label: "Pengganti", render: (r) => <RokokItemsTooltip items={r.itemsKeluar} /> },
             { key: "selisih", label: "Selisih", align: "right", render: (r) => <SelisihBadge selisih={r.selisih_uang} /> },
-            { key: "status",  label: "Status",  render: (r) => <StatusBadge status={r.status} /> },
             { key: "actions", label: "", align: "right", render: (r) => (
-              <div className="flex justify-end items-center gap-2">
-                {r.status === "aktif" && (
-                  <Button size="sm" variant="outline" className="text-green-600 border-green-600 hover:bg-green-50" onClick={() => setSelesaiModal(r)}>
-                    Selesaikan
-                  </Button>
-                )}
-                <RowActions
-                  onDetail={() => setDetail(r)}
-                  onDelete={() => handleDelete(r)}
-                  deleteLoading={deletingId === r.id}
-                />
+              <div className="flex items-center justify-end gap-1.5">
+                <Button size="sm" variant="ghost" className="border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100" onClick={() => setDetail(r)}>
+                  Detail
+                </Button>
+                <Button size="sm" variant="ghost" className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100" onClick={() => handleDelete(r)} disabled={deletingId === r.id}>
+                  {deletingId === r.id ? "Menghapus..." : "Hapus"}
+                </Button>
               </div>
             )},
           ]}

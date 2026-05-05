@@ -9,6 +9,7 @@ import { Card, PageHeader, SelectInput, Field, FormActions, inputCls, useConfirm
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
 import SettlementForm from "@/components/SettlementForm"
+import RokokItemsTooltip from "@/components/RokokItemsTooltip"
 
 const PAGE_SIZE = 10
 
@@ -165,64 +166,63 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
         </div>
       )}
 
+      {/* Combined Filter Section */}
+      <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] space-y-3">
+        {/* Filters Row */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:gap-4">
+          <div className="w-full sm:w-44">
+            <label className="text-xs font-medium text-neutral-600 block mb-1.5">Sales</label>
+            <SelectInput value={salesFilter} onChange={(e) => setSalesFilter(e.target.value)}>
+              <option value="">Semua Sales</option>
+              {salesList.map((s) => (
+                <option key={s.id} value={s.id}>{s.nama}</option>
+              ))}
+            </SelectInput>
+          </div>
+          <div className="flex-1 sm:flex-initial">
+            <label className="text-xs font-medium text-neutral-600 block mb-1.5">Jatuh Tempo</label>
+            <DateFilter value={dateRange} onChange={setDateRange} />
+          </div>
+          {activeTab === "aktif" && (
+            <div className="w-full sm:w-56">
+              <label className="text-xs font-medium text-neutral-600 block mb-1.5">Status</label>
+              <SelectInput value={statusAktifFilter} onChange={(e) => setStatusAktifFilter(e.target.value)}>
+                <option value="">Semua Status Aktif</option>
+                <option value="terlewat">Terlewat</option>
+                <option value="hari_ini">Hari Ini</option>
+                <option value="segera">Segera (1-3 Hari)</option>
+                <option value="aman">Aman (&gt;3 Hari)</option>
+              </SelectInput>
+            </div>
+          )}
+        </div>
+
+        {/* Search Bar - Full Width */}
+        <div>
+          <label className="text-xs font-medium text-neutral-600 block mb-1.5">Cari</label>
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-400 pointer-events-none" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Cari sales atau toko..."
+              className={inputCls + " pl-8 text-sm w-full"}
+            />
+          </div>
+        </div>
+      </div>
+
       <Card>
+
         {/* Tabs */}
-        <div className="flex border-b border-neutral-200 -mx-4 -mt-4 px-4 mb-4">
+        <div className="flex border-b border-neutral-200">
           <TabButton active={activeTab === "aktif"} onClick={() => setActiveTab("aktif")}>
             Aktif <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-yellow-500 px-1 text-xs text-white">{countAktif}</span>
           </TabButton>
           <TabButton active={activeTab === "selesai"} onClick={() => setActiveTab("selesai")}>
             Selesai <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-green-600 px-1 text-xs text-white">{countSelesai}</span>
           </TabButton>
-        </div>
-
-        {/* Filter bar */}
-        <div className="flex flex-col gap-3 mb-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-400 pointer-events-none" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Cari sales atau toko..."
-                className={inputCls + " pl-8 text-sm"}
-              />
-            </div>
-            <div className="w-full sm:w-44 shrink-0">
-              <SelectInput value={salesFilter} onChange={(e) => setSalesFilter(e.target.value)}>
-                <option value="">Semua Sales</option>
-                {salesList.map((s) => (
-                  <option key={s.id} value={s.id}>{s.nama}</option>
-                ))}
-              </SelectInput>
-            </div>
-          </div>
-          
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center bg-neutral-50/50 p-3 rounded-lg border border-neutral-100">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-              <label className="text-sm font-medium text-neutral-600 shrink-0">Jatuh Tempo:</label>
-              <DateFilter value={dateRange} onChange={setDateRange} />
-            </div>
-            
-            {activeTab === "aktif" && (
-              <>
-                <div className="hidden sm:block w-px h-6 bg-neutral-200 mx-2"></div>
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-                  <label className="text-sm font-medium text-neutral-600 shrink-0">Status:</label>
-                  <div className="w-full sm:w-56 shrink-0">
-                    <SelectInput value={statusAktifFilter} onChange={(e) => setStatusAktifFilter(e.target.value)}>
-                      <option value="">Semua Status Aktif</option>
-                      <option value="terlewat">Terlewat</option>
-                      <option value="hari_ini">Hari Ini</option>
-                      <option value="segera">Segera (1-3 Hari)</option>
-                      <option value="aman">Aman (&gt;3 Hari)</option>
-                    </SelectInput>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
         </div>
 
         <DataTable
@@ -242,13 +242,7 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
             { key: "kategori",   label: "Kategori",     render: (r) => <Badge label={r.kategori} colorClass={KATEGORI_COLOR[r.kategori] || "bg-neutral-100 text-neutral-600"} /> },
             {
               key: "items", label: "Rokok",
-              render: (r) => (
-                <div className="space-y-0.5">
-                  {r.items.map((it, i) => (
-                    <div key={i} className="text-xs text-neutral-700">{it.rokok} ×{it.qty_keluar}</div>
-                  ))}
-                </div>
-              ),
+              render: (r) => <RokokItemsTooltip items={r.items.map(it => ({ ...it, qty: it.qty_keluar }))} />,
             },
             { key: "nilai", label: "Nilai", align: "right", render: (r) => fmtIDR(r.nilaiTotal) },
             { key: "tgl_selesai", label: "Tgl Selesai", render: (r) => r.tanggal_selesai ? <span className="text-green-700 font-medium">{fmtTanggal(r.tanggal_selesai)}</span> : <span className="text-neutral-300">—</span> },
@@ -281,8 +275,16 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => setEditingDetail(r)}
+                        onClick={() => setDetail(r)}
                         className="border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                      >
+                        Detail
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setEditingDetail(r)}
+                        className="border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
                       >
                         Edit
                       </Button>
@@ -306,8 +308,16 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => setEditingSettlement(r)}
+                        onClick={() => setDetail(r)}
                         className="border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                      >
+                        Detail
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setEditingSettlement(r)}
+                        className="border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
                       >
                         Edit
                       </Button>
@@ -326,13 +336,6 @@ export default function KonsinyasiPage({ titipJualList, salesList }) {
                       </Button>
                     </>
                   )}
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => setDetail(r)}
-                  >
-                    Detail
-                  </Button>
                 </div>
               ),
             },
