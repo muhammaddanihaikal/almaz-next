@@ -126,7 +126,7 @@ export async function getSesi(id) {
 export async function createSesi(data) {
   const session = await auth()
   try {
-    await distribusiTransaction(async (tx) => {
+    const createdId = await distribusiTransaction(async (tx) => {
       const sesi = await tx.sesiHarian.create({
         data: {
           tanggal:  new Date(data.tanggal),
@@ -155,11 +155,11 @@ export async function createSesi(data) {
         user_id:   session?.user?.id,
         user_name: session?.user?.name,
       })
-      return sesi
+      return sesi.id
     })
     revalidatePath("/distribusi")
     revalidatePath("/")
-    return { success: true }
+    return { success: true, data: await getSesi(createdId) }
   } catch (error) {
     console.error("[createSesi ERROR]", {
       message: error.message,
@@ -216,7 +216,7 @@ export async function updateSesiPagi(id, data, alasan) {
     })
     revalidatePath("/distribusi")
     revalidatePath("/")
-    return { success: true }
+    return { success: true, data: await getSesi(id) }
   } catch (error) {
     console.error(`[updateSesiPagi ERROR] id: ${id}`, {
       message: error.message,
@@ -386,7 +386,7 @@ export async function submitLaporanSore(id, data) {
     revalidatePath("/distribusi")
     revalidatePath("/titip-jual")
     revalidatePath("/")
-    return { success: true }
+    return { success: true, data: await getSesi(id) }
   } catch (error) {
     console.error(`[submitLaporanSore ERROR] id: ${id}`, {
       message: error.message,
@@ -581,7 +581,7 @@ export async function editLaporanSore(id, data, alasan) {
     revalidatePath("/distribusi")
     revalidatePath("/titip-jual")
     revalidatePath("/")
-    return { success: true }
+    return { success: true, data: await getSesi(id) }
   } catch (error) {
     console.error(`[editLaporanSore ERROR] id: ${id}`, {
       message: error.message,
@@ -780,7 +780,7 @@ export async function deleteSesi(id, alasan) {
     revalidatePath("/distribusi")
     revalidatePath("/titip-jual")
     revalidatePath("/")
-    return { success: true }
+    return { success: true, id }
   } catch (error) {
     console.error(`[deleteSesi ERROR] id: ${id}`, {
       message: error.message,

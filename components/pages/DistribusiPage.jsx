@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, Fragment } from "react"
+import { useEffect, useMemo, useState, Fragment } from "react"
 import { useRouter } from "next/navigation"
 import { Plus, Trash2, AlertCircle, ChevronDown, ChevronUp, Download } from "lucide-react"
 import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc } from "@/lib/utils"
@@ -383,9 +383,31 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
   const [statusFilter, setStatusFilter] = useState("")
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
+  const [localSesiList, setLocalSesiList] = useState(sesiList)
+
+  useEffect(() => {
+    setLocalSesiList(sesiList)
+  }, [sesiList])
+
+  const upsertLocalSesi = (record) => {
+    if (!record?.id) return
+    setLocalSesiList((prev) => {
+      const exists = prev.some((s) => s.id === record.id)
+      const next = exists ? prev.map((s) => (s.id === record.id ? record : s)) : [record, ...prev]
+      return next.sort((a, b) => {
+        const byTanggal = b.tanggal.localeCompare(a.tanggal)
+        if (byTanggal !== 0) return byTanggal
+        return (b.createdAt || "").localeCompare(a.createdAt || "")
+      })
+    })
+  }
+
+  const removeLocalSesi = (id) => {
+    setLocalSesiList((prev) => prev.filter((s) => s.id !== id))
+  }
 
   const rows = useMemo(() => {
-    let temp = [...sesiList]
+    let temp = [...localSesiList]
 
     // 1. Filter by Date
     if (dateRange?.start && dateRange?.end) {
@@ -417,7 +439,7 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
     }
 
     return temp.sort((a, b) => b.tanggal.localeCompare(a.tanggal))
-  }, [sesiList, dateRange, salesFilter, rokokFilter, statusFilter])
+  }, [localSesiList, dateRange, salesFilter, rokokFilter, statusFilter])
 
   const close = () => { setMode(null); setEditing(null) }
 
@@ -434,6 +456,7 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
       if (result && result.success === false) {
         throw new Error(result.error || "Gagal menghapus sesi.")
       }
+      removeLocalSesi(r.id)
       router.refresh()
     } catch (error) {
       console.error("[deleteSesi]", error)
@@ -628,13 +651,14 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
             initial={editing}
             rokokList={rokokList}
             salesList={salesList}
-            sesiList={sesiList}
+            sesiList={localSesiList}
             onSubmit={async (data) => {
               if (mode === "add") {
                 const result = await createSesi(data)
                 if (result && result.success === false) {
                   throw new Error(result.error || "Gagal membuat sesi distribusi.")
                 }
+                upsertLocalSesi(result.data)
                 close()
                 router.refresh()
               } else {
@@ -645,6 +669,7 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
                 if (result && result.success === false) {
                   throw new Error(result.error || "Gagal mengubah sesi distribusi.")
                 }
+                upsertLocalSesi(result.data)
                 close()
                 router.refresh()
               }
@@ -661,11 +686,13 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
             rokokList={rokokList}
             tokoList={tokoList}
             tukarBarangList={tukarBarangList}
+            onSessionChange={upsertLocalSesi}
             onSubmit={async (data) => {
               const result = await submitLaporanSore(laporanSesi.id, { ...data, sales_id: laporanSesi.sales_id, tanggal: laporanSesi.tanggal })
               if (result && result.success === false) {
                 throw new Error(result.error || "Gagal submit laporan sore.")
               }
+              upsertLocalSesi(result.data)
               setLaporanSesi(null)
               router.refresh()
             }}
@@ -682,6 +709,7 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
             tokoList={tokoList}
             tukarBarangList={tukarBarangList}
             isEdit
+            onSessionChange={upsertLocalSesi}
             onSubmit={async (data) => {
               const captured = editLaporan
               const alasan = await confirmWithReason(`Edit laporan sore ${captured.sales}?`, { title: "Edit Laporan Sore", confirmLabel: "Ya, Simpan" })
@@ -690,6 +718,7 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
               if (result && result.success === false) {
                 throw new Error(result.error || "Gagal edit laporan sore.")
               }
+              upsertLocalSesi(result.data)
               setEditLaporan(null)
               router.refresh()
             }}
@@ -1040,7 +1069,7 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, onSubmit, onCan
 
 // ─── Form Laporan Sore ────────────────────────────────────────────────────────
 
-function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangList = [], isEdit = false, onSubmit, onCancel }) {
+function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangList = [], isEdit = false, onSessionChange, onSubmit, onCancel }) {
   const { confirmWithReason, ConfirmWithReasonModal: LaporanConfirmModal } = useConfirmWithReason()
   const [activeTab, setActiveTab] = useState("penjualan")
   const [tokoList, setTokoList]   = useState(tokoListProp ?? [])
@@ -1251,7 +1280,11 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
   const handleSaveAndSettle = async (kData, idx) => {
     const created = await createTitipJual(sesi.id, sesi.sales_id, kData)
     setKonsinyasiBaru((prev) => prev.filter((_, i) => i !== idx))
-    setNewlyCreatedKonsinyasi((prev) => [...prev, created])
+    setNewlyCreatedKonsinyasi((prev) => {
+      const next = [...prev, created]
+      onSessionChange?.({ ...sesi, konsinyasi: [...(sesi.konsinyasi || []), ...next] })
+      return next
+    })
   }
 
   const handleEditSettlement = async (data) => {
@@ -1281,7 +1314,17 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
     const alasan = await confirmWithReason(`Hapus titip jual "${k.nama_toko}"? Stok akan dikembalikan.`, { title: "Hapus Titip Jual", variant: "danger", confirmLabel: "Ya, Hapus" })
     if (!alasan) return
     await deleteTitipJual(k.id, alasan)
-    setNewlyCreatedKonsinyasi((prev) => prev.filter((x) => x.id !== k.id))
+    setNewlyCreatedKonsinyasi((prev) => {
+      const next = prev.filter((x) => x.id !== k.id)
+      onSessionChange?.({
+        ...sesi,
+        konsinyasi: [
+          ...(sesi.konsinyasi || []).filter((x) => x.id !== k.id),
+          ...next,
+        ],
+      })
+      return next
+    })
   }
 
   const preexistingSelesai = (sesi.konsinyasi || []).filter((k) => k.status === "selesai" && !revertedFromSelesaiIds.has(k.id))
