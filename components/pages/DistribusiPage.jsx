@@ -362,6 +362,7 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
   const [rokokFilter, setRokokFilter] = useState([])
   const [statusFilter, setStatusFilter] = useState("")
   const [showExportMenu, setShowExportMenu] = useState(false)
+  const [deletingId, setDeletingId] = useState(null)
 
   const rows = useMemo(() => {
     let temp = [...sesiList]
@@ -396,28 +397,6 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
     return temp.sort((a, b) => b.tanggal.localeCompare(a.tanggal))
   }, [sesiList, dateRange, salesFilter, rokokFilter, statusFilter])
 
-  const summary = useMemo(() => {
-    let grosir = 0
-    let toko = 0
-    let perorangan = 0
-    let total = 0
-
-    rows.forEach((r) => {
-      if (r.status === "selesai") {
-        // Use pre-calculated r.nilaiPenjualan if available, but for per-category we need to sum up
-        r.penjualan?.forEach((pj) => {
-          const subtotal = (pj.qty || 0) * (pj.harga || 0)
-          if (pj.kategori === "grosir") grosir += subtotal
-          else if (pj.kategori === "toko") toko += subtotal
-          else if (pj.kategori === "perorangan") perorangan += subtotal
-        })
-        total += (r.nilaiPenjualan || 0)
-      }
-    })
-
-    return { grosir, toko, perorangan, total }
-  }, [rows])
-
   const close = () => { setMode(null); setEditing(null) }
 
   const handleDelete = async (r) => {
@@ -427,8 +406,19 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
       confirmLabel: "Ya, Hapus"
     })
     if (!alasan) return
-    await deleteSesi(r.id, alasan)
-    router.refresh()
+    setDeletingId(r.id)
+    try {
+      const result = await deleteSesi(r.id, alasan)
+      if (result && result.success === false) {
+        throw new Error(result.error || "Gagal menghapus sesi.")
+      }
+      router.refresh()
+    } catch (error) {
+      console.error("[deleteSesi]", error)
+      await confirm(error?.message || "Gagal menghapus sesi.", { title: "Gagal Hapus Sesi", hideCancel: true })
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   return (
@@ -532,22 +522,6 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
         </Field>
       </div>
 
-      {/* Summary Row */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-violet-100 bg-violet-50/50 p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wider text-violet-600">Total Grosir</p>
-          <p className="mt-1 text-xl font-bold text-violet-900">{fmtIDR(summary.grosir)}</p>
-        </div>
-        <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wider text-blue-600">Total Toko</p>
-          <p className="mt-1 text-xl font-bold text-blue-900">{fmtIDR(summary.toko)}</p>
-        </div>
-        <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600">Total Penjualan</p>
-          <p className="mt-1 text-xl font-bold text-emerald-900">{fmtIDR(summary.total)}</p>
-        </div>
-      </div>
-
       <Card>
         <DataTable
           key={`${dateRange?.start}-${dateRange?.end}-${salesFilter}-${rokokFilter}-${statusFilter}`}
@@ -611,6 +585,7 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
                     onDetail={() => setDetail(r)}
                     onEdit={role !== "staff" ? () => { setEditing(r); setMode("edit") } : null}
                     onDelete={role !== "staff" ? () => { handleDelete(r) } : null}
+                    deleteLoading={deletingId === r.id}
                   />
                 </div>
               ),
@@ -658,7 +633,10 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
             tokoList={tokoList}
             tukarBarangList={tukarBarangList}
             onSubmit={async (data) => {
-              await submitLaporanSore(laporanSesi.id, { ...data, sales_id: laporanSesi.sales_id, tanggal: laporanSesi.tanggal })
+              const result = await submitLaporanSore(laporanSesi.id, { ...data, sales_id: laporanSesi.sales_id, tanggal: laporanSesi.tanggal })
+              if (result && result.success === false) {
+                throw new Error(result.error || "Gagal submit laporan sore.")
+              }
               setLaporanSesi(null)
               router.refresh()
             }}
@@ -677,10 +655,13 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
             isEdit
             onSubmit={async (data) => {
               const captured = editLaporan
-              setEditLaporan(null)
               const alasan = await confirmWithReason(`Edit laporan sore ${captured.sales}?`, { title: "Edit Laporan Sore", confirmLabel: "Ya, Simpan" })
               if (!alasan) return
-              await editLaporanSore(captured.id, { ...data, sales_id: captured.sales_id, tanggal: captured.tanggal }, alasan)
+              const result = await editLaporanSore(captured.id, { ...data, sales_id: captured.sales_id, tanggal: captured.tanggal }, alasan)
+              if (result && result.success === false) {
+                throw new Error(result.error || "Gagal edit laporan sore.")
+              }
+              setEditLaporan(null)
               router.refresh()
             }}
             onCancel={() => setEditLaporan(null)}
@@ -1192,7 +1173,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
           ...k,
           items: k.items.map(it => ({
             rokok_id: it.rokok_id,
-            qty_keluar: Number(it.qty) || 0
+            qty: Number(it.qty) || 0
           }))
         })),
         tukarBaru: validTukarBaru.map((t) => ({

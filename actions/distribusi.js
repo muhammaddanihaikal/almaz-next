@@ -273,11 +273,13 @@ export async function submitLaporanSore(id, data) {
             tanggal_jatuh_tempo: new Date(k.tanggal_jatuh_tempo),
             catatan:             k.catatan || null,
             items: {
-              create: k.items.map((it) => ({
-                rokok_id:   it.rokok_id,
-                qty_keluar: Number(it.qty),
-                harga:      hargaMap[it.rokok_id]?.[k.kategori] || 0,
-              })),
+              create: k.items
+                .filter((it) => it.rokok_id && Number(it.qty ?? it.qty_keluar) > 0)
+                .map((it) => ({
+                  rokok_id:   it.rokok_id,
+                  qty_keluar: Number(it.qty ?? it.qty_keluar),
+                  harga:      hargaMap[it.rokok_id]?.[k.kategori] || 0,
+                })),
             },
           },
           include: { items: true },
@@ -367,7 +369,7 @@ export async function submitLaporanSore(id, data) {
       stack: error.stack,
       data: JSON.stringify(data),
     })
-    throw error
+    return { success: false, error: error.message || "Gagal submit laporan sore." }
   }
 }
 
@@ -499,11 +501,13 @@ export async function editLaporanSore(id, data, alasan) {
             tanggal_jatuh_tempo: new Date(k.tanggal_jatuh_tempo),
             catatan:             k.catatan || null,
             items: {
-              create: k.items.map((it) => ({
-                rokok_id:   it.rokok_id,
-                qty_keluar: Number(it.qty),
-                harga:      hargaMap[it.rokok_id]?.[k.kategori] || 0,
-              })),
+              create: k.items
+                .filter((it) => it.rokok_id && Number(it.qty ?? it.qty_keluar) > 0)
+                .map((it) => ({
+                  rokok_id:   it.rokok_id,
+                  qty_keluar: Number(it.qty ?? it.qty_keluar),
+                  harga:      hargaMap[it.rokok_id]?.[k.kategori] || 0,
+                })),
             },
           },
           include: { items: true },
@@ -561,77 +565,122 @@ export async function editLaporanSore(id, data, alasan) {
       data: JSON.stringify(data),
       alasan
     })
-    throw error
+    return { success: false, error: error.message || "Gagal edit laporan sore." }
   }
 }
 
 export async function deleteSesi(id, alasan) {
   const session = await auth()
-  await prisma.$transaction(async (tx) => {
-    const sesi = await tx.sesiHarian.findUnique({
-      where: { id },
-      include: {
-        barangKeluar:  { include: { rokok: true } },
-        barangKembali: { include: { rokok: true } },
-        penjualan:     true,
-        setoran:       true,
-        titipJual:     { include: { items: true } },
-      },
-    })
-
-    if (!sesi) return
-
-    await logAudit({
-      tx,
-      entity_type: AUDIT_ENTITY.SESI_HARIAN,
-      change_type: "Hapus Sesi",
-      entity_id:   id,
-      action:      AUDIT_ACTION.DELETE,
-      old_values:  {
-        tanggal:      sesi.tanggal.toISOString().split("T")[0],
-        sales_id:     sesi.sales_id,
-        status:       sesi.status,
-        barangKeluar: sesi.barangKeluar.map(it => ({ rokok: it.rokok?.nama, qty: it.qty })),
-        penjualan:    sesi.penjualan.map(it => ({ rokok_id: it.rokok_id, qty: it.qty, harga: it.harga })),
-        setoran:      sesi.setoran.map(it => ({ metode: it.metode, jumlah: it.jumlah })),
-        barangKembali: sesi.barangKembali.map(it => ({ rokok: it.rokok?.nama, qty: it.qty })),
-      },
-      alasan,
-      user_id:   session?.user?.id,
-      user_name: session?.user?.name,
-    })
-
-    for (const it of sesi.penjualan) {
-      if (it.qty > 0) {
-        await mutateStock({
-          tx,
-          rokok_id: it.rokok_id,
-          tanggal: sesi.tanggal,
-          jenis: 'in',
-          qty: it.qty,
-          source: MUTATION_SOURCE.REVERT,
-          reference_id: id,
-          keterangan: "Revert penjualan (delete sesi)",
-          user_id: session?.user?.id,
-          allowNegative: true,
-        })
-      }
-    }
-
-    const setoransPenyelesaian = await tx.titipJualSetoran.findMany({
-      where: { sesi_penyelesaian_id: id }
-    })
-
-    const completedTjIds = [...new Set(setoransPenyelesaian.map(s => s.titip_jual_id))]
-
-    for (const tjId of completedTjIds) {
-      const tj = await tx.titipJual.findUnique({
-        where: { id: tjId },
-        include: { items: true }
+  try {
+    await prisma.$transaction(async (tx) => {
+      const sesi = await tx.sesiHarian.findUnique({
+        where: { id },
+        include: {
+          barangKeluar:  { include: { rokok: true } },
+          barangKembali: { include: { rokok: true } },
+          penjualan:     true,
+          setoran:       true,
+          titipJual:     { include: { items: true } },
+        },
       })
 
-      if (tj) {
-        for (const it of tj.items) {
+      if (!sesi) return
+
+      await logAudit({
+        tx,
+        entity_type: AUDIT_ENTITY.SESI_HARIAN,
+        change_type: "Hapus Sesi",
+        entity_id:   id,
+        action:      AUDIT_ACTION.DELETE,
+        old_values:  {
+          tanggal:      sesi.tanggal.toISOString().split("T")[0],
+          sales_id:     sesi.sales_id,
+          status:       sesi.status,
+          barangKeluar: sesi.barangKeluar.map(it => ({ rokok: it.rokok?.nama, qty: it.qty })),
+          penjualan:    sesi.penjualan.map(it => ({ rokok_id: it.rokok_id, qty: it.qty, harga: it.harga })),
+          setoran:      sesi.setoran.map(it => ({ metode: it.metode, jumlah: it.jumlah })),
+          barangKembali: sesi.barangKembali.map(it => ({ rokok: it.rokok?.nama, qty: it.qty })),
+        },
+        alasan,
+        user_id:   session?.user?.id,
+        user_name: session?.user?.name,
+      })
+
+      for (const it of sesi.penjualan) {
+        if (it.qty > 0) {
+          await mutateStock({
+            tx,
+            rokok_id: it.rokok_id,
+            tanggal: sesi.tanggal,
+            jenis: 'in',
+            qty: it.qty,
+            source: MUTATION_SOURCE.REVERT,
+            reference_id: id,
+            keterangan: "Revert penjualan (delete sesi)",
+            user_id: session?.user?.id,
+            allowNegative: true,
+          })
+        }
+      }
+
+      const setoransPenyelesaian = await tx.titipJualSetoran.findMany({
+        where: { sesi_penyelesaian_id: id }
+      })
+
+      const completedTjIds = [...new Set(setoransPenyelesaian.map(s => s.titip_jual_id))]
+
+      for (const tjId of completedTjIds) {
+        const tj = await tx.titipJual.findUnique({
+          where: { id: tjId },
+          include: { items: true }
+        })
+
+        if (tj) {
+          for (const it of tj.items) {
+            if (it.qty_kembali > 0) {
+              await mutateStock({
+                tx,
+                rokok_id: it.rokok_id,
+                tanggal: sesi.tanggal,
+                jenis: 'out',
+                qty: it.qty_kembali,
+                source: MUTATION_SOURCE.REVERT,
+                reference_id: tjId,
+                keterangan: "Revert konsinyasi kembali (delete sesi)",
+                user_id: session?.user?.id,
+                allowNegative: true,
+              })
+            }
+          }
+          await tx.titipJualItem.updateMany({
+            where: { titip_jual_id: tjId },
+            data: { qty_terjual: 0, qty_kembali: 0 }
+          })
+          await tx.titipJual.update({
+            where: { id: tjId },
+            data: { status: "aktif", tanggal_selesai: null }
+          })
+        }
+      }
+
+      await tx.titipJualSetoran.deleteMany({ where: { sesi_penyelesaian_id: id } })
+
+      for (const k of sesi.titipJual) {
+        for (const it of k.items) {
+          if (it.qty_keluar > 0) {
+            await mutateStock({
+              tx,
+              rokok_id: it.rokok_id,
+              tanggal: sesi.tanggal,
+              jenis: 'in',
+              qty: it.qty_keluar,
+              source: MUTATION_SOURCE.REVERT,
+              reference_id: k.id,
+              keterangan: "Revert konsinyasi keluar (delete sesi)",
+              user_id: session?.user?.id,
+              allowNegative: true,
+            })
+          }
           if (it.qty_kembali > 0) {
             await mutateStock({
               tx,
@@ -640,94 +689,79 @@ export async function deleteSesi(id, alasan) {
               jenis: 'out',
               qty: it.qty_kembali,
               source: MUTATION_SOURCE.REVERT,
-              reference_id: tjId,
+              reference_id: k.id,
               keterangan: "Revert konsinyasi kembali (delete sesi)",
-              user_id: session?.user?.id
+              user_id: session?.user?.id,
+              allowNegative: true,
             })
           }
         }
-        await tx.titipJualItem.updateMany({
-          where: { titip_jual_id: tjId },
-          data: { qty_terjual: 0, qty_kembali: 0 }
-        })
-        await tx.titipJual.update({
-          where: { id: tjId },
-          data: { status: "aktif", tanggal_selesai: null }
-        })
       }
-    }
 
-    await tx.titipJualSetoran.deleteMany({ where: { sesi_penyelesaian_id: id } })
+      await tx.titipJual.deleteMany({ where: { sesi_id: id } })
 
-    for (const k of sesi.titipJual) {
-      for (const it of k.items) {
-        if (it.qty_keluar > 0) {
-          await mutateStock({
-            tx,
-            rokok_id: it.rokok_id,
-            tanggal: sesi.tanggal,
-            jenis: 'in',
-            qty: it.qty_keluar,
-            source: MUTATION_SOURCE.REVERT,
-            reference_id: k.id,
-            keterangan: "Revert konsinyasi keluar (delete sesi)",
-            user_id: session?.user?.id,
-            allowNegative: true,
-          })
-        }
-        if (it.qty_kembali > 0) {
+      // Revert tukar barang yang dibuat di sesi ini
+      const tukarBaruDiSesi = await tx.tukarBarang.findMany({
+        where: { sesi_id: id },
+        include: { itemsMasuk: true, itemsKeluar: true },
+      })
+      for (const t of tukarBaruDiSesi) {
+        for (const it of t.itemsMasuk) {
           await mutateStock({
             tx,
             rokok_id: it.rokok_id,
             tanggal: sesi.tanggal,
             jenis: 'out',
-            qty: it.qty_kembali,
+            qty: it.qty,
             source: MUTATION_SOURCE.REVERT,
-            reference_id: k.id,
-            keterangan: "Revert konsinyasi kembali (delete sesi)",
+            reference_id: t.id,
+            keterangan: "Revert tukar barang masuk (delete sesi)",
             user_id: session?.user?.id,
+            allowNegative: true,
           })
         }
+        if (t.status === "selesai") {
+          for (const it of t.itemsKeluar) {
+            if (it.qty > 0) {
+              await mutateStock({
+                tx,
+                rokok_id: it.rokok_id,
+                tanggal: t.tanggal_selesai || sesi.tanggal,
+                jenis: 'in',
+                qty: it.qty,
+                source: MUTATION_SOURCE.REVERT,
+                reference_id: t.id,
+                keterangan: "Revert tukar barang keluar (delete sesi)",
+                user_id: session?.user?.id,
+                allowNegative: true,
+              })
+            }
+          }
+        }
+        await tx.tukarBarang.delete({ where: { id: t.id } })
       }
-    }
 
-    await tx.titipJual.deleteMany({ where: { sesi_id: id } })
-
-    // Revert tukar barang yang dibuat di sesi ini
-    const tukarBaruDiSesi = await tx.tukarBarang.findMany({
-      where: { sesi_id: id },
-      include: { itemsMasuk: true },
-    })
-    for (const t of tukarBaruDiSesi) {
-      for (const it of t.itemsMasuk) {
-        await mutateStock({
-          tx,
-          rokok_id: it.rokok_id,
-          tanggal: sesi.tanggal,
-          jenis: 'out',
-          qty: it.qty,
-          source: MUTATION_SOURCE.REVERT,
-          reference_id: t.id,
-          keterangan: "Revert tukar barang masuk (delete sesi)",
-          user_id: session?.user?.id,
-        })
+      // Revert penyelesaian tukar yang diselesaikan di sesi ini (status balik aktif)
+      const tukarSelesaiDiSesi = await tx.tukarBarang.findMany({
+        where: { sesi_selesai_id: id, status: "selesai" },
+      })
+      for (const t of tukarSelesaiDiSesi) {
+        if (t.sesi_id === id) continue
+        await revertSelesaiTukarBarangInSesi(tx, t.id, session)
       }
-      await tx.tukarBarang.delete({ where: { id: t.id } })
-    }
 
-    // Revert penyelesaian tukar yang diselesaikan di sesi ini (status balik aktif)
-    const tukarSelesaiDiSesi = await tx.tukarBarang.findMany({
-      where: { sesi_selesai_id: id, status: "selesai" },
+      await tx.sesiHarian.delete({ where: { id } })
     })
-    for (const t of tukarSelesaiDiSesi) {
-      if (t.sesi_id === id) continue
-      await revertSelesaiTukarBarangInSesi(tx, t.id, session)
-    }
 
-    await tx.sesiHarian.delete({ where: { id } })
-  })
-
-  revalidatePath("/distribusi")
-  revalidatePath("/titip-jual")
-  revalidatePath("/")
+    revalidatePath("/distribusi")
+    revalidatePath("/titip-jual")
+    revalidatePath("/")
+    return { success: true }
+  } catch (error) {
+    console.error(`[deleteSesi ERROR] id: ${id}`, {
+      message: error.message,
+      stack: error.stack,
+    })
+    return { success: false, error: error.message || "Gagal menghapus sesi." }
+  }
 }
