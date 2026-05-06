@@ -109,17 +109,32 @@ export function MultiSearchableSelect({ value = [], onChange, options, placehold
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
+  // Defensive array handling
+  const safeValue = Array.isArray(value) ? value : []
+  const selectedValueStrings = safeValue.map(String)
+
   const filteredOptions = options.filter((opt) => opt.label.toLowerCase().includes(search.toLowerCase()))
-  const selectedOptions = options.filter((opt) => opt.value !== "" && value.includes(opt.value))
+  const selectedOptions = options.filter((opt) => opt.value !== "" && selectedValueStrings.includes(String(opt.value)))
 
   const toggle = (val) => {
-    if (val === "") {
+    const sVal = String(val)
+    if (sVal === "" || val === null || val === undefined) {
       onChange({ target: { value: [] } })
       setIsOpen(false)
-    } else {
-      const next = value.includes(val) ? value.filter((v) => v !== val) : [...value, val]
-      onChange({ target: { value: next } })
+      return
     }
+
+    const currentValues = safeValue.filter(v => v !== "" && v !== null && v !== undefined)
+    const isSelected = selectedValueStrings.includes(sVal)
+    
+    let next
+    if (isSelected) {
+      next = currentValues.filter((v) => String(v) !== sVal)
+    } else {
+      next = [...currentValues, val]
+    }
+    
+    onChange({ target: { value: next } })
   }
 
   const clear = (e) => {
@@ -130,7 +145,7 @@ export function MultiSearchableSelect({ value = [], onChange, options, placehold
   return (
     <div ref={wrapperRef} className="relative">
       <div
-        className={`${inputCls} flex h-auto min-h-[38px] justify-between items-center pr-2 py-1.5 ${value.length === 0 && placeholder ? "text-neutral-500" : ""} ${disabled ? "cursor-not-allowed bg-neutral-100 opacity-70" : "cursor-pointer"}`}
+        className={`${inputCls} flex h-auto min-h-[38px] justify-between items-center pr-2 py-1.5 ${safeValue.length === 0 && placeholder ? "text-neutral-500" : ""} ${disabled ? "cursor-not-allowed bg-neutral-100 opacity-70" : "cursor-pointer"}`}
         onClick={() => { if (disabled) return; setIsOpen(!isOpen); setSearch("") }}
       >
         <div className="flex flex-wrap gap-1 max-w-[calc(100%-40px)]">
@@ -138,15 +153,26 @@ export function MultiSearchableSelect({ value = [], onChange, options, placehold
             <span className="truncate">{placeholder || "Pilih..."}</span>
           ) : (
             selectedOptions.map((opt) => (
-              <span key={opt.value} className="inline-flex items-center rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-neutral-700">
+              <span 
+                key={opt.value} 
+                className="inline-flex items-center gap-1 rounded bg-neutral-100 px-2 py-0.5 text-[10px] font-semibold text-neutral-700 border border-neutral-200 group/chip hover:bg-neutral-200 transition-colors"
+              >
                 {opt.label}
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); toggle(opt.value) }}
+                  className="rounded-full hover:bg-neutral-300 p-0.5 text-neutral-400 hover:text-neutral-600 transition-colors"
+                >
+                  <X className="h-2.5 w-2.5" strokeWidth={3} />
+                </button>
               </span>
             ))
           )}
         </div>
         <div className="flex items-center gap-1">
-          {value.length > 0 && (
+          {safeValue.length > 0 && (
             <button
+              type="button"
               onClick={clear}
               className="rounded-full p-0.5 hover:bg-neutral-100 text-neutral-400 hover:text-neutral-600 transition"
             >
@@ -157,7 +183,7 @@ export function MultiSearchableSelect({ value = [], onChange, options, placehold
         </div>
       </div>
       {isOpen && (
-        <div className="absolute z-50 mt-1 w-full rounded-lg border border-neutral-200 bg-white py-1 shadow-lg">
+        <div className="absolute z-50 mt-1 w-full rounded-lg border border-neutral-200 bg-white py-1 shadow-lg overflow-hidden">
           <div className="px-2 pb-2 pt-1 sticky top-0 bg-white border-b border-neutral-100">
             <input
               type="text"
@@ -173,21 +199,27 @@ export function MultiSearchableSelect({ value = [], onChange, options, placehold
             {filteredOptions.length === 0 ? (
               <div className="px-3 py-2 text-sm text-neutral-500">Tidak ditemukan</div>
             ) : (
-              filteredOptions.map((opt) => (
-                <div
-                  key={opt.value}
-                  className={`flex items-center gap-2 cursor-pointer px-3 py-2 text-sm transition-colors hover:bg-neutral-100 ${value.includes(opt.value) ? "bg-neutral-50 font-medium text-neutral-900" : "text-neutral-700"}`}
-                  onClick={(e) => { e.stopPropagation(); toggle(opt.value) }}
-                >
-                  <input
-                    type="checkbox"
-                    readOnly
-                    checked={value.includes(opt.value) || (opt.value === "" && value.length === 0)}
-                    className="h-3.5 w-3.5 rounded border-neutral-300 text-neutral-900 focus:ring-neutral-900"
-                  />
-                  <span>{opt.label}</span>
-                </div>
-              ))
+              filteredOptions.map((opt) => {
+                const isSelected = selectedValueStrings.includes(String(opt.value)) || (opt.value === "" && safeValue.length === 0);
+                return (
+                  <div
+                    key={opt.value}
+                    className={`flex items-center gap-3 cursor-pointer px-3 py-2.5 text-sm transition-all hover:bg-neutral-50 ${isSelected ? "bg-neutral-50 font-bold text-neutral-900" : "text-neutral-600 hover:text-neutral-900"}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggle(opt.value);
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      readOnly
+                      checked={isSelected}
+                      className="pointer-events-none h-4 w-4 rounded border-neutral-300 text-neutral-900 focus:ring-0 transition"
+                    />
+                    <span className="flex-1 select-none truncate">{opt.label}</span>
+                  </div>
+                );
+              })
             )}
           </div>
         </div>
@@ -198,10 +230,10 @@ export function MultiSearchableSelect({ value = [], onChange, options, placehold
 
 export function Field({ label, children, className }) {
   return (
-    <label className={`block ${className || ""}`}>
+    <div className={`block ${className || ""}`}>
       <span className="mb-1.5 block text-xs font-medium text-neutral-600">{label}</span>
       {children}
-    </label>
+    </div>
   )
 }
 

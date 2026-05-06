@@ -41,18 +41,10 @@ function collectSessionRokokIds(session) {
   const ids = new Set()
   const add = (items = []) => items.forEach((it) => it?.rokok_id && ids.add(String(it.rokok_id)))
 
+  // Kita fokus pada barang yang dibawa (barangKeluar) dan yang terjual (penjualan)
+  // karena ini yang paling relevan dengan tampilan di tabel distribusi.
   add(session.barangKeluar)
   add(session.penjualan)
-  add(session.barangKembali)
-  ;(session.konsinyasi || []).forEach((k) => add(k.items))
-  ;(session.tukarBarang || []).forEach((t) => {
-    add(t.itemsMasuk)
-    add(t.itemsKeluar)
-  })
-  ;(session.tukarBarangSelesaiDiSesi || []).forEach((t) => {
-    add(t.itemsMasuk)
-    add(t.itemsKeluar)
-  })
 
   return ids
 }
@@ -129,20 +121,20 @@ function exportToExcel(rows, rokokList, dateRange, onNoData) {
   const border = { top: bThin, bottom: bThin, left: bThin, right: bThin }
 
   // Styles
-  const sH     = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, alignment: { horizontal: "left", vertical: "center" }, border }
-  const sSub   = { font: { bold: true }, fill: { fgColor: { rgb: "E5E7EB" } }, alignment: { horizontal: "left", vertical: "center" }, border }
-  const sData  = { alignment: { horizontal: "left" }, border }
-  const sNum   = { alignment: { horizontal: "left" }, border }
-  const sMoney = { alignment: { horizontal: "left" }, border }
-  const sTotal = { font: { bold: true }, fill: { fgColor: { rgb: "1F2937" } }, alignment: { horizontal: "left" }, border, font: { bold: true, color: { rgb: "FFFFFF" } } }
-  const sTotalNum = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, alignment: { horizontal: "left" }, border }
-  const sTotalMoney = { ...sTotalNum, alignment: { horizontal: "left" } }
+  const sH     = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, alignment: { horizontal: "center", vertical: "center" }, border }
+  const sSub   = { font: { bold: true }, fill: { fgColor: { rgb: "E5E7EB" } }, alignment: { horizontal: "center", vertical: "center" }, border }
+  const sData  = { alignment: { horizontal: "center", vertical: "center" }, border }
+  const sNum   = { alignment: { horizontal: "center", vertical: "center" }, border }
+  const sMoney = { alignment: { horizontal: "center", vertical: "center" }, border }
+  const sTotal = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, alignment: { horizontal: "center", vertical: "center" }, border }
+  const sTotalNum = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, alignment: { horizontal: "center", vertical: "center" }, border }
+  const sTotalMoney = { ...sTotalNum, alignment: { horizontal: "center", vertical: "center" } }
 
   const fmtExcelMoney = (v) => "Rp. " + (v || 0).toLocaleString("id-ID")
 
   const wsData = [
     // Baris 1: judul
-    [{ v: title, s: { font: { bold: true, sz: 12 }, alignment: { horizontal: "left" } } }, ...Array(totalCols - 1).fill({ v: "" })],
+    [{ v: title, s: { font: { bold: true, sz: 12 }, alignment: { horizontal: "center", vertical: "center" } } }, ...Array(totalCols - 1).fill({ v: "" })],
     // Baris 2: kosong
     Array(totalCols).fill({ v: "" }),
     // Baris 3: header atas
@@ -257,22 +249,22 @@ function exportToExcelBySales(rows, rokokList, dateRange, onNoData) {
 
   const bThin = { style: "thin", color: { rgb: "9CA3AF" } }
   const border = { top: bThin, bottom: bThin, left: bThin, right: bThin }
-  const sH     = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, alignment: { horizontal: "left", vertical: "center" }, border }
-  const sData  = { border, alignment: { vertical: "center", horizontal: "left" } }
-  const sCenter = { ...sData, alignment: { horizontal: "left", vertical: "center" } }
-  const sNum    = { ...sData, alignment: { horizontal: "left", vertical: "center" }, z: "#,##0" }
-  const sNumLeft = { ...sData, alignment: { horizontal: "left", vertical: "center" }, z: "#,##0" }
-  const sMoney  = { ...sData, alignment: { horizontal: "left", vertical: "center" } }
-  const sTotal  = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, border, alignment: { horizontal: "left" } }
-  const sTotalNum = { ...sTotal, alignment: { horizontal: "left" }, z: "#,##0" }
-  const sTotalNumCenter = { ...sTotal, alignment: { horizontal: "left" }, z: "#,##0" }
-  const sTotalNumLeft = { ...sTotal, alignment: { horizontal: "left" }, z: "#,##0" }
-  const sTotalMoney = { ...sTotal, alignment: { horizontal: "left" } }
+  const sH     = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, alignment: { horizontal: "center", vertical: "center" }, border }
+  const sData  = { border, alignment: { vertical: "center", horizontal: "center" } }
+  const sCenter = { ...sData, alignment: { horizontal: "center", vertical: "center" } }
+  const sNum    = { ...sData, alignment: { horizontal: "center", vertical: "center" }, z: "#,##0" }
+  const sNumLeft = { ...sData, alignment: { horizontal: "center", vertical: "center" }, z: "#,##0" }
+  const sMoney  = { ...sData, alignment: { horizontal: "center", vertical: "center" } }
+  const sTotal  = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, border, alignment: { horizontal: "center", vertical: "center" } }
+  const sTotalNum = { ...sTotal, alignment: { horizontal: "center", vertical: "center" }, z: "#,##0" }
+  const sTotalNumCenter = { ...sTotal, alignment: { horizontal: "center", vertical: "center" }, z: "#,##0" }
+  const sTotalNumLeft = { ...sTotal, alignment: { horizontal: "center", vertical: "center" }, z: "#,##0" }
+  const sTotalMoney = { ...sTotal, alignment: { horizontal: "center", vertical: "center" } }
 
   const fmtExcelMoney = (v) => "Rp. " + (v || 0).toLocaleString("id-ID")
 
   const wsData = [
-    [{ v: title, s: { font: { bold: true, sz: 12 }, alignment: { horizontal: "left" } } }, ...Array(totalCols-1).fill("")],
+    [{ v: title, s: { font: { bold: true, sz: 12 }, alignment: { horizontal: "center", vertical: "center" } } }, ...Array(totalCols-1).fill("")],
     Array(totalCols).fill(""),
     [
       { v: "NO",             s: sH },
@@ -420,13 +412,15 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
       temp = temp.filter(s => selectedSales.has(String(s.sales_id)))
     }
 
-    // 3. Filter by Multiple Products (AND Logic)
+    // 3. Filter by Multiple Products (AND Logic - session must have ALL selected products)
     if (rokokFilter.length > 0) {
-      const selectedRokok = rokokFilter.map(String)
-      temp = temp.filter(s => {
-        const sessionRokokIds = collectSessionRokokIds(s)
-        return selectedRokok.every(id => sessionRokokIds.has(id))
-      })
+      const selectedRokok = rokokFilter.filter(v => v !== "" && v !== null && v !== undefined).map(String)
+      if (selectedRokok.length > 0) {
+        temp = temp.filter(s => {
+          const sessionRokokIds = collectSessionRokokIds(s)
+          return selectedRokok.every(id => sessionRokokIds.has(id))
+        })
+      }
     }
 
     // 4. Filter by Status
