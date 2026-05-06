@@ -5,11 +5,11 @@ import { useRouter } from "next/navigation"
 import { 
   Plus, GripVertical, Save, X, MoveVertical, RotateCcw, ChevronDown, 
   ChevronRight, Info, Package, TrendingUp, ShoppingCart, Store, Users, 
-  CheckCircle, AlertCircle, Eye
+  CheckCircle, AlertCircle, Eye, Tag, Banknote
 } from "lucide-react"
 import { fmtIDR } from "@/lib/utils"
 import { addRokok, updateRokok, deleteRokok, toggleAktifRokok, tambahStok, updateRokokOrder } from "@/actions/rokok"
-import { Card, PageHeader, PrimaryButton, IconButton, RowActions, Field, FormActions, Toggle, inputCls, useConfirmWithReason, Button } from "@/components/ui"
+import { Card, PageHeader, PrimaryButton, IconButton, RowActions, Field, FormActions, Toggle, inputCls, useConfirmWithReason, Button, MoneyInput } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
 import { useLoading } from "@/components/LoadingProvider"
@@ -651,37 +651,131 @@ function RokokForm({ initial, rokokList, onSubmit, onCancel }) {
   }
 
   return (
-    <form onSubmit={submit} className="space-y-4">
-      <Field label="Nama Rokok">
-        <input type="text" value={nama} onChange={(e) => setNama(e.target.value)} placeholder="Misal: Marlboro Red" className={inputCls} autoFocus required />
-        {isDuplicate && <p className="mt-1 text-xs text-red-600">Nama rokok sudah terdaftar.</p>}
-      </Field>
-      <div className="grid grid-cols-2 gap-4">
-        <Field label={initial ? "Stok" : "Stok Awal"}>
-          <input type="number" min="0" value={stok} onChange={(e) => setStok(e.target.value)} className={inputCls} />
-        </Field>
-        <Field label="Status">
-          <div className="flex items-center gap-2 h-10">
-            <Toggle checked={aktif} onChange={setAktif} />
-            <span className="text-sm text-neutral-600">{aktif ? "Aktif" : "Nonaktif"}</span>
+    <form onSubmit={submit} className="space-y-6">
+      {/* SECTION 1: INFORMASI DASAR */}
+      <section className="space-y-4">
+        <div className="flex items-center gap-2 px-1">
+          <div className="h-4 w-1 bg-neutral-900 rounded-full" />
+          <h4 className="text-[11px] font-bold uppercase tracking-wider text-neutral-500">Informasi Dasar</h4>
+        </div>
+        
+        <div className="space-y-4 rounded-2xl border border-neutral-200 bg-neutral-50/30 p-4">
+          <Field label="Nama Produk">
+            <div className="relative">
+              <input 
+                type="text" 
+                value={nama} 
+                onChange={(e) => setNama(e.target.value)} 
+                placeholder="Misal: Marlboro Merah" 
+                className={`${inputCls} pl-10 border-neutral-200 focus:border-neutral-900`} 
+                autoFocus 
+                required 
+              />
+              <Tag className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+            </div>
+            {isDuplicate && (
+              <div className="flex items-center gap-1.5 mt-2 text-red-600 bg-red-50 px-2 py-1 rounded-md border border-red-100">
+                <AlertCircle className="h-3.5 w-3.5" />
+                <p className="text-[10px] font-medium uppercase tracking-wide">Nama produk sudah digunakan</p>
+              </div>
+            )}
+          </Field>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Field label={initial ? "Stok Saat Ini" : "Stok Awal"}>
+              <div className="relative">
+                <input 
+                  type="number" 
+                  min="0" 
+                  value={stok} 
+                  onChange={(e) => setStok(e.target.value)} 
+                  className={`${inputCls} pl-10 border-neutral-200 focus:border-neutral-900 tabular-nums`} 
+                />
+                <Package className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+              </div>
+            </Field>
+            <Field label="Status Produk">
+              <div className="flex items-center gap-3 h-10 px-3 bg-white rounded-lg border border-neutral-200">
+                <Toggle checked={aktif} onChange={setAktif} />
+                <span className={`text-xs font-bold uppercase tracking-wider ${aktif ? "text-green-600" : "text-neutral-400"}`}>
+                  {aktif ? "Aktif" : "Nonaktif"}
+                </span>
+              </div>
+            </Field>
           </div>
-        </Field>
+        </div>
+      </section>
+
+      {/* SECTION 2: HARGA */}
+      <section className="space-y-4">
+        <div className="flex items-center gap-2 px-1">
+          <div className="h-4 w-1 bg-emerald-500 rounded-full" />
+          <h4 className="text-[11px] font-bold uppercase tracking-wider text-neutral-500">Daftar Harga Jual</h4>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label="Harga Beli (Modal)">
+            <div className="relative group">
+              <MoneyInput 
+                value={hargaBeli} 
+                onChange={setHargaBeli} 
+                placeholder="0" 
+                className={`${inputCls} pl-10 border-neutral-200 focus:border-emerald-500 font-bold tabular-nums`}
+              />
+              <ShoppingCart className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 group-focus-within:text-emerald-500 transition-colors" />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-neutral-300 uppercase tracking-widest">Modal</div>
+            </div>
+          </Field>
+
+          <Field label="Harga Grosir">
+            <div className="relative group">
+              <MoneyInput 
+                value={hargaGrosir} 
+                onChange={setHargaGrosir} 
+                placeholder="0" 
+                className={`${inputCls} pl-10 border-neutral-200 focus:border-indigo-500 font-bold tabular-nums`}
+              />
+              <TrendingUp className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 group-focus-within:text-indigo-500 transition-colors" />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-neutral-300 uppercase tracking-widest">Grosir</div>
+            </div>
+          </Field>
+
+          <Field label="Harga Toko">
+            <div className="relative group">
+              <MoneyInput 
+                value={hargaToko} 
+                onChange={setHargaToko} 
+                placeholder="0" 
+                className={`${inputCls} pl-10 border-neutral-200 focus:border-blue-500 font-bold tabular-nums`}
+              />
+              <Store className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 group-focus-within:text-blue-500 transition-colors" />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-neutral-300 uppercase tracking-widest">Toko</div>
+            </div>
+          </Field>
+
+          <Field label="Harga Perorangan">
+            <div className="relative group">
+              <MoneyInput 
+                value={hargaPerorangan} 
+                onChange={setHargaPerorangan} 
+                placeholder="0" 
+                className={`${inputCls} pl-10 border-neutral-200 focus:border-violet-500 font-bold tabular-nums`}
+              />
+              <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 group-focus-within:text-violet-500 transition-colors" />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-neutral-300 uppercase tracking-widest">Retail</div>
+            </div>
+          </Field>
+        </div>
+      </section>
+
+      <div className="pt-2 border-t border-neutral-100">
+        <FormActions 
+          onCancel={onCancel} 
+          disabled={!valid} 
+          loading={loading} 
+          submitLabel={initial ? "Simpan Perubahan" : "Tambah Produk Baru"} 
+        />
       </div>
-      <div className="grid grid-cols-2 gap-4">
-        <Field label="Harga Beli">
-          <input type="number" min="0" value={hargaBeli} onChange={(e) => setHargaBeli(e.target.value)} className={inputCls} required />
-        </Field>
-        <Field label="Harga Grosir">
-          <input type="number" min="0" value={hargaGrosir} onChange={(e) => setHargaGrosir(e.target.value)} className={inputCls} required />
-        </Field>
-        <Field label="Harga Toko">
-          <input type="number" min="0" value={hargaToko} onChange={(e) => setHargaToko(e.target.value)} className={inputCls} required />
-        </Field>
-        <Field label="Harga Perorangan">
-          <input type="number" min="0" value={hargaPerorangan} onChange={(e) => setHargaPerorangan(e.target.value)} className={inputCls} required />
-        </Field>
-      </div>
-      <FormActions onCancel={onCancel} disabled={!valid} loading={loading} submitLabel={initial ? "Simpan Perubahan" : "Tambah Rokok"} />
     </form>
   )
 }
