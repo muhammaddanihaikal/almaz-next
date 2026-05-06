@@ -257,6 +257,22 @@ export async function submitLaporanSore(id, data) {
       await tx.sesiSetoran.deleteMany({   where: { sesi_id: id } })
       await tx.sesiBarangKembali.deleteMany({ where: { sesi_id: id } })
 
+      // Revert & Delete existing Titip Jual for this session to prevent duplication
+      const oldKonsinyasi = await tx.titipJual.findMany({ where: { sesi_id: id }, include: { items: true } })
+      for (const k of oldKonsinyasi) {
+        for (const it of k.items) {
+          if (it.qty_keluar > 0) {
+            await mutateStock({
+              tx, rokok_id: it.rokok_id, tanggal: data.tanggal, jenis: 'in', qty: it.qty_keluar,
+              source: MUTATION_SOURCE.REVERT, reference_id: k.id,
+              keterangan: "Revert titip jual (re-submit sore)", user_id: session?.user?.id,
+              allowNegative: true,
+            })
+          }
+        }
+      }
+      await tx.titipJual.deleteMany({ where: { sesi_id: id } })
+
       const penjualan = data.penjualan || []
       await tx.sesiPenjualan.createMany({
         data: penjualan.map((it) => ({
@@ -482,6 +498,22 @@ export async function editLaporanSore(id, data, alasan) {
       await tx.sesiPenjualan.deleteMany({ where: { sesi_id: id } })
       await tx.sesiSetoran.deleteMany({   where: { sesi_id: id } })
       await tx.sesiBarangKembali.deleteMany({ where: { sesi_id: id } })
+
+      // Revert & Delete existing Titip Jual for this session to prevent duplication
+      const oldKonsinyasi = await tx.titipJual.findMany({ where: { sesi_id: id }, include: { items: true } })
+      for (const k of oldKonsinyasi) {
+        for (const it of k.items) {
+          if (it.qty_keluar > 0) {
+            await mutateStock({
+              tx, rokok_id: it.rokok_id, tanggal: data.tanggal, jenis: 'in', qty: it.qty_keluar,
+              source: MUTATION_SOURCE.REVERT, reference_id: k.id,
+              keterangan: `Revert titip jual (edit sore - alasan: ${alasan})`, user_id: session?.user?.id,
+              allowNegative: true,
+            })
+          }
+        }
+      }
+      await tx.titipJual.deleteMany({ where: { sesi_id: id } })
 
       // 4. Buat data baru
       const penjualan = data.penjualan || []
