@@ -54,7 +54,7 @@ function TabButton({ active, onClick, children }) {
     <button
       type="button"
       onClick={onClick}
-      className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+      className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
         active
           ? "border-blue-600 text-blue-600"
           : "border-transparent text-neutral-500 hover:text-neutral-700"
@@ -1405,27 +1405,30 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
         })}
       </div>
 
+      {/* ── Tabs Navigasi (Fixed di bawah Stepper) ── */}
+      {step === 1 && (
+        <div className="bg-white border-b border-neutral-200 px-6 shrink-0">
+          <div className="flex max-w-4xl mx-auto">
+            <TabButton active={activeTab === "penjualan"} onClick={() => setActiveTab("penjualan")}>
+              Penjualan Langsung
+            </TabButton>
+            <TabButton active={activeTab === "konsinyasi"} onClick={() => setActiveTab("konsinyasi")}>
+              Titip Jual {activeKonsinyasi.length > 0 && <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-yellow-500 text-xs text-white">{activeKonsinyasi.length}</span>}
+            </TabButton>
+            <TabButton active={activeTab === "tukar"} onClick={() => setActiveTab("tukar")}>
+              Tukar Barang {(() => {
+                const n = tukarSelesai.itemsMasuk.some(i => i.rokok_id && Number(i.qty) > 0) ? 1 : 0
+                return n > 0 && <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-xs text-white">{n}</span>
+              })()}
+            </TabButton>
+          </div>
+        </div>
+      )}
+
       {/* ── Content Area ── */}
       <div className="overflow-y-auto flex-1 p-6 pb-10 bg-neutral-50/50">
         {step === 1 && (
-          <div className="space-y-4 max-w-4xl mx-auto">
-            {/* Tabs */}
-            <div className="flex border-b border-neutral-200">
-              <TabButton active={activeTab === "penjualan"} onClick={() => setActiveTab("penjualan")}>
-                Penjualan Langsung
-              </TabButton>
-              <TabButton active={activeTab === "konsinyasi"} onClick={() => setActiveTab("konsinyasi")}>
-                Titip Jual {activeKonsinyasi.length > 0 && <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-yellow-500 text-xs text-white">{activeKonsinyasi.length}</span>}
-              </TabButton>
-              <TabButton active={activeTab === "tukar"} onClick={() => setActiveTab("tukar")}>
-                Tukar Barang {(() => {
-                  const n = tukarSelesai.itemsMasuk.some(i => i.rokok_id && Number(i.qty) > 0) ? 1 : 0
-                  return n > 0 && <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-xs text-white">{n}</span>
-                })()}
-              </TabButton>
-            </div>
-
-            <div className="space-y-6">
+          <div className="space-y-6 max-w-4xl mx-auto">
               {activeTab === "penjualan" && (
                 <SectionCard 
                   title="Penjualan Langsung"
@@ -1494,7 +1497,6 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
                   qtyTitipBaru={qtyTitipBaru}
                 />
               )}
-            </div>
           </div>
         )}
 
@@ -2074,7 +2076,7 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
             <Field label="Jatuh Tempo">
               <input type="date" value={data.tanggal_jatuh_tempo} onChange={(e) => onChange({ ...data, tanggal_jatuh_tempo: e.target.value })} className={inputCls} />
             </Field>
-            <Field label="Catatan (opsional)">
+            <Field label="Catatan (opsional)" className="sm:col-span-2">
               <input type="text" value={data.catatan} onChange={(e) => onChange({ ...data, catatan: e.target.value })} className={inputCls} placeholder="Opsional" />
             </Field>
           </div>
