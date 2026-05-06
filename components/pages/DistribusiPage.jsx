@@ -1065,6 +1065,7 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, onSubmit, onCan
 
 function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangList = [], isEdit = false, onSessionChange, onSubmit, onCancel }) {
   const { confirmWithReason, ConfirmWithReasonModal: LaporanConfirmModal } = useConfirmWithReason()
+  const [step, setStep] = useState(1)
   const [activeTab, setActiveTab] = useState("penjualan")
   const [tokoList, setTokoList]   = useState(tokoListProp ?? [])
 
@@ -1141,11 +1142,26 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
   const [showPerorangan,    setShowPerorangan]    = useState(false)
   const [setoranAuto,       setSetoranAuto]       = useState(false)
 
-  const nilaiPenjualan = penjualan.reduce((s, it) => {
+  const nilaiPenjualanLangsung = penjualan.reduce((s, it) => {
     const r = rokokList.find((r) => r.id === it.rokok_id)
     if (!r || !it.qty) return s
     return s + Number(it.qty) * r[`harga_${it.kategori}`]
   }, 0)
+
+  const totalTitipJual = konsinyasiBaru.reduce((acc, k) => {
+    return acc + k.items.reduce((sum, it) => {
+      if (!it.rokok_id || !(Number(it.qty) > 0)) return sum
+      const r = rokokList.find(x => x.id === it.rokok_id)
+      const harga = r ? r[`harga_${k.kategori || "toko"}`] : 0
+      return sum + (Number(it.qty) * harga)
+    }, 0)
+  }, 0)
+
+  const totalTukarMasuk = tukarSelesai.itemsMasuk.reduce((sum, it) => sum + (Number(it.qty) * Number(it.harga_satuan || 0)), 0)
+  const totalTukarKeluar = tukarSelesai.itemsKeluar.reduce((sum, it) => sum + (Number(it.qty) * Number(it.harga_satuan || 0)), 0)
+  const selisihTukar = totalTukarMasuk - totalTukarKeluar
+
+  const nilaiPenjualan = nilaiPenjualanLangsung + totalTitipJual + selisihTukar
   const totalSetoran = setoran.reduce((s, it) => s + (Number(it.jumlah) || 0), 0)
   const flagSetoran  = nilaiPenjualan > 0 && totalSetoran !== nilaiPenjualan
   const setoranEmpty = totalSetoran === 0
@@ -1341,57 +1357,156 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
     [rokokList, sesi.barangKeluar]
   )
 
-  return (
-    <form onSubmit={submit} className="space-y-4">
+  const SUBTABS = ["penjualan", "konsinyasi", "tukar"]
+  const subIdx = SUBTABS.indexOf(activeTab)
+  const isFirstSub = subIdx === 0
+  const isLastSub = subIdx === SUBTABS.length - 1
+  const goPrevSub = () => setActiveTab(SUBTABS[subIdx - 1])
+  const goNextSub = () => setActiveTab(SUBTABS[subIdx + 1])
 
-      {/* Tabs */}
-      <div className="flex border-b border-neutral-200">
-        <TabButton active={activeTab === "penjualan"} onClick={() => setActiveTab("penjualan")}>
-          Penjualan Langsung
-        </TabButton>
-        <TabButton active={activeTab === "konsinyasi"} onClick={() => setActiveTab("konsinyasi")}>
-          Titip Jual {activeKonsinyasi.length > 0 && <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-yellow-500 text-xs text-white">{activeKonsinyasi.length}</span>}
-        </TabButton>
-        <TabButton active={activeTab === "tukar"} onClick={() => setActiveTab("tukar")}>
-          Tukar Barang {(() => {
-            const n = tukarSelesai.itemsMasuk.some(i => i.rokok_id && Number(i.qty) > 0) ? 1 : 0
-            return n > 0 && <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-xs text-white">{n}</span>
-          })()}
-        </TabButton>
+  return (
+    <form onSubmit={submit} className="-mx-6 -mb-6 flex flex-col" style={{ maxHeight: 'calc(100vh - 8rem)' }}>
+      {/* ── Stepper Header ── */}
+      <div className="flex items-center gap-2 border-b border-neutral-200 bg-white px-6 py-3 shrink-0">
+        {[
+          { n: 1, label: "Isi Data Laporan" },
+          { n: 2, label: "Ringkasan & Submit" },
+        ].map((it, i) => {
+          const state = step === it.n ? "active" : step > it.n ? "done" : "pending"
+          return (
+            <div key={it.n} className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setStep(it.n)}
+                className="flex items-center gap-2"
+              >
+                <span className={[
+                    "flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold",
+                    state === "active" && "bg-blue-700 text-white",
+                    state === "done" && "bg-green-600 text-white",
+                    state === "pending" && "bg-neutral-200 text-neutral-500",
+                  ].filter(Boolean).join(" ")}
+                >
+                  {state === "done" ? "✓" : it.n}
+                </span>
+                <span className={[
+                    "text-xs font-medium",
+                    state === "active" && "font-semibold text-neutral-900",
+                    state === "done" && "text-neutral-900",
+                    state === "pending" && "text-neutral-500",
+                  ].filter(Boolean).join(" ")}
+                >
+                  {it.label}
+                </span>
+              </button>
+              {i < 1 && <span className="mx-2 text-neutral-300">→</span>}
+            </div>
+          )
+        })}
       </div>
 
-      {activeTab === "penjualan" && (
-        <div className="space-y-6">
-          {/* Penjualan Langsung */}
-          <SectionCard 
-            title="Penjualan Langsung"
-            rightAction={
-              <label className="flex cursor-pointer items-center gap-1.5 text-xs text-neutral-600 select-none">
-                <input
-                  type="checkbox"
-                  checked={showPerorangan}
-                  onChange={(e) => setShowPerorangan(e.target.checked)}
-                  className="h-3.5 w-3.5 rounded border-neutral-300 text-blue-600 focus:ring-blue-500"
-                />
-                Tampilkan Perorangan
-              </label>
-            }
-          >
-            <PenjualanLangsungInput
-              penjualan={penjualan}
-              setPenjualan={setPenjualan}
-              barangKeluar={sesi.barangKeluar}
-              qtyTitipBaru={qtyTitipBaru}
-              qtyTukarKeluar={qtyTukarSelesaiKeluar}
-              showPerorangan={showPerorangan}
-              setShowPerorangan={setShowPerorangan}
-            />
-          </SectionCard>
+      {/* ── Content Area ── */}
+      <div className="overflow-y-auto flex-1 p-6 pb-10 bg-neutral-50/50">
+        {step === 1 && (
+          <div className="space-y-4 max-w-4xl mx-auto">
+            {/* Tabs */}
+            <div className="flex border-b border-neutral-200">
+              <TabButton active={activeTab === "penjualan"} onClick={() => setActiveTab("penjualan")}>
+                Penjualan Langsung
+              </TabButton>
+              <TabButton active={activeTab === "konsinyasi"} onClick={() => setActiveTab("konsinyasi")}>
+                Titip Jual {activeKonsinyasi.length > 0 && <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-yellow-500 text-xs text-white">{activeKonsinyasi.length}</span>}
+              </TabButton>
+              <TabButton active={activeTab === "tukar"} onClick={() => setActiveTab("tukar")}>
+                Tukar Barang {(() => {
+                  const n = tukarSelesai.itemsMasuk.some(i => i.rokok_id && Number(i.qty) > 0) ? 1 : 0
+                  return n > 0 && <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-xs text-white">{n}</span>
+                })()}
+              </TabButton>
+            </div>
 
-          {/* Ringkasan Penjualan */}
-          <SectionCard title="Ringkasan Penjualan">
-            <div className="space-y-4">
-              {/* Rincian per Kategori */}
+            <div className="space-y-6">
+              {activeTab === "penjualan" && (
+                <SectionCard 
+                  title="Penjualan Langsung"
+                  rightAction={
+                    <label className="flex cursor-pointer items-center gap-1.5 text-xs text-neutral-600 select-none">
+                      <input
+                        type="checkbox"
+                        checked={showPerorangan}
+                        onChange={(e) => setShowPerorangan(e.target.checked)}
+                        className="h-3.5 w-3.5 rounded border-neutral-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      Tampilkan Perorangan
+                    </label>
+                  }
+                >
+                  <PenjualanLangsungInput
+                    penjualan={penjualan}
+                    setPenjualan={setPenjualan}
+                    barangKeluar={sesi.barangKeluar}
+                    qtyTitipBaru={qtyTitipBaru}
+                    qtyTukarKeluar={qtyTukarSelesaiKeluar}
+                    showPerorangan={showPerorangan}
+                    setShowPerorangan={setShowPerorangan}
+                  />
+                </SectionCard>
+              )}
+
+              {activeTab === "konsinyasi" && (
+                <SectionCard title="Titip Jual Baru (Opsional)" className="space-y-2">
+                  {konsinyasiBaru.map((k, idx) => (
+                    <KonsinyasiBaruInput
+                      key={idx}
+                      data={k}
+                      currentIdx={idx}
+                      rokokDibawa={rokokDibawa}
+                      qtyDibawa={qtyDibawa}
+                      qtyTerjualLangsung={qtyTerjualLangsung}
+                      qtyTukarKeluar={qtyTukarSelesaiKeluar}
+                      konsinyasiBaru={konsinyasiBaru}
+                      tokoList={tokoList}
+                      onChange={(updated) => setKonsinyasiBaru(konsinyasiBaru.map((x, i) => i === idx ? updated : x))}
+                      onRemove={() => setKonsinyasiBaru(konsinyasiBaru.filter((_, i) => i !== idx))}
+                      isEdit={isEdit}
+                      onTokoCreated={(newToko) => setTokoList((prev) => [...prev, newToko].sort((a, b) => a.nama.localeCompare(b.nama, "id")))}
+                      extraUsedTokoIds={savedTokoIds}
+                    />
+                  ))}
+                  <Button
+                    variant="secondary"
+                    className="w-full border-dashed"
+                    onClick={() => setKonsinyasiBaru([...konsinyasiBaru, { toko_id: "", kategori: "toko", tanggal_jatuh_tempo: "", catatan: "", items: [{ rokok_id: "", qty: "" }] }])}
+                  >
+                    + Tambah Titip Jual
+                  </Button>
+                </SectionCard>
+              )}
+
+              {activeTab === "tukar" && (
+                <TukarBarangTab
+                  tukarSelesai={tukarSelesai}
+                  setTukarSelesai={setTukarSelesai}
+                  rokokDibawa={rokokDibawa}
+                  rokokList={rokokList}
+                  qtyDibawa={qtyDibawa}
+                  qtyTerjualLangsung={qtyTerjualLangsung}
+                  qtyTitipBaru={qtyTitipBaru}
+                />
+              )}
+            </div>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="space-y-6 max-w-4xl mx-auto">
+            {/* Ringkasan Penjualan */}
+            {/* Ringkasan Penjualan & Lainnya */}
+            <div className="rounded-lg border border-neutral-200 bg-white p-4">
+              <div className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
+                Ringkasan Penjualan
+              </div>
+              
               {["grosir", "toko", "perorangan"].map((cat) => {
                 const items = penjualan.filter(p => p.kategori === cat && Number(p.qty) > 0)
                 if (items.length === 0) return null
@@ -1400,27 +1515,90 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
                 const KATEGORI_COLOR = { grosir: "text-violet-600", toko: "text-blue-600", perorangan: "text-emerald-600" }
 
                 return (
-                  <div key={cat} className="space-y-1.5">
-                    <p className={`text-[10px] font-bold uppercase tracking-wider ${KATEGORI_COLOR[cat]}`}>{KATEGORI_LABEL[cat]}</p>
-                    <div className="space-y-1 border-l-2 border-neutral-200 pl-3 ml-1">
-                      {items.map((it, idx) => {
-                        const h = rokokList.find(r => r.id === it.rokok_id)?.[`harga_${cat}`] || 0
-                        const subtotal = Number(it.qty) * h
-                        return (
-                          <div key={idx} className="flex items-center justify-between text-xs">
-                            <span className="text-neutral-600">
-                              {it.rokok} <span className="text-neutral-400 mx-1">×</span> {it.qty}
-                            </span>
-                            <span className="text-neutral-500 tabular-nums">{fmtIDR(subtotal)}</span>
-                          </div>
-                        )
-                      })}
+                  <div key={cat} className="border-t border-neutral-100 py-3 first:border-t-0 first:pt-0">
+                    <div className={`mb-1.5 text-[11px] font-bold tracking-wide ${KATEGORI_COLOR[cat]}`}>
+                      {KATEGORI_LABEL[cat].toUpperCase()}
                     </div>
+                    {items.map((it, idx) => {
+                      const h = rokokList.find(r => r.id === it.rokok_id)?.[`harga_${cat}`] || 0
+                      const subtotal = Number(it.qty) * h
+                      return (
+                        <div key={idx} className="flex justify-between border-l-2 border-neutral-100 py-1 pl-3 text-xs text-neutral-700">
+                          <span>
+                            {it.rokok} <span className="text-neutral-400">× {it.qty}</span>
+                          </span>
+                          <span className="tabular-nums text-neutral-900">{fmtIDR(subtotal)}</span>
+                        </div>
+                      )
+                    })}
                   </div>
                 )
               })}
 
-              <div className="pt-3 border-t border-neutral-200 space-y-2">
+              {/* Titip Jual */}
+              {konsinyasiBaru.some(k => k.items.some(it => it.rokok_id && Number(it.qty) > 0)) && (
+                <div className="border-t border-neutral-100 py-3 first:border-t-0 first:pt-0">
+                  <div className="mb-1.5 text-[11px] font-bold tracking-wide text-yellow-600">TITIP JUAL BARU</div>
+                  {konsinyasiBaru.map((k, kIdx) => {
+                    const items = k.items.filter(it => it.rokok_id && Number(it.qty) > 0)
+                    if (items.length === 0) return null
+                    const t = tokoList.find(x => x.id === k.toko_id)
+                    const tName = t ? t.nama : k.toko_id?.startsWith("NEW-") ? k.toko_id.substring(4) : "Toko Baru"
+                    return items.map((it, idx) => {
+                      const r = rokokList.find(x => x.id === it.rokok_id)
+                      const harga = r ? r[`harga_${k.kategori || "toko"}`] : 0
+                      const subtotal = Number(it.qty) * harga
+                      return (
+                        <div key={`${kIdx}-${idx}`} className="flex justify-between border-l-2 border-neutral-100 py-1 pl-3 text-xs text-neutral-700">
+                          <span>
+                            {tName} — {r?.nama || "Barang"} <span className="text-neutral-400">× {it.qty}</span>
+                          </span>
+                          <span className="tabular-nums text-neutral-900">{fmtIDR(subtotal)}</span>
+                        </div>
+                      )
+                    })
+                  })}
+                </div>
+              )}
+
+              {/* Tukar Barang Masuk */}
+              {tukarSelesai.itemsMasuk.some(i => i.rokok_id && Number(i.qty) > 0) && (
+                <div className="border-t border-neutral-100 py-3 first:border-t-0 first:pt-0">
+                  <div className="mb-1.5 text-[11px] font-bold tracking-wide text-blue-600">TUKAR BARANG (MASUK / RETURN)</div>
+                  {tukarSelesai.itemsMasuk.filter(i => i.rokok_id && Number(i.qty) > 0).map((it, idx) => {
+                    const subtotal = Number(it.qty) * Number(it.harga_satuan || 0)
+                    return (
+                      <div key={idx} className="flex justify-between border-l-2 border-neutral-100 py-1 pl-3 text-xs text-neutral-700">
+                        <span>
+                          {rokokList.find(r => r.id === it.rokok_id)?.nama || "Barang"} <span className="text-neutral-400">× {it.qty}</span>
+                        </span>
+                        <span className="tabular-nums text-neutral-900">{fmtIDR(subtotal)}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Tukar Barang Keluar */}
+              {tukarSelesai.itemsKeluar.some(i => i.rokok_id && Number(i.qty) > 0) && (
+                <div className="border-t border-neutral-100 py-3 first:border-t-0 first:pt-0">
+                  <div className="mb-1.5 text-[11px] font-bold tracking-wide text-blue-600">TUKAR BARANG (KELUAR / PENGGANTI)</div>
+                  {tukarSelesai.itemsKeluar.filter(i => i.rokok_id && Number(i.qty) > 0).map((it, idx) => {
+                    const subtotal = Number(it.qty) * Number(it.harga_satuan || 0)
+                    return (
+                      <div key={idx} className="flex justify-between border-l-2 border-neutral-100 py-1 pl-3 text-xs text-neutral-700">
+                        <span>
+                          {rokokList.find(r => r.id === it.rokok_id)?.nama || "Barang"} <span className="text-neutral-400">× {it.qty}</span>
+                        </span>
+                        <span className="tabular-nums text-neutral-900">{fmtIDR(subtotal)}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              <div className="mt-3 space-y-1 border-t border-neutral-100 pt-3">
+                {/* Grosir & Toko & Perorangan Totals */}
                 {["grosir", "toko", "perorangan"].map((cat) => {
                   const items = penjualan.filter(p => p.kategori === cat && Number(p.qty) > 0)
                   if (items.length === 0) return null
@@ -1430,154 +1608,154 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
                   }, 0)
                   const KATEGORI_LABEL = { grosir: "Grosir", toko: "Toko", perorangan: "Perorangan" }
                   return (
-                    <div key={cat} className="flex items-center justify-between text-sm">
-                      <span className="text-neutral-500">Total {KATEGORI_LABEL[cat]}</span>
-                      <span className="font-medium text-neutral-700">{fmtIDR(catTotal)}</span>
+                    <div key={cat} className="flex items-center justify-between text-sm text-neutral-600">
+                      <span>Total {KATEGORI_LABEL[cat]}</span>
+                      <span className="tabular-nums">{fmtIDR(catTotal)}</span>
                     </div>
                   )
                 })}
-                <div className="pt-2 border-t border-neutral-100 flex items-center justify-between text-base font-bold">
-                  <span className="text-neutral-800">Total Nilai Penjualan</span>
-                  <span className="text-blue-600">{fmtIDR(nilaiPenjualan)}</span>
+
+                {/* Titip Jual Total */}
+                {totalTitipJual > 0 && (
+                  <div className="flex items-center justify-between text-sm text-neutral-600">
+                    <span>Total Titip Jual</span>
+                    <span className="tabular-nums text-yellow-600">{fmtIDR(totalTitipJual)}</span>
+                  </div>
+                )}
+
+                {/* Tukar Barang Total */}
+                {(totalTukarMasuk > 0 || totalTukarKeluar > 0) && (
+                  <div className="flex items-center justify-between text-sm text-neutral-600">
+                    <span>Total Tukar Barang (Selisih)</span>
+                    <span className="tabular-nums text-blue-600">{fmtIDR(selisihTukar)}</span>
+                  </div>
+                )}
+
+                <div className="mt-2 flex items-center justify-between border-t border-neutral-200 pt-2.5 text-sm font-semibold">
+                  <span className="text-neutral-900">Total Nilai Penjualan</span>
+                  <span className="text-blue-700 tabular-nums">{fmtIDR(nilaiPenjualan)}</span>
                 </div>
               </div>
             </div>
-          </SectionCard>
 
-          {/* Setoran */}
-          <SectionCard 
-            title="Setoran"
-            rightAction={
-              <label className="flex cursor-pointer items-center gap-1.5 text-xs text-neutral-600 select-none">
-                <input
-                  type="checkbox"
-                  checked={setoranAuto}
-                  onChange={(e) => {
-                    setSetoranAuto(e.target.checked)
-                    if (e.target.checked && nilaiPenjualan > 0) {
-                      setSetoran([{ metode: setoran[0]?.metode || "cash", jumlah: String(nilaiPenjualan) }])
-                    }
-                  }}
-                  disabled={nilaiPenjualan === 0}
-                  className="h-3.5 w-3.5 rounded border-neutral-300 text-blue-600 focus:ring-blue-500"
-                />
-                Sesuai nilai penjualan
-              </label>
-            }
-          >
-            {setoran.map((it, idx) => (
-              <div key={idx} className="flex items-end gap-3">
-                <div className="w-36">
-                  <Field label={idx === 0 ? "Metode" : ""}>
-                    <SelectInput value={it.metode} onChange={(e) => setSetoran(setoran.map((s, i) => i === idx ? { ...s, metode: e.target.value } : s))} disabled={setoranAuto || nilaiPenjualan === 0}>
-                      <option value="cash">Cash</option>
-                      <option value="transfer">Transfer</option>
-                    </SelectInput>
-                  </Field>
-                </div>
-                <div className="flex-1">
-                  <Field label={idx === 0 ? "Jumlah" : ""}>
-                    <MoneyInput
-                      value={it.jumlah}
-                      onChange={(raw) => setSetoran(setoran.map((s, i) => i === idx ? { ...s, jumlah: raw } : s))}
-                      placeholder="0"
-                      className={inputCls + (setoranAuto || nilaiPenjualan === 0 ? " bg-neutral-50 opacity-70" : "")}
-                      disabled={setoranAuto || nilaiPenjualan === 0}
-                    />
-                  </Field>
-                </div>
-                {setoran.length > 1 && !setoranAuto && (
-                  <div className="pb-1">
-                    <IconButton icon={Trash2} onClick={() => setSetoran(setoran.filter((_, i) => i !== idx))} variant="danger" label="Hapus" />
+            {/* Setoran */}
+            <div className="rounded-lg border border-neutral-200 bg-white p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
+                  Setoran
+                </span>
+                <label className="flex cursor-pointer items-center gap-1.5 text-xs text-neutral-600 select-none">
+                  <input
+                    type="checkbox"
+                    checked={setoranAuto}
+                    onChange={(e) => {
+                      setSetoranAuto(e.target.checked)
+                      if (e.target.checked && nilaiPenjualan > 0) {
+                        setSetoran([{ metode: setoran[0]?.metode || "cash", jumlah: String(nilaiPenjualan) }])
+                      }
+                    }}
+                    disabled={nilaiPenjualan === 0}
+                    className="h-3.5 w-3.5 rounded border-neutral-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  Sesuai nilai penjualan
+                </label>
+              </div>
+
+              {setoran.map((it, idx) => (
+                <div key={idx} className="flex items-end gap-3 mt-3">
+                  <div className="w-36">
+                    <Field label={idx === 0 ? "Metode" : ""}>
+                      <SelectInput value={it.metode} onChange={(e) => setSetoran(setoran.map((s, i) => i === idx ? { ...s, metode: e.target.value } : s))} disabled={setoranAuto || nilaiPenjualan === 0}>
+                        <option value="cash">Cash</option>
+                        <option value="transfer">Transfer</option>
+                      </SelectInput>
+                    </Field>
                   </div>
-                )}
-              </div>
-            ))}
-            {setoran.length < 2 && !setoranAuto && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setSetoran([...setoran, { metode: "transfer", jumlah: "" }])}
-              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-              disabled={nilaiPenjualan === 0}
-            >
-              + Tambah metode setoran
-            </Button>
-            )}
-            {setoranEmpty && (
-              <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 mt-2">
-                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                Setoran wajib diisi jika ada penjualan
-              </div>
-            )}
-            {flagSetoran && totalSetoran > 0 && (
-              <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 mt-2">
-                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                Selisih setoran: nilai penjualan {fmtIDR(nilaiPenjualan)} vs setoran {fmtIDR(totalSetoran)}
-              </div>
-            )}
-          </SectionCard>
-        </div>
-      )}
-
-      {activeTab === "konsinyasi" && (
-        <div className="space-y-6">
-          {/* Konsinyasi Baru */}
-          <SectionCard title="Titip Jual Baru (Opsional)" className="space-y-2">
-            {konsinyasiBaru.map((k, idx) => (
-              <KonsinyasiBaruInput
-                key={idx}
-                data={k}
-                currentIdx={idx}
-                rokokDibawa={rokokDibawa}
-                qtyDibawa={qtyDibawa}
-                qtyTerjualLangsung={qtyTerjualLangsung}
-
-                qtyTukarKeluar={qtyTukarSelesaiKeluar}
-                konsinyasiBaru={konsinyasiBaru}
-                tokoList={tokoList}
-                onChange={(updated) => setKonsinyasiBaru(konsinyasiBaru.map((x, i) => i === idx ? updated : x))}
-                onRemove={() => setKonsinyasiBaru(konsinyasiBaru.filter((_, i) => i !== idx))}
-                isEdit={isEdit}
-                onTokoCreated={(newToko) => setTokoList((prev) => [...prev, newToko].sort((a, b) => a.nama.localeCompare(b.nama, "id")))}
-                extraUsedTokoIds={savedTokoIds}
-              />
-            ))}
-            <Button
-              variant="secondary"
-              className="w-full border-dashed"
-              onClick={() => setKonsinyasiBaru([...konsinyasiBaru, { toko_id: "", kategori: "toko", tanggal_jatuh_tempo: "", catatan: "", items: [{ rokok_id: "", qty: "" }] }])}
-            >
-              + Tambah Titip Jual
-            </Button>
-          </SectionCard>
-
-
-        </div>
-      )}
-
-      {activeTab === "tukar" && (
-        <TukarBarangTab
-          tukarSelesai={tukarSelesai}
-          setTukarSelesai={setTukarSelesai}
-          rokokDibawa={rokokDibawa}
-          rokokList={rokokList}
-          qtyDibawa={qtyDibawa}
-          qtyTerjualLangsung={qtyTerjualLangsung}
-          qtyTitipBaru={qtyTitipBaru}
-        />
-      )}
-
-
+                  <div className="flex-1">
+                    <Field label={idx === 0 ? "Jumlah" : ""}>
+                      <MoneyInput
+                        value={it.jumlah}
+                        onChange={(raw) => setSetoran(setoran.map((s, i) => i === idx ? { ...s, jumlah: raw } : s))}
+                        placeholder="0"
+                        className={inputCls + (setoranAuto || nilaiPenjualan === 0 ? " bg-neutral-50 opacity-70" : "")}
+                        disabled={setoranAuto || nilaiPenjualan === 0}
+                      />
+                    </Field>
+                  </div>
+                  {setoran.length > 1 && !setoranAuto && (
+                    <div className="pb-1">
+                      <IconButton icon={Trash2} onClick={() => setSetoran(setoran.filter((_, i) => i !== idx))} variant="danger" label="Hapus" />
+                    </div>
+                  )}
+                </div>
+              ))}
+              
+              {setoran.length < 2 && !setoranAuto && (
+                <div className="mt-3">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSetoran([...setoran, { metode: "transfer", jumlah: "" }])}
+                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                    disabled={nilaiPenjualan === 0}
+                  >
+                    + Tambah metode setoran
+                  </Button>
+                </div>
+              )}
+              
+              {step === 2 && setoranEmpty && (
+                <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 mt-3">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  Setoran wajib diisi jika ada penjualan
+                </div>
+              )}
+              {step === 2 && flagSetoran && totalSetoran > 0 && (
+                <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 mt-3">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  Selisih setoran: nilai penjualan {fmtIDR(nilaiPenjualan)} vs setoran {fmtIDR(totalSetoran)}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
 
       {LaporanConfirmModal}
-      {submitError && (
-        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-          <span>{submitError}</span>
-        </div>
-      )}
-      <FormActions onCancel={onCancel} disabled={setoranEmpty} loading={loading} submitLabel={isEdit ? "Simpan Perubahan" : "Submit Laporan"} />
+      
+      {/* ── Footer ── */}
+      <div className="sticky bottom-0 z-10 flex items-center justify-between border-t border-neutral-200 bg-white px-6 py-4 shrink-0 rounded-b-xl shadow-[0_-4px_10px_-2px_rgba(0,0,0,0.05)]">
+        {step === 1 ? (
+          <>
+            <Button type="button" variant="secondary" onClick={onCancel}>Batal</Button>
+            <div className="flex gap-2">
+              {!isFirstSub && (
+                <Button type="button" variant="secondary" onClick={goPrevSub}>← Sebelumnya</Button>
+              )}
+              {!isLastSub ? (
+                <Button type="button" className="bg-blue-700 text-white hover:bg-blue-800" onClick={goNextSub}>Lanjut →</Button>
+              ) : (
+                <Button type="button" className="bg-blue-700 text-white hover:bg-blue-800" onClick={() => setStep(2)}>Lanjut ke Ringkasan →</Button>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <Button type="button" variant="secondary" onClick={() => setStep(1)}>← Kembali Edit</Button>
+            <div className="flex items-center gap-3">
+              {submitError && (
+                <div className="flex items-center gap-1 text-xs text-red-600">
+                  <AlertCircle className="h-4 w-4 shrink-0" /> {submitError}
+                </div>
+              )}
+              <Button type="submit" className="bg-green-600 text-white hover:bg-green-700" disabled={setoranEmpty || loading} loading={loading}>
+                {isEdit ? "Simpan Perubahan" : "Submit Laporan"}
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
     </form>
   )
 }
