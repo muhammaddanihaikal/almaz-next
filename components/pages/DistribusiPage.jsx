@@ -37,6 +37,26 @@ function Badge({ label, colorClass }) {
   )
 }
 
+function collectSessionRokokIds(session) {
+  const ids = new Set()
+  const add = (items = []) => items.forEach((it) => it?.rokok_id && ids.add(String(it.rokok_id)))
+
+  add(session.barangKeluar)
+  add(session.penjualan)
+  add(session.barangKembali)
+  ;(session.konsinyasi || []).forEach((k) => add(k.items))
+  ;(session.tukarBarang || []).forEach((t) => {
+    add(t.itemsMasuk)
+    add(t.itemsKeluar)
+  })
+  ;(session.tukarBarangSelesaiDiSesi || []).forEach((t) => {
+    add(t.itemsMasuk)
+    add(t.itemsKeluar)
+  })
+
+  return ids
+}
+
 function TabButton({ active, onClick, children }) {
   return (
     <button
@@ -374,14 +394,16 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
 
     // 2. Filter by Sales (OR Logic)
     if (salesFilter.length > 0) {
-      temp = temp.filter(s => salesFilter.includes(s.sales_id))
+      const selectedSales = new Set(salesFilter.map(String))
+      temp = temp.filter(s => selectedSales.has(String(s.sales_id)))
     }
 
     // 3. Filter by Multiple Products (AND Logic)
     if (rokokFilter.length > 0) {
+      const selectedRokok = rokokFilter.map(String)
       temp = temp.filter(s => {
-        const sessionRokokIds = (s.barangKeluar || []).map(b => b.rokok_id)
-        return rokokFilter.every(id => sessionRokokIds.includes(id))
+        const sessionRokokIds = collectSessionRokokIds(s)
+        return selectedRokok.every(id => sessionRokokIds.has(id))
       })
     }
 
@@ -609,14 +631,21 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
             sesiList={sesiList}
             onSubmit={async (data) => {
               if (mode === "add") {
-                await createSesi(data)
+                const result = await createSesi(data)
+                if (result && result.success === false) {
+                  throw new Error(result.error || "Gagal membuat sesi distribusi.")
+                }
                 close()
                 router.refresh()
               } else {
-                close()
-                const alasan = await confirmWithReason(`Edit distribusi pagi ${editing.sales}?`, { title: "Edit Distribusi Pagi", confirmLabel: "Ya, Simpan" })
+                const captured = editing
+                const alasan = await confirmWithReason(`Edit distribusi pagi ${captured.sales}?`, { title: "Edit Distribusi Pagi", confirmLabel: "Ya, Simpan" })
                 if (!alasan) return
-                await updateSesiPagi(editing.id, data, alasan)
+                const result = await updateSesiPagi(captured.id, data, alasan)
+                if (result && result.success === false) {
+                  throw new Error(result.error || "Gagal mengubah sesi distribusi.")
+                }
+                close()
                 router.refresh()
               }
             }}

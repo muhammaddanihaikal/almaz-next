@@ -18,6 +18,9 @@ const include = {
   tukarBarangSelesai: { include: { itemsMasuk: { include: { rokok: true } }, itemsKeluar: { include: { rokok: true } } } },
 }
 
+const DISTRIBUSI_TX_OPTIONS = { maxWait: 10000, timeout: 30000 }
+const distribusiTransaction = (fn) => prisma.$transaction(fn, DISTRIBUSI_TX_OPTIONS)
+
 function serializeTukarList(list) {
   return list.map((t) => ({
     id:              t.id,
@@ -122,86 +125,107 @@ export async function getSesi(id) {
 
 export async function createSesi(data) {
   const session = await auth()
-  await prisma.$transaction(async (tx) => {
-    const sesi = await tx.sesiHarian.create({
-      data: {
-        tanggal:  new Date(data.tanggal),
-        sales_id: data.sales_id,
-        status:   "aktif",
-        catatan:  data.catatan || null,
-        barangKeluar: {
-          create: (data.barangKeluar || []).map((it) => ({
-            rokok_id: it.rokok_id,
-            qty:      it.qty,
-          })),
+  try {
+    await distribusiTransaction(async (tx) => {
+      const sesi = await tx.sesiHarian.create({
+        data: {
+          tanggal:  new Date(data.tanggal),
+          sales_id: data.sales_id,
+          status:   "aktif",
+          catatan:  data.catatan || null,
+          barangKeluar: {
+            create: (data.barangKeluar || []).map((it) => ({
+              rokok_id: it.rokok_id,
+              qty:      it.qty,
+            })),
+          },
         },
-      },
+      })
+      await logAudit({
+        tx,
+        entity_type: AUDIT_ENTITY.SESI_HARIAN,
+        change_type: "Laporan Pagi - Buat Sesi",
+        entity_id:   sesi.id,
+        action:      AUDIT_ACTION.CREATE,
+        new_values:  {
+          tanggal:      data.tanggal,
+          sales_id:     data.sales_id,
+          barangKeluar: (data.barangKeluar || []).map(it => ({ rokok_id: it.rokok_id, qty: it.qty })),
+        },
+        user_id:   session?.user?.id,
+        user_name: session?.user?.name,
+      })
+      return sesi
     })
-    await logAudit({
-      tx,
-      entity_type: AUDIT_ENTITY.SESI_HARIAN,
-      change_type: "Laporan Pagi - Buat Sesi",
-      entity_id:   sesi.id,
-      action:      AUDIT_ACTION.CREATE,
-      new_values:  {
-        tanggal:      data.tanggal,
-        sales_id:     data.sales_id,
-        barangKeluar: (data.barangKeluar || []).map(it => ({ rokok_id: it.rokok_id, qty: it.qty })),
-      },
-      user_id:   session?.user?.id,
-      user_name: session?.user?.name,
+    revalidatePath("/distribusi")
+    revalidatePath("/")
+    return { success: true }
+  } catch (error) {
+    console.error("[createSesi ERROR]", {
+      message: error.message,
+      stack: error.stack,
+      data: JSON.stringify(data),
     })
-    return sesi
-  })
-  revalidatePath("/distribusi")
-  revalidatePath("/")
+    return { success: false, error: error.message || "Gagal membuat sesi distribusi." }
+  }
 }
 
 export async function updateSesiPagi(id, data, alasan) {
   const session = await auth()
-  await prisma.$transaction(async (tx) => {
-    const old = await tx.sesiHarian.findUnique({
-      where: { id },
-      include: { barangKeluar: { include: { rokok: true } } },
-    })
-    await tx.sesiBarangKeluar.deleteMany({ where: { sesi_id: id } })
-    await tx.sesiHarian.update({
-      where: { id },
-      data: {
-        tanggal:  new Date(data.tanggal),
-        sales_id: data.sales_id,
-        catatan:  data.catatan || null,
-        barangKeluar: {
-          create: (data.barangKeluar || []).map((it) => ({
-            rokok_id: it.rokok_id,
-            qty:      it.qty,
-          })),
+  try {
+    await distribusiTransaction(async (tx) => {
+      const old = await tx.sesiHarian.findUnique({
+        where: { id },
+        include: { barangKeluar: { include: { rokok: true } } },
+      })
+      await tx.sesiBarangKeluar.deleteMany({ where: { sesi_id: id } })
+      await tx.sesiHarian.update({
+        where: { id },
+        data: {
+          tanggal:  new Date(data.tanggal),
+          sales_id: data.sales_id,
+          catatan:  data.catatan || null,
+          barangKeluar: {
+            create: (data.barangKeluar || []).map((it) => ({
+              rokok_id: it.rokok_id,
+              qty:      it.qty,
+            })),
+          },
         },
-      },
+      })
+      await logAudit({
+        tx,
+        entity_type: AUDIT_ENTITY.SESI_HARIAN,
+        change_type: "Laporan Pagi - Barang Keluar",
+        entity_id:   id,
+        action:      AUDIT_ACTION.UPDATE,
+        old_values:  {
+          tanggal:      old.tanggal.toISOString().split("T")[0],
+          sales_id:     old.sales_id,
+          barangKeluar: old.barangKeluar.map(it => ({ rokok: it.rokok?.nama, qty: it.qty })),
+        },
+        new_values:  {
+          tanggal:      data.tanggal,
+          sales_id:     data.sales_id,
+          barangKeluar: (data.barangKeluar || []).map(it => ({ rokok_id: it.rokok_id, qty: it.qty })),
+        },
+        alasan,
+        user_id:   session?.user?.id,
+        user_name: session?.user?.name,
+      })
     })
-    await logAudit({
-      tx,
-      entity_type: AUDIT_ENTITY.SESI_HARIAN,
-      change_type: "Laporan Pagi - Barang Keluar",
-      entity_id:   id,
-      action:      AUDIT_ACTION.UPDATE,
-      old_values:  {
-        tanggal:      old.tanggal.toISOString().split("T")[0],
-        sales_id:     old.sales_id,
-        barangKeluar: old.barangKeluar.map(it => ({ rokok: it.rokok?.nama, qty: it.qty })),
-      },
-      new_values:  {
-        tanggal:      data.tanggal,
-        sales_id:     data.sales_id,
-        barangKeluar: (data.barangKeluar || []).map(it => ({ rokok_id: it.rokok_id, qty: it.qty })),
-      },
+    revalidatePath("/distribusi")
+    revalidatePath("/")
+    return { success: true }
+  } catch (error) {
+    console.error(`[updateSesiPagi ERROR] id: ${id}`, {
+      message: error.message,
+      stack: error.stack,
+      data: JSON.stringify(data),
       alasan,
-      user_id:   session?.user?.id,
-      user_name: session?.user?.name,
     })
-  })
-  revalidatePath("/distribusi")
-  revalidatePath("/")
+    return { success: false, error: error.message || "Gagal mengubah sesi distribusi." }
+  }
 }
 
 export async function submitLaporanSore(id, data) {
@@ -215,7 +239,7 @@ export async function submitLaporanSore(id, data) {
       ])
     )
 
-    await prisma.$transaction(async (tx) => {
+    await distribusiTransaction(async (tx) => {
       // Revert old PENJUALAN mutations before recreating
       const oldPenjualanSore = await tx.sesiPenjualan.findMany({ where: { sesi_id: id } })
       for (const it of oldPenjualanSore) {
@@ -384,7 +408,7 @@ export async function editLaporanSore(id, data, alasan) {
       ])
     )
 
-    await prisma.$transaction(async (tx) => {
+    await distribusiTransaction(async (tx) => {
       // 1. Ambil data lama
       const oldPenjualan     = await tx.sesiPenjualan.findMany({ where: { sesi_id: id }, include: { rokok: true } })
       const oldSetoran       = await tx.sesiSetoran.findMany({ where: { sesi_id: id } })
@@ -572,7 +596,7 @@ export async function editLaporanSore(id, data, alasan) {
 export async function deleteSesi(id, alasan) {
   const session = await auth()
   try {
-    await prisma.$transaction(async (tx) => {
+    await distribusiTransaction(async (tx) => {
       const sesi = await tx.sesiHarian.findUnique({
         where: { id },
         include: {

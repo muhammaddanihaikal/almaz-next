@@ -273,7 +273,7 @@ async function main() {
     // S1 Apr 18 – Budi
     const s1 = await buatSesiSelesai({
       tgl: "2026-04-18", salesNama: "Budi Santoso",
-      keluar:    [{ nama: "Gudang Garam Surya 12", qty: 80  }, { nama: "Gudang Garam Merah", qty: 100 }],
+      keluar:    [{ nama: "Gudang Garam Surya 12", qty: 80  }, { nama: "Gudang Garam Merah", qty: 100 }, { nama: "Dji Sam Soe 234", qty: 20 }],
       penjualan: [{ nama: "Gudang Garam Surya 12", kategori: "toko", qty: 75, harga: 23000 },
                   { nama: "Gudang Garam Merah",    kategori: "grosir", qty: 95, harga: 19500 }],
       kembali:   [{ nama: "Gudang Garam Surya 12", qty: 5 }, { nama: "Gudang Garam Merah", qty: 5 }],
@@ -293,7 +293,7 @@ async function main() {
     // S3 Apr 21 – Siti
     const s3 = await buatSesiSelesai({
       tgl: "2026-04-21", salesNama: "Siti Rahayu",
-      keluar:    [{ nama: "Dji Sam Soe 234", qty: 40 }, { nama: "Marlboro Merah", qty: 30 }],
+      keluar:    [{ nama: "Dji Sam Soe 234", qty: 40 }, { nama: "Marlboro Merah", qty: 30 }, { nama: "Gudang Garam Merah", qty: 50 }, { nama: "Sampoerna A Mild 16", qty: 30 }],
       penjualan: [{ nama: "Dji Sam Soe 234", kategori: "perorangan", qty: 38, harga: 30000 },
                   { nama: "Marlboro Merah",  kategori: "perorangan", qty: 28, harga: 35000 }],
       kembali:   [{ nama: "Dji Sam Soe 234", qty: 2 }, { nama: "Marlboro Merah", qty: 2 }],
@@ -313,7 +313,7 @@ async function main() {
     // S5 Apr 24 – Budi
     const s5 = await buatSesiSelesai({
       tgl: "2026-04-24", salesNama: "Budi Santoso",
-      keluar:    [{ nama: "Gudang Garam Merah", qty: 120 }, { nama: "Sampoerna A Mild 16", qty: 50 }],
+      keluar:    [{ nama: "Gudang Garam Merah", qty: 120 }, { nama: "Sampoerna A Mild 16", qty: 50 }, { nama: "Camel Filter", qty: 25 }],
       penjualan: [{ nama: "Gudang Garam Merah", kategori: "grosir", qty: 110, harga: 19500 },
                   { nama: "Sampoerna A Mild 16", kategori: "toko", qty: 48,  harga: 25500 }],
       kembali:   [{ nama: "Gudang Garam Merah", qty: 10 }, { nama: "Sampoerna A Mild 16", qty: 2 }],
@@ -323,7 +323,7 @@ async function main() {
     // S6 Apr 26 – Agus
     const s6 = await buatSesiSelesai({
       tgl: "2026-04-26", salesNama: "Agus Prasetyo",
-      keluar:    [{ nama: "Dunhill Filter", qty: 40 }, { nama: "Marlboro Merah", qty: 30 }],
+      keluar:    [{ nama: "Dunhill Filter", qty: 40 }, { nama: "Marlboro Merah", qty: 50 }],
       penjualan: [{ nama: "Dunhill Filter", kategori: "perorangan", qty: 36, harga: 32000 },
                   { nama: "Marlboro Merah", kategori: "toko",     qty: 27, harga: 32500 }],
       kembali:   [{ nama: "Dunhill Filter", qty: 4 }, { nama: "Marlboro Merah", qty: 3 }],
@@ -333,7 +333,7 @@ async function main() {
     // S7 Apr 28 – Siti
     const s7 = await buatSesiSelesai({
       tgl: "2026-04-28", salesNama: "Siti Rahayu",
-      keluar:    [{ nama: "LA Bold", qty: 60 }, { nama: "Gudang Garam Surya 12", qty: 70 }],
+      keluar:    [{ nama: "LA Bold", qty: 75 }, { nama: "Gudang Garam Surya 12", qty: 70 }],
       penjualan: [{ nama: "LA Bold",              kategori: "toko", qty: 55, harga: 22500 },
                   { nama: "Gudang Garam Surya 12", kategori: "toko", qty: 65, harga: 23000 }],
       kembali:   [{ nama: "LA Bold", qty: 5 }, { nama: "Gudang Garam Surya 12", qty: 5 }],
@@ -345,7 +345,7 @@ async function main() {
     // S8 Apr 30 – Hendra
     const s8 = await tx.sesiHarian.create({
       data: {
-        tanggal:  new Date("2026-04-30"),
+        tanggal:  new Date("2026-05-05"),
         sales_id: salesMap["Hendra Kusuma"].id,
         status:   "aktif",
         barangKeluar: { create: [
@@ -354,13 +354,13 @@ async function main() {
         ]},
       },
     })
-    await tx.stockMutation.create({ data: { rokok_id: rokok["Gudang Garam Merah"].id, tanggal: new Date("2026-04-30"), jenis: "out", qty: 80, source: "distribusi_sales", reference_id: s8.id, user_id: superadmin.id } })
-    await tx.stockMutation.create({ data: { rokok_id: rokok["Camel Filter"].id,       tanggal: new Date("2026-04-30"), jenis: "out", qty: 20, source: "distribusi_sales", reference_id: s8.id, user_id: superadmin.id } })
+    await tx.stockMutation.create({ data: { rokok_id: rokok["Gudang Garam Merah"].id, tanggal: new Date("2026-05-05"), jenis: "out", qty: 80, source: "distribusi_sales", reference_id: s8.id, user_id: superadmin.id } })
+    await tx.stockMutation.create({ data: { rokok_id: rokok["Camel Filter"].id,       tanggal: new Date("2026-05-05"), jenis: "out", qty: 20, source: "distribusi_sales", reference_id: s8.id, user_id: superadmin.id } })
 
     // S9 May 1 – Budi
     const s9 = await tx.sesiHarian.create({
       data: {
-        tanggal:  new Date("2026-05-01"),
+        tanggal:  new Date("2026-05-06"),
         sales_id: salesMap["Budi Santoso"].id,
         status:   "aktif",
         barangKeluar: { create: [
@@ -369,8 +369,8 @@ async function main() {
         ]},
       },
     })
-    await tx.stockMutation.create({ data: { rokok_id: rokok["Sampoerna A Mild 16"].id, tanggal: new Date("2026-05-01"), jenis: "out", qty: 40, source: "distribusi_sales", reference_id: s9.id, user_id: superadmin.id } })
-    await tx.stockMutation.create({ data: { rokok_id: rokok["Dunhill Filter"].id,      tanggal: new Date("2026-05-01"), jenis: "out", qty: 30, source: "distribusi_sales", reference_id: s9.id, user_id: superadmin.id } })
+    await tx.stockMutation.create({ data: { rokok_id: rokok["Sampoerna A Mild 16"].id, tanggal: new Date("2026-05-06"), jenis: "out", qty: 40, source: "distribusi_sales", reference_id: s9.id, user_id: superadmin.id } })
+    await tx.stockMutation.create({ data: { rokok_id: rokok["Dunhill Filter"].id,      tanggal: new Date("2026-05-06"), jenis: "out", qty: 30, source: "distribusi_sales", reference_id: s9.id, user_id: superadmin.id } })
 
     // ─── Titip Jual ────────────────────────────────────────────────────────────
 
