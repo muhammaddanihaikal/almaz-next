@@ -1000,7 +1000,16 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, stockCutoffDate
           </div>
         )}
         <Field label="Tanggal">
-          <input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} className={inputCls} required />
+          <input
+            type="date"
+            value={tanggal}
+            onChange={(e) => {
+              setTanggal(e.target.value)
+              setSalesId("")
+            }}
+            className={inputCls}
+            required
+          />
         </Field>
         <Field label="Sales">
           <SearchableSelect
@@ -1009,8 +1018,8 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, stockCutoffDate
             placeholder="Pilih sales"
             options={[{ value: "", label: "Pilih sales" }, ...salesList.filter((s) => {
                 if (s.aktif === false) return false
-                if (initial?.sales_id === s.id) return true
-                return !sesiList.some((sesi) => sesi.sales_id === s.id && sesi.tanggal === tanggal)
+                if (initial?.sales_id && String(initial.sales_id) === String(s.id)) return true
+                return !sesiList.some((sesi) => String(sesi.sales_id) === String(s.id) && sesi.tanggal === tanggal)
               }).map((s) => ({ value: s.id, label: s.nama }))]}
           />
         </Field>
@@ -1018,7 +1027,9 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, stockCutoffDate
 
       <div className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">Barang Dibawa</p>
-        <p className="text-xs text-neutral-400">Isi qty untuk rokok yang dibawa, kosongkan jika tidak dibawa.</p>
+        <p className="text-xs text-neutral-400">
+          {salesId ? "Isi qty untuk rokok yang dibawa, kosongkan jika tidak dibawa." : "Silakan pilih sales terlebih dahulu untuk mengisi data barang dibawa."}
+        </p>
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-neutral-200 text-xs text-neutral-500">
@@ -1047,7 +1058,8 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, stockCutoffDate
                         value={item.qty}
                         onChange={(e) => updateQty(idx, e.target.value)}
                         placeholder="—"
-                        className={inputCls + " w-24 text-right" + (melebihi ? " border-red-400 focus:border-red-500" : "")}
+                        disabled={!salesId}
+                        className={inputCls + " w-24 text-right" + (melebihi ? " border-red-400 focus:border-red-500" : "") + (!salesId ? " opacity-40 cursor-not-allowed bg-neutral-50" : "")}
                       />
                     </td>
                   </tr>
