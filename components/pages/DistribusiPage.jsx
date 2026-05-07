@@ -769,7 +769,7 @@ function SesiDetail({ record }) {
           Titip Jual {record.konsinyasi.length > 0 && `(${record.konsinyasi.length})`}
         </TabButton>
         <TabButton active={activeTab === "tukar"} onClick={() => setActiveTab("tukar")}>
-          Tukar Barang {(record.tukarBarang?.length > 0 || record.tukarBarangSelesaiDiSesi?.length > 0) && `(${(record.tukarBarang?.length || 0) + (record.tukarBarangSelesaiDiSesi?.length || 0)})`}
+          Tukar Barang {record.tukarBarang?.length > 0 && `(${record.tukarBarang.length})`}
         </TabButton>
       </div>
 
@@ -861,45 +861,24 @@ function SesiDetail({ record }) {
 
       {activeTab === "tukar" && (
         <div className="space-y-3">
-          {record.tukarBarang?.length > 0 || record.tukarBarangSelesaiDiSesi?.length > 0 ? (
-            <>
-              {record.tukarBarang?.map((t, i) => (
-                <div key={`baru-${i}`} className="rounded-lg border border-neutral-200 p-3 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">{t.toko} <span className="text-xs font-normal text-neutral-500">— Tukar Baru</span></span>
-                    <Badge label={t.status === "selesai" ? "Selesai" : "Aktif"} colorClass={STATUS_COLOR[t.status]} />
+          {record.tukarBarang?.length > 0 ? (
+            record.tukarBarang.map((t, i) => (
+              <div key={i} className="rounded-lg border border-neutral-200 p-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">{t.toko}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs font-semibold text-neutral-500 mb-1">Rokok dari Toko</p>
+                    <SimpleTable rows={t.itemsMasuk} cols={["rokok", "qty"]} labels={["Rokok", "Qty"]} />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-xs font-semibold text-neutral-500 mb-1">Rokok dari Toko</p>
-                      <SimpleTable rows={t.itemsMasuk} cols={["rokok", "qty"]} labels={["Rokok", "Qty"]} />
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-neutral-500 mb-1">Rokok Pengganti</p>
-                      <SimpleTable rows={t.itemsKeluar} cols={["rokok", "qty"]} labels={["Rokok", "Qty"]} />
-                    </div>
+                  <div>
+                    <p className="text-xs font-semibold text-neutral-500 mb-1">Rokok Pengganti</p>
+                    <SimpleTable rows={t.itemsKeluar} cols={["rokok", "qty"]} labels={["Rokok", "Qty"]} />
                   </div>
                 </div>
-              ))}
-              {record.tukarBarangSelesaiDiSesi?.map((t, i) => (
-                <div key={`selesai-${i}`} className="rounded-lg border border-blue-200 bg-blue-50 p-3 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-blue-800">{t.toko} <span className="text-xs font-normal text-blue-600">— Penyelesaian Tukar Aktif</span></span>
-                    <Badge label="Diselesaikan" colorClass="bg-blue-100 text-blue-700" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-xs font-semibold text-blue-700/70 mb-1">Rokok dari Toko (kemarin)</p>
-                      <SimpleTable rows={t.itemsMasuk} cols={["rokok", "qty"]} labels={["Rokok", "Qty"]} />
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-blue-700/70 mb-1">Rokok Pengganti (hari ini)</p>
-                      <SimpleTable rows={t.itemsKeluar} cols={["rokok", "qty"]} labels={["Rokok", "Qty"]} />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </>
+              </div>
+            ))
           ) : (
             <p className="text-xs text-neutral-400 italic">Tidak ada tukar barang pada sesi ini.</p>
           )}
