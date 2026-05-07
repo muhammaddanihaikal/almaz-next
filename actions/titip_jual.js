@@ -86,10 +86,15 @@ export async function getTitipJualJatuhTempo() {
 }
 
 export async function settleTitipJual(id, data) {
-  const today = new Date(data.tanggal || new Date().toISOString().split("T")[0])
+  const settlementDateStr = data.tanggal || new Date().toISOString().split("T")[0]
+  const today = new Date(settlementDateStr)
   const session = await auth()
 
   await prisma.$transaction(async (tx) => {
+    const setting = await tx.appSetting.findUnique({ where: { key: "stock_cutoff_date" } })
+    const cutoffDate = setting?.value || null
+    const isSettlementHistorical = cutoffDate && settlementDateStr < cutoffDate
+
     const old = await tx.titipJual.findUnique({ where: { id }, include: { items: { include: { rokok: true } } } })
 
     for (const it of data.items) {
@@ -97,7 +102,7 @@ export async function settleTitipJual(id, data) {
         where: { id: it.id },
         data:  { qty_terjual: it.qty_terjual, qty_kembali: it.qty_kembali },
       })
-      if (it.qty_kembali > 0) {
+      if (it.qty_kembali > 0 && !isSettlementHistorical) {
         await mutateStock({
           tx,
           rokok_id: it.rokok_id,
@@ -194,7 +199,7 @@ export async function deleteTitipJual(id, alasan) {
     if (!k) throw new Error("Data titip jual tidak ditemukan")
     if (k.status !== "aktif") throw new Error("Hanya titip jual aktif yang bisa dihapus")
 
-    const sesi    = await tx.sesiHarian.findUnique({ where: { id: k.sesi_id }, select: { tanggal: true } })
+    const sesi    = await tx.sesiHarian.findUnique({ where: { id: k.sesi_id }, select: { tanggal: true, is_historical: true } })
     const tanggal = sesi?.tanggal || k.createdAt
 
     await logAudit({
@@ -216,7 +221,7 @@ export async function deleteTitipJual(id, alasan) {
     })
 
     for (const it of k.items) {
-      if (it.qty_keluar > 0) {
+      if (it.qty_keluar > 0 && !sesi?.is_historical) {
         await mutateStock({
           tx,
           rokok_id: it.rokok_id,
@@ -247,7 +252,7 @@ export async function createTitipJual(sesiId, salesId, k) {
 
   const session = await auth()
   const result = await prisma.$transaction(async (tx) => {
-    const sesi    = await tx.sesiHarian.findUnique({ where: { id: sesiId }, select: { tanggal: true } })
+    const sesi    = await tx.sesiHarian.findUnique({ where: { id: sesiId }, select: { tanggal: true, is_historical: true } })
     const tanggal = sesi?.tanggal || new Date()
 
     const created = await tx.titipJual.create({
@@ -258,6 +263,7 @@ export async function createTitipJual(sesiId, salesId, k) {
         kategori:            k.kategori,
         tanggal_jatuh_tempo: new Date(k.tanggal_jatuh_tempo),
         catatan:             k.catatan || null,
+        is_historical:       sesi?.is_historical || false,
         items: {
           create: k.items
             .filter((it) => it.rokok_id && Number(it.qty) > 0)
@@ -272,7 +278,7 @@ export async function createTitipJual(sesiId, salesId, k) {
     })
 
     for (const it of created.items) {
-      if (it.qty_keluar > 0) {
+      if (it.qty_keluar > 0 && !sesi?.is_historical) {
         await mutateStock({
           tx,
           rokok_id: it.rokok_id,
@@ -311,17 +317,25 @@ export async function createTitipJual(sesiId, salesId, k) {
 }
 
 export async function editSettlement(id, data, alasan) {
-  const today = new Date(data.tanggal || new Date().toISOString().split("T")[0])
+  const settlementDateStr = data.tanggal || new Date().toISOString().split("T")[0]
+  const today = new Date(settlementDateStr)
   const session = await auth()
 
   await prisma.$transaction(async (tx) => {
+    const setting = await tx.appSetting.findUnique({ where: { key: "stock_cutoff_date" } })
+    const cutoffDate = setting?.value || null
+    const isSettlementHistorical = cutoffDate && settlementDateStr < cutoffDate
+
     const old = await tx.titipJual.findUnique({
       where: { id },
       include: { items: { include: { rokok: true } }, setoran: true },
     })
 
+    const oldSettlementDateStr = old.tanggal_selesai ? old.tanggal_selesai.toISOString().split("T")[0] : null
+    const wasOldSettlementHistorical = cutoffDate && oldSettlementDateStr && oldSettlementDateStr < cutoffDate
+
     for (const it of old.items) {
-      if (it.qty_kembali > 0) {
+      if (it.qty_kembali > 0 && !wasOldSettlementHistorical) {
         await mutateStock({
           tx,
           rokok_id: it.rokok_id,
@@ -341,7 +355,7 @@ export async function editSettlement(id, data, alasan) {
         where: { id: it.id },
         data:  { qty_terjual: it.qty_terjual, qty_kembali: it.qty_kembali },
       })
-      if (it.qty_kembali > 0) {
+      if (it.qty_kembali > 0 && !isSettlementHistorical) {
         await mutateStock({
           tx,
           rokok_id: it.rokok_id,
@@ -408,10 +422,16 @@ export async function editSettlement(id, data, alasan) {
 export async function revertSettlement(id, alasan) {
   const session = await auth()
   await prisma.$transaction(async (tx) => {
+    const setting = await tx.appSetting.findUnique({ where: { key: "stock_cutoff_date" } })
+    const cutoffDate = setting?.value || null
+
     const old = await tx.titipJual.findUnique({ where: { id }, include: { items: { include: { rokok: true } }, setoran: true } })
 
+    const oldSettlementDateStr = old.tanggal_selesai ? old.tanggal_selesai.toISOString().split("T")[0] : null
+    const wasOldSettlementHistorical = cutoffDate && oldSettlementDateStr && oldSettlementDateStr < cutoffDate
+
     for (const it of old.items) {
-      if (it.qty_kembali > 0) {
+      if (it.qty_kembali > 0 && !wasOldSettlementHistorical) {
         await mutateStock({
           tx,
           rokok_id: it.rokok_id,

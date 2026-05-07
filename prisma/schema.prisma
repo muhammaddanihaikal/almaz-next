@@ -98,6 +98,7 @@ model SesiHarian {
   sales_id  String
   status    String   @default("aktif") // "aktif" | "selesai"
   catatan   String?
+  is_historical Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -166,6 +167,7 @@ model TitipJual {
   tanggal_selesai     DateTime? @db.Date
   status              String    @default("aktif") // "aktif" | "selesai"
   flag_selisih_setoran Boolean   @default(false)
+  is_historical       Boolean   @default(false)
   catatan             String?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
@@ -353,4 +355,14 @@ model AuditLog {
 
   @@index([entity_type, entity_id])
   @@index([createdAt])
+}
+
+// ─── SETTINGS ────────────────────────────────────────────────────────────────
+
+model AppSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

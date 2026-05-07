@@ -173,7 +173,8 @@ export async function createTukarBarangInSesi(tx, sesi, data, session, langsungS
   })
 
   for (const it of itemsMasuk) {
-    await mutateStock({
+    if (!sesi.is_historical) {
+      await mutateStock({
       tx,
       rokok_id: it.rokok_id,
       tanggal:  sesi.tanggal,
@@ -183,10 +184,12 @@ export async function createTukarBarangInSesi(tx, sesi, data, session, langsungS
       reference_id: tukar.id,
       user_id:  session?.user?.id,
     })
+    }
   }
   if (langsungSelesai) {
     for (const it of itemsKeluar) {
-      await mutateStock({
+      if (!sesi.is_historical) {
+        await mutateStock({
         tx,
         rokok_id: it.rokok_id,
         tanggal:  sesi.tanggal,
@@ -196,6 +199,7 @@ export async function createTukarBarangInSesi(tx, sesi, data, session, langsungS
         reference_id: tukar.id,
         user_id:  session?.user?.id,
       })
+      }
     }
   }
 
@@ -242,7 +246,7 @@ export async function selesaikanTukarBarangInSesi(tx, sesi, tukar_id, session) {
   })
 
   for (const it of tukar.itemsKeluar) {
-    if (it.qty > 0) {
+    if (it.qty > 0 && !sesi.is_historical) {
       await mutateStock({
         tx,
         rokok_id: it.rokok_id,

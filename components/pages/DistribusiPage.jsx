@@ -359,7 +359,7 @@ function exportToExcelBySales(rows, rokokList, dateRange, onNoData) {
   XLSX.writeFile(wb, `laporan_motoris_${new Date().toISOString().slice(0, 10)}.xlsx`)
 }
 
-export default function DistribusiPage({ role, sesiList, rokokList, salesList, tokoList, tukarBarangList = [] }) {
+export default function DistribusiPage({ role, sesiList, rokokList, salesList, tokoList, tukarBarangList = [], stockCutoffDate }) {
   const router  = useRouter()
   const { confirm, ConfirmModal } = useConfirm()
   const { confirmWithReason, ConfirmWithReasonModal } = useConfirmWithReason()
@@ -577,8 +577,11 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
                 const hasAktifKonsinyasi = r.konsinyasi?.some((k) => k.status === "aktif")
                 const tukarAktifSales = tukarBarangList.filter((t) => t.status === "aktif" && t.sales_id === r.sales_id).length
                 return (
-                  <div className="flex flex-col gap-1">
-                    <Badge label={r.status === "selesai" ? "Selesai" : "Aktif"} colorClass={STATUS_COLOR[r.status]} />
+                  <div className="flex flex-col gap-1 items-start">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <Badge label={r.status === "selesai" ? "Selesai" : "Aktif"} colorClass={STATUS_COLOR[r.status]} />
+                      {r.is_historical && <Badge label="Data Lama" colorClass="bg-neutral-100 text-neutral-600 border border-neutral-300" />}
+                    </div>
                     {hasAktifKonsinyasi && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
                         <AlertCircle className="h-3 w-3" /> Titip jual aktif
@@ -646,6 +649,7 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
             rokokList={rokokList}
             salesList={salesList}
             sesiList={localSesiList}
+            stockCutoffDate={stockCutoffDate}
             onSubmit={async (data) => {
               if (mode === "add") {
                 const result = await createSesi(data)
@@ -741,7 +745,10 @@ function SesiDetail({ record }) {
         <div><p className="text-xs text-neutral-500">Sales</p><p className="font-medium">{record.sales}</p></div>
         <div>
           <p className="text-xs text-neutral-500">Status</p>
-          <Badge label={record.status === "selesai" ? "Selesai" : "Aktif"} colorClass={STATUS_COLOR[record.status]} />
+          <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+            <Badge label={record.status === "selesai" ? "Selesai" : "Aktif"} colorClass={STATUS_COLOR[record.status]} />
+            {record.is_historical && <Badge label="Data Lama" colorClass="bg-neutral-100 text-neutral-600 border border-neutral-300" />}
+          </div>
         </div>
         {record.status === "selesai" && (
           <div><p className="text-xs text-neutral-500">Total Terjual</p><p className="font-medium">{totalQtyTerjual} bungkus</p></div>
@@ -934,7 +941,7 @@ function SimpleTable({ rows, cols, labels }) {
 
 // ─── Form Sesi Pagi ───────────────────────────────────────────────────────────
 
-function SesiPagiForm({ initial, rokokList, salesList, sesiList, onSubmit, onCancel }) {
+function SesiPagiForm({ initial, rokokList, salesList, sesiList, stockCutoffDate, onSubmit, onCancel }) {
   const today = new Date().toISOString().slice(0, 10)
   const [tanggal,  setTanggal]  = useState(initial?.tanggal || today)
   const [salesId,  setSalesId]  = useState(initial?.sales_id || "")
@@ -953,8 +960,10 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, onSubmit, onCan
 
   const updateQty = (idx, val) => setItems(items.map((it, i) => i === idx ? { ...it, qty: val } : it))
 
+  const is_historical_computed = stockCutoffDate ? tanggal < stockCutoffDate : false
+
   const validItems = items.filter((it) => Number(it.qty) > 0)
-  const hasStokError = validItems.some((it) => Number(it.qty) > it.stok)
+  const hasStokError = !is_historical_computed && validItems.some((it) => Number(it.qty) > it.stok)
   const valid = tanggal && salesId && validItems.length >= 1 && !hasStokError
 
   const [loading, setLoading] = useState(false)
@@ -979,6 +988,17 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, onSubmit, onCan
   return (
     <form onSubmit={submit} className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {is_historical_computed && (
+          <div className="col-span-full">
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 flex items-start gap-3 text-amber-800 text-sm">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+              <div>
+                <p className="font-semibold">Mode Data Lama (Historical)</p>
+                <p className="text-amber-700/90 text-xs mt-0.5">Sesi pada tanggal ini tidak akan memotong stok gudang dan tidak divalidasi ketersediaan stok.</p>
+              </div>
+            </div>
+          </div>
+        )}
         <Field label="Tanggal">
           <input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} className={inputCls} required />
         </Field>
@@ -1011,7 +1031,7 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, onSubmit, onCan
             {items.map((item, idx) => {
               const qty = Number(item.qty)
               const sisaStok = item.stok - (qty > 0 ? qty : 0)
-              const melebihi = qty > 0 && qty > item.stok
+              const melebihi = !is_historical_computed && qty > 0 && qty > item.stok
               return (
                 <Fragment key={item.rokok_id}>
                   <tr className="border-b border-neutral-100">

@@ -6,6 +6,7 @@ import { mutateStock, MUTATION_SOURCE } from "@/lib/stock"
 import { auth } from "@/lib/auth"
 import { logAudit, AUDIT_ACTION, AUDIT_ENTITY } from "@/lib/audit"
 import { createTukarBarangInSesi, selesaikanTukarBarangInSesi, revertSelesaiTukarBarangInSesi } from "@/actions/tukar-barang"
+import { getSetting } from "@/actions/settings"
 
 const include = {
   sales: true,
@@ -60,6 +61,7 @@ function serialize(s) {
     sales:     s.sales.nama,
     sales_kategori: s.sales.kategori || "grosir",
     status:    s.status,
+    is_historical: s.is_historical,
     catatan:   s.catatan,
     createdAt: s.createdAt.toISOString(),
     flagSetoran,
@@ -126,12 +128,25 @@ export async function getSesi(id) {
 export async function createSesi(data) {
   const session = await auth()
   try {
+    const cutoffStr = await getSetting("stock_cutoff_date")
+    let is_historical = false
+    if (cutoffStr) {
+      const cutoffDate = new Date(cutoffStr)
+      cutoffDate.setHours(0,0,0,0)
+      const sesiDate = new Date(data.tanggal)
+      sesiDate.setHours(0,0,0,0)
+      if (sesiDate < cutoffDate) {
+        is_historical = true
+      }
+    }
+
     const createdId = await distribusiTransaction(async (tx) => {
       const sesi = await tx.sesiHarian.create({
         data: {
           tanggal:  new Date(data.tanggal),
           sales_id: data.sales_id,
           status:   "aktif",
+          is_historical,
           catatan:  data.catatan || null,
           barangKeluar: {
             create: (data.barangKeluar || []).map((it) => ({
@@ -240,10 +255,13 @@ export async function submitLaporanSore(id, data) {
     )
 
     await distribusiTransaction(async (tx) => {
+      const sesiHarian = await tx.sesiHarian.findUnique({ where: { id } })
+      const is_historical = sesiHarian?.is_historical || false
+
       // Revert old PENJUALAN mutations before recreating
       const oldPenjualanSore = await tx.sesiPenjualan.findMany({ where: { sesi_id: id } })
       for (const it of oldPenjualanSore) {
-        if (it.qty > 0) {
+        if (it.qty > 0 && !is_historical) {
           await mutateStock({
             tx, rokok_id: it.rokok_id, tanggal: data.tanggal, jenis: 'in', qty: it.qty,
             source: MUTATION_SOURCE.REVERT, reference_id: id,
@@ -261,7 +279,7 @@ export async function submitLaporanSore(id, data) {
       const oldKonsinyasi = await tx.titipJual.findMany({ where: { sesi_id: id }, include: { items: true } })
       for (const k of oldKonsinyasi) {
         for (const it of k.items) {
-          if (it.qty_keluar > 0) {
+          if (it.qty_keluar > 0 && !is_historical) {
             await mutateStock({
               tx, rokok_id: it.rokok_id, tanggal: data.tanggal, jenis: 'in', qty: it.qty_keluar,
               source: MUTATION_SOURCE.REVERT, reference_id: k.id,
@@ -284,7 +302,7 @@ export async function submitLaporanSore(id, data) {
         })),
       })
       for (const it of penjualan) {
-        if (it.qty > 0) {
+        if (it.qty > 0 && !is_historical) {
           await mutateStock({
             tx, rokok_id: it.rokok_id, tanggal: data.tanggal, jenis: 'out', qty: it.qty,
             source: MUTATION_SOURCE.PENJUALAN, reference_id: id, user_id: session?.user?.id,
@@ -312,6 +330,7 @@ export async function submitLaporanSore(id, data) {
             kategori:            k.kategori,
             tanggal_jatuh_tempo: new Date(k.tanggal_jatuh_tempo),
             catatan:             k.catatan || null,
+            is_historical:       is_historical,
             items: {
               create: k.items
                 .filter((it) => it.rokok_id && Number(it.qty ?? it.qty_keluar) > 0)
@@ -325,7 +344,7 @@ export async function submitLaporanSore(id, data) {
           include: { items: true },
         })
         for (const it of titipJual.items) {
-          if (it.qty_keluar > 0) {
+          if (it.qty_keluar > 0 && !is_historical) {
             await mutateStock({
               tx, rokok_id: it.rokok_id, tanggal: data.tanggal, jenis: 'out', qty: it.qty_keluar,
               source: MUTATION_SOURCE.KONSINYASI_KELUAR, reference_id: titipJual.id, user_id: session?.user?.id,
@@ -336,7 +355,7 @@ export async function submitLaporanSore(id, data) {
 
       // Tukar Barang Baru
       const tukarBaru = data.tukarBaru || []
-      const sesiObj = { id, tanggal: data.tanggal }
+      const sesiObj = { id, tanggal: data.tanggal, is_historical }
       for (const t of tukarBaru) {
         await createTukarBarangInSesi(tx, sesiObj, t, session, !!t.langsungSelesai)
       }
@@ -359,7 +378,7 @@ export async function submitLaporanSore(id, data) {
             where: { titip_jual_id_rokok_id: { titip_jual_id: p.konsinyasi_id, rokok_id: it.rokok_id } },
             data:  { qty_terjual: it.qty_terjual, qty_kembali: it.qty_kembali },
           })
-          if (it.qty_kembali > 0) {
+          if (it.qty_kembali > 0 && !is_historical) {
             await mutateStock({
               tx, rokok_id: it.rokok_id, tanggal: data.tanggal, jenis: 'in', qty: it.qty_kembali,
               source: MUTATION_SOURCE.KONSINYASI_KEMBALI, reference_id: p.konsinyasi_id, user_id: session?.user?.id,
@@ -641,6 +660,7 @@ export async function deleteSesi(id, alasan) {
       })
 
       if (!sesi) return
+      const is_historical = sesi.is_historical || false
 
       await logAudit({
         tx,
@@ -663,7 +683,7 @@ export async function deleteSesi(id, alasan) {
       })
 
       for (const it of sesi.penjualan) {
-        if (it.qty > 0) {
+        if (it.qty > 0 && !is_historical) {
           await mutateStock({
             tx,
             rokok_id: it.rokok_id,
@@ -693,7 +713,7 @@ export async function deleteSesi(id, alasan) {
 
         if (tj) {
           for (const it of tj.items) {
-            if (it.qty_kembali > 0) {
+            if (it.qty_kembali > 0 && !is_historical) {
               await mutateStock({
                 tx,
                 rokok_id: it.rokok_id,
@@ -723,7 +743,7 @@ export async function deleteSesi(id, alasan) {
 
       for (const k of sesi.titipJual) {
         for (const it of k.items) {
-          if (it.qty_keluar > 0) {
+          if (it.qty_keluar > 0 && !is_historical) {
             await mutateStock({
               tx,
               rokok_id: it.rokok_id,
@@ -737,7 +757,7 @@ export async function deleteSesi(id, alasan) {
               allowNegative: true,
             })
           }
-          if (it.qty_kembali > 0) {
+          if (it.qty_kembali > 0 && !is_historical) {
             await mutateStock({
               tx,
               rokok_id: it.rokok_id,
@@ -763,22 +783,24 @@ export async function deleteSesi(id, alasan) {
       })
       for (const t of tukarBaruDiSesi) {
         for (const it of t.itemsMasuk) {
-          await mutateStock({
-            tx,
-            rokok_id: it.rokok_id,
-            tanggal: sesi.tanggal,
-            jenis: 'out',
-            qty: it.qty,
-            source: MUTATION_SOURCE.REVERT,
-            reference_id: t.id,
-            keterangan: "Revert tukar barang masuk (delete sesi)",
-            user_id: session?.user?.id,
-            allowNegative: true,
-          })
+          if (!is_historical) {
+            await mutateStock({
+              tx,
+              rokok_id: it.rokok_id,
+              tanggal: sesi.tanggal,
+              jenis: 'out',
+              qty: it.qty,
+              source: MUTATION_SOURCE.REVERT,
+              reference_id: t.id,
+              keterangan: "Revert tukar barang masuk (delete sesi)",
+              user_id: session?.user?.id,
+              allowNegative: true,
+            })
+          }
         }
         if (t.status === "selesai") {
           for (const it of t.itemsKeluar) {
-            if (it.qty > 0) {
+            if (it.qty > 0 && !is_historical) {
               await mutateStock({
                 tx,
                 rokok_id: it.rokok_id,
