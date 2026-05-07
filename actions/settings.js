@@ -21,6 +21,19 @@ export async function getAppSetting(key) {
 
 export async function setSetting(key, value) {
   const user = await checkSuperAdmin()
+
+  // Proteksi khusus untuk cutoff stok
+  if (key === "stock_cutoff_date") {
+    // Cek apakah nilai berubah
+    const current = await getAppSetting(key)
+    if (current?.value === value) return { success: true }
+
+    // Jika sudah ada data distribusi, dilarang ubah cutoff
+    const hasData = await prisma.sesiHarian.findFirst()
+    if (hasData) {
+      throw new Error("Tanggal mulai stok sistem tidak dapat diubah karena sudah terdapat data distribusi. Hal ini diperlukan untuk menjaga integritas saldo stok gudang.")
+    }
+  }
   
   await prisma.appSetting.upsert({
     where: { key },
