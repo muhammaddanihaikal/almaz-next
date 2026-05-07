@@ -580,7 +580,7 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
                   <div className="flex flex-col gap-1 items-start">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <Badge label={r.status === "selesai" ? "Selesai" : "Aktif"} colorClass={STATUS_COLOR[r.status]} />
-                      {r.is_historical && <Badge label="Data Lama" colorClass="bg-amber-100 text-amber-700 border border-amber-300 justify-center" />}
+                      {r.is_historical && <Badge label="Data Lama" colorClass="bg-indigo-100 text-indigo-700 border border-indigo-300 justify-center" />}
                     </div>
                     {hasAktifKonsinyasi && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
@@ -747,7 +747,7 @@ function SesiDetail({ record }) {
           <p className="text-xs text-neutral-500">Status</p>
           <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
             <Badge label={record.status === "selesai" ? "Selesai" : "Aktif"} colorClass={STATUS_COLOR[record.status]} />
-            {record.is_historical && <Badge label="Data Lama" colorClass="bg-amber-100 text-amber-700 border border-amber-300 justify-center" />}
+            {record.is_historical && <Badge label="Data Lama" colorClass="bg-indigo-100 text-indigo-700 border border-indigo-300 justify-center" />}
           </div>
         </div>
         {record.status === "selesai" && (
@@ -1497,6 +1497,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
                       isEdit={isEdit}
                       onTokoCreated={(newToko) => setTokoList((prev) => [...prev, newToko].sort((a, b) => a.nama.localeCompare(b.nama, "id")))}
                       extraUsedTokoIds={savedTokoIds}
+                      isHistorical={sesi.is_historical}
                     />
                   ))}
                   <Button
@@ -1518,6 +1519,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
                   qtyDibawa={qtyDibawa}
                   qtyTerjualLangsung={qtyTerjualLangsung}
                   qtyTitipBaru={qtyTitipBaru}
+                  isHistorical={sesi.is_historical}
                 />
               )}
           </div>
@@ -1874,7 +1876,7 @@ function PenjualanLangsungInput({ penjualan, setPenjualan, barangKeluar = [], qt
                           value={entry?.qty || ""}
                           onChange={(e) => updateQty(rokok_id, cat, e.target.value)}
                           placeholder="0"
-                          className={inputCls + " w-24" + (melebihi ? " border-orange-400 focus:border-orange-500" : "")}
+                          className={inputCls + " w-24" + (melebihi && !isHistorical ? " border-orange-400 focus:border-orange-500" : "")}
                         />
                       </td>
                     )
@@ -1994,7 +1996,7 @@ function PenyelesaianDetail({ record }) {
   )
 }
 
-function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerjualLangsung, qtyTukarKeluar = {}, konsinyasiBaru, tokoList, onChange, onRemove, onTokoCreated, extraUsedTokoIds = [], isEdit = false }) {
+function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerjualLangsung, qtyTukarKeluar = {}, konsinyasiBaru, tokoList, onChange, onRemove, onTokoCreated, extraUsedTokoIds = [], isEdit = false, isHistorical = false }) {
   const [open,        setOpen]        = useState(!(isEdit && data.toko_id))
   const [showAddToko, setShowAddToko] = useState(false)
   const [newTokoNama, setNewTokoNama] = useState("")
@@ -2140,14 +2142,14 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
             const usedByOthers = getAvailableQty(item.rokok_id, idx)
             const available    = Math.max(0, usedByOthers - (Number(item.qty) || 0))
             const totalDibawa  = qtyDibawa[item.rokok_id] || 0
-            const melebihi     = item.rokok_id && Number(item.qty) > usedByOthers
+            const melebihi     = !isHistorical && item.rokok_id && Number(item.qty) > usedByOthers
             return (
               <div key={idx}>
                 <div className="flex items-end gap-3">
                   <div className="flex-1">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-xs font-medium text-neutral-600">{idx === 0 ? "Rokok" : ""}</span>
-                      {item.rokok_id && (
+                      {!isHistorical && item.rokok_id && (
                         <span className={`text-[10px] font-bold tabular-nums ${melebihi ? "text-red-500" : (Number(item.qty) || 0) > 0 ? "text-blue-600" : "text-neutral-400"}`}>
                           Sisa: {available} / {totalDibawa}
                         </span>
@@ -2167,7 +2169,7 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
                     <Field label={idx === 0 ? "Qty" : ""}>
                       <input
                         type="number" min="1"
-                        max={item.rokok_id ? available + (Number(item.qty) || 0) : undefined}
+                        max={!isHistorical && item.rokok_id ? available + (Number(item.qty) || 0) : undefined}
                         value={item.qty}
                         onChange={(e) => updateItem(idx, "qty", e.target.value)}
                         placeholder="0"
@@ -2209,7 +2211,7 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
 
 // ─── TUKAR BARANG TAB (di Laporan Sore) ─────────────────────────────────────
 
-function TukarBarangTab({ tukarSelesai, setTukarSelesai, rokokDibawa, rokokList, qtyDibawa, qtyTerjualLangsung, qtyTitipBaru }) {
+function TukarBarangTab({ tukarSelesai, setTukarSelesai, rokokDibawa, rokokList, qtyDibawa, qtyTerjualLangsung, qtyTitipBaru, isHistorical = false }) {
   return (
     <div className="space-y-6">
       <div className="rounded-xl border border-neutral-200 bg-white p-5 space-y-5">
@@ -2240,6 +2242,7 @@ function TukarBarangTab({ tukarSelesai, setTukarSelesai, rokokDibawa, rokokList,
             qtyDibawa={qtyDibawa}
             qtyTerjualLangsung={qtyTerjualLangsung}
             qtyTitipBaru={qtyTitipBaru}
+            isHistorical={isHistorical}
           />
         </div>
       </div>
@@ -2247,7 +2250,7 @@ function TukarBarangTab({ tukarSelesai, setTukarSelesai, rokokDibawa, rokokList,
   )
 }
 
-function TukarInputBlock({ data, onChange, rokokDibawa, rokokList, type, kategori, label, qtyDibawa = {}, qtyTerjualLangsung = {}, qtyTitipBaru = {}, qtyOtherTukarKeluar = {}, qtyOtherTukarMasuk = {} }) {
+function TukarInputBlock({ data, onChange, rokokDibawa, rokokList, type, kategori, label, qtyDibawa = {}, qtyTerjualLangsung = {}, qtyTitipBaru = {}, qtyOtherTukarKeluar = {}, qtyOtherTukarMasuk = {}, isHistorical = false }) {
   const hargaDefault = (rokok) => {
     if (!rokok) return 0
     return kategori === "grosir" ? (rokok.harga_grosir || rokok.harga_toko) : (rokok.harga_toko || rokok.harga_perorangan)
@@ -2286,7 +2289,7 @@ function TukarInputBlock({ data, onChange, rokokDibawa, rokokList, type, kategor
         const isKeluar = field === "itemsKeluar"
         const isMasuk  = field === "itemsMasuk"
         let infoLabel = null
-        if (item.rokok_id) {
+        if (!isHistorical && item.rokok_id) {
           if (isKeluar) {
             const dibawa   = qtyDibawa[item.rokok_id] || 0
             const terjual  = qtyTerjualLangsung[item.rokok_id] || 0

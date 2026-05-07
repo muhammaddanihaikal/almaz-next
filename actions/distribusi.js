@@ -189,6 +189,18 @@ export async function createSesi(data) {
 export async function updateSesiPagi(id, data, alasan) {
   const session = await auth()
   try {
+    // Hitung ulang is_historical jika tanggal berubah
+    const cutoffSetting = await getAppSetting("stock_cutoff_date")
+    const cutoffStr = cutoffSetting?.value || null
+    let is_historical = false
+    if (cutoffStr) {
+      const cutoffDate = new Date(cutoffStr)
+      cutoffDate.setHours(0, 0, 0, 0)
+      const sesiDate = new Date(data.tanggal)
+      sesiDate.setHours(0, 0, 0, 0)
+      if (sesiDate < cutoffDate) is_historical = true
+    }
+
     await distribusiTransaction(async (tx) => {
       const old = await tx.sesiHarian.findUnique({
         where: { id },
@@ -198,9 +210,10 @@ export async function updateSesiPagi(id, data, alasan) {
       await tx.sesiHarian.update({
         where: { id },
         data: {
-          tanggal:  new Date(data.tanggal),
-          sales_id: data.sales_id,
-          catatan:  data.catatan || null,
+          tanggal:      new Date(data.tanggal),
+          sales_id:     data.sales_id,
+          catatan:      data.catatan || null,
+          is_historical,
           barangKeluar: {
             create: (data.barangKeluar || []).map((it) => ({
               rokok_id: it.rokok_id,
@@ -455,14 +468,16 @@ export async function editLaporanSore(id, data, alasan) {
     )
 
     await distribusiTransaction(async (tx) => {
-      // 1. Ambil data lama
-      const oldPenjualan     = await tx.sesiPenjualan.findMany({ where: { sesi_id: id }, include: { rokok: true } })
-      const oldSetoran       = await tx.sesiSetoran.findMany({ where: { sesi_id: id } })
-      const oldKembali       = await tx.sesiBarangKembali.findMany({ where: { sesi_id: id }, include: { rokok: true } })
+      // 1. Ambil data lama + is_historical
+      const sesiHarian      = await tx.sesiHarian.findUnique({ where: { id } })
+      const is_historical   = sesiHarian?.is_historical || false
+      const oldPenjualan    = await tx.sesiPenjualan.findMany({ where: { sesi_id: id }, include: { rokok: true } })
+      const oldSetoran      = await tx.sesiSetoran.findMany({ where: { sesi_id: id } })
+      const oldKembali      = await tx.sesiBarangKembali.findMany({ where: { sesi_id: id }, include: { rokok: true } })
 
-      // 2. Revert stok penjualan lama
+      // 2. Revert stok penjualan lama (hanya jika bukan historical)
       for (const it of oldPenjualan) {
-        if (it.qty > 0) {
+        if (it.qty > 0 && !is_historical) {
           await mutateStock({
             tx, rokok_id: it.rokok_id, tanggal: data.tanggal, jenis: 'in', qty: it.qty,
             source: MUTATION_SOURCE.REVERT, reference_id: id,
@@ -479,23 +494,24 @@ export async function editLaporanSore(id, data, alasan) {
       })
       for (const t of oldTukarBaru) {
         for (const it of t.itemsMasuk) {
-          await mutateStock({
-            tx,
-            rokok_id: it.rokok_id,
-            tanggal: data.tanggal,
-            jenis: 'out',
-            qty: it.qty,
-            source: MUTATION_SOURCE.REVERT,
-            reference_id: t.id,
-            keterangan: "Revert tukar barang masuk (edit sore)",
-            user_id: session?.user?.id,
-            allowNegative: true,
-          })
+          if (!is_historical) {
+            await mutateStock({
+              tx,
+              rokok_id: it.rokok_id,
+              tanggal: data.tanggal,
+              jenis: 'out',
+              qty: it.qty,
+              source: MUTATION_SOURCE.REVERT,
+              reference_id: t.id,
+              keterangan: "Revert tukar barang masuk (edit sore)",
+              user_id: session?.user?.id,
+              allowNegative: true,
+            })
+          }
         }
-        // Revert TUKAR_KELUAR jika tukar ini sudah selesai (langsungSelesai di sesi yang sama)
         if (t.status === "selesai") {
           for (const it of t.itemsKeluar) {
-            if (it.qty > 0) {
+            if (it.qty > 0 && !is_historical) {
               await mutateStock({
                 tx,
                 rokok_id: it.rokok_id,
@@ -533,7 +549,7 @@ export async function editLaporanSore(id, data, alasan) {
       const oldKonsinyasi = await tx.titipJual.findMany({ where: { sesi_id: id }, include: { items: true } })
       for (const k of oldKonsinyasi) {
         for (const it of k.items) {
-          if (it.qty_keluar > 0) {
+          if (it.qty_keluar > 0 && !is_historical) {
             await mutateStock({
               tx, rokok_id: it.rokok_id, tanggal: data.tanggal, jenis: 'in', qty: it.qty_keluar,
               source: MUTATION_SOURCE.REVERT, reference_id: k.id,
@@ -557,7 +573,7 @@ export async function editLaporanSore(id, data, alasan) {
         })),
       })
       for (const it of penjualan) {
-        if (it.qty > 0) {
+        if (it.qty > 0 && !is_historical) {
           await mutateStock({
             tx, rokok_id: it.rokok_id, tanggal: data.tanggal, jenis: 'out', qty: it.qty,
             source: MUTATION_SOURCE.PENJUALAN, reference_id: id, user_id: session?.user?.id,
@@ -586,6 +602,7 @@ export async function editLaporanSore(id, data, alasan) {
             kategori:            k.kategori,
             tanggal_jatuh_tempo: new Date(k.tanggal_jatuh_tempo),
             catatan:             k.catatan || null,
+            is_historical: is_historical,
             items: {
               create: k.items
                 .filter((it) => it.rokok_id && Number(it.qty ?? it.qty_keluar) > 0)
@@ -599,7 +616,7 @@ export async function editLaporanSore(id, data, alasan) {
           include: { items: true },
         })
         for (const it of titipJual.items) {
-          if (it.qty_keluar > 0) {
+          if (it.qty_keluar > 0 && !is_historical) {
             await mutateStock({
               tx, rokok_id: it.rokok_id, tanggal: data.tanggal, jenis: 'out', qty: it.qty_keluar,
               source: MUTATION_SOURCE.KONSINYASI_KELUAR, reference_id: titipJual.id, user_id: session?.user?.id,
@@ -609,7 +626,7 @@ export async function editLaporanSore(id, data, alasan) {
       }
 
       // 6. Tukar Barang
-      const sesiObjEdit = { id, tanggal: data.tanggal }
+      const sesiObjEdit = { id, tanggal: data.tanggal, is_historical }
       for (const t of (data.tukarBaru || [])) {
         await createTukarBarangInSesi(tx, sesiObjEdit, t, session, !!t.langsungSelesai)
       }
