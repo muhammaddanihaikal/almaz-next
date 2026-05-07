@@ -6,7 +6,7 @@ import { mutateStock, MUTATION_SOURCE } from "@/lib/stock"
 import { auth } from "@/lib/auth"
 import { logAudit, AUDIT_ACTION, AUDIT_ENTITY } from "@/lib/audit"
 import { createTukarBarangInSesi, selesaikanTukarBarangInSesi, revertSelesaiTukarBarangInSesi } from "@/actions/tukar-barang"
-import { getSetting } from "@/actions/settings"
+import { getAppSetting } from "@/actions/settings"
 
 const include = {
   sales: true,
@@ -128,7 +128,8 @@ export async function getSesi(id) {
 export async function createSesi(data) {
   const session = await auth()
   try {
-    const cutoffStr = await getSetting("stock_cutoff_date")
+    const cutoffSetting = await getAppSetting("stock_cutoff_date")
+    const cutoffStr = cutoffSetting?.value || null
     let is_historical = false
     if (cutoffStr) {
       const cutoffDate = new Date(cutoffStr)
@@ -258,6 +259,10 @@ export async function submitLaporanSore(id, data) {
       const sesiHarian = await tx.sesiHarian.findUnique({ where: { id } })
       const is_historical = sesiHarian?.is_historical || false
 
+      // Ambil cutoff date untuk logika settlement titip jual historical
+      const cutoffSetting = await tx.appSetting.findUnique({ where: { key: "stock_cutoff_date" } })
+      const cutoffStr = cutoffSetting?.value || null
+
       // Revert old PENJUALAN mutations before recreating
       const oldPenjualanSore = await tx.sesiPenjualan.findMany({ where: { sesi_id: id } })
       for (const it of oldPenjualanSore) {
@@ -369,6 +374,9 @@ export async function submitLaporanSore(id, data) {
       // Penyelesaian Titip Jual (Settlement)
       const penyelesaianKonsinyasi = data.penyelesaianKonsinyasi || []
       for (const p of penyelesaianKonsinyasi) {
+        // Ambil data titip jual untuk cek is_historical dari record itu sendiri
+        const titipJualRecord = await tx.titipJual.findUnique({ where: { id: p.konsinyasi_id }, select: { is_historical: true } })
+        const isTitipJualHistorical = titipJualRecord?.is_historical || false
         await tx.titipJual.update({
           where: { id: p.konsinyasi_id },
           data: { status: "selesai", tanggal_selesai: new Date(data.tanggal) }
@@ -378,7 +386,10 @@ export async function submitLaporanSore(id, data) {
             where: { titip_jual_id_rokok_id: { titip_jual_id: p.konsinyasi_id, rokok_id: it.rokok_id } },
             data:  { qty_terjual: it.qty_terjual, qty_kembali: it.qty_kembali },
           })
-          if (it.qty_kembali > 0 && !is_historical) {
+          // Titip jual historical yang diselesaikan SETELAH cutoff: barang kembali ke gudang secara fisik
+          const settlementAfterCutoff = !cutoffStr || data.tanggal >= cutoffStr
+          const shouldAddStock = !isTitipJualHistorical || (isTitipJualHistorical && settlementAfterCutoff)
+          if (it.qty_kembali > 0 && shouldAddStock) {
             await mutateStock({
               tx, rokok_id: it.rokok_id, tanggal: data.tanggal, jenis: 'in', qty: it.qty_kembali,
               source: MUTATION_SOURCE.KONSINYASI_KEMBALI, reference_id: p.konsinyasi_id, user_id: session?.user?.id,

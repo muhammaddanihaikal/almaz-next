@@ -580,7 +580,7 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
                   <div className="flex flex-col gap-1 items-start">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <Badge label={r.status === "selesai" ? "Selesai" : "Aktif"} colorClass={STATUS_COLOR[r.status]} />
-                      {r.is_historical && <Badge label="Data Lama" colorClass="bg-neutral-100 text-neutral-600 border border-neutral-300" />}
+                      {r.is_historical && <Badge label="Data Lama" colorClass="bg-amber-100 text-amber-700 border border-amber-300 justify-center" />}
                     </div>
                     {hasAktifKonsinyasi && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
@@ -747,7 +747,7 @@ function SesiDetail({ record }) {
           <p className="text-xs text-neutral-500">Status</p>
           <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
             <Badge label={record.status === "selesai" ? "Selesai" : "Aktif"} colorClass={STATUS_COLOR[record.status]} />
-            {record.is_historical && <Badge label="Data Lama" colorClass="bg-neutral-100 text-neutral-600 border border-neutral-300" />}
+            {record.is_historical && <Badge label="Data Lama" colorClass="bg-amber-100 text-amber-700 border border-amber-300 justify-center" />}
           </div>
         </div>
         {record.status === "selesai" && (
@@ -1023,7 +1023,7 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, stockCutoffDate
           <thead>
             <tr className="border-b border-neutral-200 text-xs text-neutral-500">
               <th className="pb-1.5 text-left">Rokok</th>
-              <th className="pb-1.5 text-right pr-3">Stok</th>
+              {!is_historical_computed && <th className="pb-1.5 text-right pr-3">Stok</th>}
               <th className="pb-1.5 text-right">Qty Dibawa</th>
             </tr>
           </thead>
@@ -1036,9 +1036,11 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, stockCutoffDate
                 <Fragment key={item.rokok_id}>
                   <tr className="border-b border-neutral-100">
                     <td className="py-1.5 font-medium">{item.nama}</td>
-                    <td className={`py-1.5 text-right pr-3 text-xs tabular-nums font-medium transition-colors ${melebihi ? "text-red-500" : qty > 0 ? "text-blue-600" : "text-neutral-400"}`}>
-                      {qty > 0 ? sisaStok : item.stok}
-                    </td>
+                    {!is_historical_computed && (
+                      <td className={`py-1.5 text-right pr-3 text-xs tabular-nums font-medium transition-colors ${melebihi ? "text-red-500" : qty > 0 ? "text-blue-600" : "text-neutral-400"}`}>
+                        {qty > 0 ? sisaStok : item.stok}
+                      </td>
+                    )}
                     <td className="py-1.5 text-right">
                       <input
                         type="number" min="0"
@@ -1472,6 +1474,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
                     qtyTukarKeluar={qtyTukarSelesaiKeluar}
                     showPerorangan={showPerorangan}
                     setShowPerorangan={setShowPerorangan}
+                    isHistorical={sesi.is_historical}
                   />
                 </SectionCard>
               )}
@@ -1813,7 +1816,7 @@ function SectionCard({ title, children, rightAction }) {
   )
 }
 
-function PenjualanLangsungInput({ penjualan, setPenjualan, barangKeluar = [], qtyTitipBaru = {}, qtyTukarKeluar = {}, showPerorangan, setShowPerorangan }) {
+function PenjualanLangsungInput({ penjualan, setPenjualan, barangKeluar = [], qtyTitipBaru = {}, qtyTukarKeluar = {}, showPerorangan, setShowPerorangan, isHistorical = false }) {
   const categories = showPerorangan ? ["grosir", "toko", "perorangan"] : ["grosir", "toko"]
   const rokok_ids  = [...new Set(penjualan.map((it) => it.rokok_id))]
 
@@ -1855,9 +1858,11 @@ function PenjualanLangsungInput({ penjualan, setPenjualan, barangKeluar = [], qt
                 <tr className="border-b border-neutral-100">
                   <td className="py-2 pr-3 font-medium">
                     {sample?.rokok}
-                    <div className={`text-[10px] font-medium transition-colors ${melebihi ? "text-red-500" : terjual + dititip > 0 ? "text-blue-600" : "text-neutral-400"}`}>
-                      Sisa: {sisa} / {dibawa}
-                    </div>
+                    {!isHistorical && (
+                      <div className={`text-[10px] font-medium transition-colors ${melebihi ? "text-red-500" : terjual + dititip > 0 ? "text-blue-600" : "text-neutral-400"}`}>
+                        Sisa: {sisa} / {dibawa}
+                      </div>
+                    )}
                   </td>
                   {categories.map((cat) => {
                     const entry = penjualan.find((it) => it.rokok_id === rokok_id && it.kategori === cat)
@@ -1875,7 +1880,7 @@ function PenjualanLangsungInput({ penjualan, setPenjualan, barangKeluar = [], qt
                     )
                   })}
                 </tr>
-                {melebihi && (
+                {melebihi && !isHistorical && (
                   <tr>
                     <td colSpan={1 + categories.length} className="pb-1.5 pt-0">
                       <div className="flex items-center gap-1.5 rounded-md border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs text-orange-700">
