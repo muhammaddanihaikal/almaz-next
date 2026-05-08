@@ -3,9 +3,20 @@
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 
-export async function getAbsensi() {
+// Default: hanya muat absensi 60 hari terakhir untuk performa.
+// Halaman pakai filter tanggal di client; data lebih lama bisa diakses
+// dengan memanggil getAbsensi(daysBack) dengan nilai lebih besar / null.
+// Sales relation tidak di-include karena halaman sudah punya salesList sendiri.
+export async function getAbsensi(daysBack = 60) {
+  const where = {}
+  if (daysBack && Number.isFinite(daysBack)) {
+    const since = new Date()
+    since.setHours(0, 0, 0, 0)
+    since.setDate(since.getDate() - daysBack)
+    where.tanggal = { gte: since }
+  }
   const rows = await prisma.absensi.findMany({
-    include: { sales: true },
+    where,
     orderBy: { tanggal: "desc" },
   })
   return rows.map((a) => ({

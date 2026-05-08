@@ -24,6 +24,17 @@ export async function getTokoList() {
   return _getTokoListCached()
 }
 
+// Lightweight: cuma daftar toko_id yang sudah punya histori titip jual.
+// Dipakai halaman Toko untuk decide apakah tombol Hapus boleh di-enable.
+// Jauh lebih ringan daripada getTitipJualList() yang fetch semua relasi.
+export async function getUsedTokoIds() {
+  const rows = await prisma.titipJual.findMany({
+    select: { toko_id: true },
+    distinct: ["toko_id"],
+  })
+  return rows.map((r) => r.toko_id)
+}
+
 function bustTokoCache() {
   revalidateTag(TOKO_TAG)
   revalidatePath("/toko")
