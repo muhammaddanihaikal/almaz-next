@@ -120,29 +120,29 @@ export default function KonsinyasiPage({ role, titipJualList, salesList }) {
       />
 
       {jatuhTempoHariIni.length > 0 && (
-        <div className="rounded-xl border border-red-200 bg-white">
+        <div className="rounded-lg border border-red-200 bg-white overflow-hidden shadow-sm">
           <Button
             type="button"
             variant="ghost"
             onClick={() => setExpandedHariIni(!expandedHariIni)}
-            className="w-full h-auto flex items-center justify-between p-4 hover:bg-red-50 transition-colors rounded-none"
+            className="w-full h-auto flex items-center justify-between px-3 py-2 hover:bg-red-50/50 transition-colors rounded-none"
           >
-            <div className="flex items-center gap-3">
-              <AlertCircle className="h-5 w-5 text-red-600" />
-              <span className="font-medium text-neutral-900">Jatuh Tempo Hari Ini</span>
+            <div className="flex items-center gap-2.5">
+              <AlertCircle className="h-4 w-4 text-red-600" />
+              <span className="text-sm font-semibold text-neutral-900">Jatuh Tempo Hari Ini</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-red-600 px-2 text-xs font-semibold text-white">{jatuhTempoHariIni.length}</span>
-              <ChevronDown className={`h-5 w-5 text-neutral-400 transition-transform ${expandedHariIni ? "rotate-180" : ""}`} />
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-bold text-white">{jatuhTempoHariIni.length}</span>
+              <ChevronDown className={`h-4 w-4 text-neutral-400 transition-transform ${expandedHariIni ? "rotate-180" : ""}`} />
             </div>
           </Button>
 
           {expandedHariIni && (
-            <div className="border-t border-red-200 p-4 space-y-1">
+            <div className="border-t border-red-100 p-3 space-y-1 bg-red-50/30">
               {jatuhTempoHariIni.map((k) => (
-                <div key={k.id} className="flex items-center justify-between text-xs text-red-600">
-                  <span>{k.sales} → {k.nama_toko} ({k.kategori})</span>
-                  <span>{fmtIDR(k.nilaiTotal)}</span>
+                <div key={k.id} className="flex items-center justify-between text-[11px] text-red-700">
+                  <span className="font-medium">{k.sales} → {k.nama_toko} ({k.kategori})</span>
+                  <span className="tabular-nums">{fmtIDR(k.nilaiTotal)}</span>
                 </div>
               ))}
             </div>
@@ -151,29 +151,29 @@ export default function KonsinyasiPage({ role, titipJualList, salesList }) {
       )}
 
       {jatuhTempoSegera.length > 0 && (
-        <div className="rounded-xl border border-amber-200 bg-white">
+        <div className="rounded-lg border border-amber-200 bg-white overflow-hidden shadow-sm">
           <Button
             type="button"
             variant="ghost"
             onClick={() => setExpandedSegera(!expandedSegera)}
-            className="w-full h-auto flex items-center justify-between p-4 hover:bg-amber-50 transition-colors rounded-none"
+            className="w-full h-auto flex items-center justify-between px-3 py-2 hover:bg-amber-50/50 transition-colors rounded-none"
           >
-            <div className="flex items-center gap-3">
-              <Clock className="h-5 w-5 text-amber-600" />
-              <span className="font-medium text-neutral-900">Jatuh Tempo Segera (3 Hari)</span>
+            <div className="flex items-center gap-2.5">
+              <Clock className="h-4 w-4 text-amber-600" />
+              <span className="text-sm font-semibold text-neutral-900">Jatuh Tempo Segera (3 Hari)</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-amber-600 px-2 text-xs font-semibold text-white">{jatuhTempoSegera.length}</span>
-              <ChevronDown className={`h-5 w-5 text-neutral-400 transition-transform ${expandedSegera ? "rotate-180" : ""}`} />
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-600 px-1.5 text-[10px] font-bold text-white">{jatuhTempoSegera.length}</span>
+              <ChevronDown className={`h-4 w-4 text-neutral-400 transition-transform ${expandedSegera ? "rotate-180" : ""}`} />
             </div>
           </Button>
 
           {expandedSegera && (
-            <div className="border-t border-amber-200 p-4 space-y-1">
+            <div className="border-t border-amber-100 p-3 space-y-1 bg-amber-50/30">
               {jatuhTempoSegera.map((k) => (
-                <div key={k.id} className="flex items-center justify-between text-xs text-amber-600">
-                  <span>{k.sales} → {k.nama_toko} ({k.kategori}) — {k.selisihHari} hari lagi</span>
-                  <span>{fmtIDR(k.nilaiTotal)}</span>
+                <div key={k.id} className="flex items-center justify-between text-[11px] text-amber-800">
+                  <span className="font-medium">{k.sales} → {k.nama_toko} ({k.kategori}) — {k.selisihHari} hari lagi</span>
+                  <span className="tabular-nums">{fmtIDR(k.nilaiTotal)}</span>
                 </div>
               ))}
             </div>

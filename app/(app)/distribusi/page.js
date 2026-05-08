@@ -23,5 +23,5 @@ export default async function Page() {
     getTukarBarangList(),
     getAppSetting("stock_cutoff_date"),
   ])
-  return <DistribusiPage role={session?.user?.role} sesiList={sesiList} rokokList={rokokList} salesList={salesList} tokoList={tokoList} tukarBarangList={tukarBarangList} stockCutoffDate={settingCutoff?.value} />
+  return <DistribusiPage role={session?.user?.role} sesiList={sesiList} rokokList={rokokList} salesList={salesList} tokoList={tokoList} tukarBarangList={tukarBarangList} stockCutoffSetting={settingCutoff} />
 }

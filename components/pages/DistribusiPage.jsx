@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState, Fragment } from "react"
-import { Plus, Trash2, AlertCircle, ChevronDown, ChevronUp, Download, X } from "lucide-react"
+import { Plus, Trash2, AlertCircle, ChevronDown, ChevronUp, Download, X, History } from "lucide-react"
 import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc } from "@/lib/utils"
 import { createSesi, updateSesiPagi, submitLaporanSore, editLaporanSore, deleteSesi } from "@/actions/distribusi"
 import { settleTitipJual, createTitipJual, editSettlement, revertSettlement, editTitipJualDetail, deleteTitipJual } from "@/actions/titip_jual"
@@ -358,7 +358,8 @@ function exportToExcelBySales(rows, rokokList, dateRange, onNoData) {
   XLSX.writeFile(wb, `laporan_motoris_${new Date().toISOString().slice(0, 10)}.xlsx`)
 }
 
-export default function DistribusiPage({ role, sesiList, rokokList, salesList, tokoList, tukarBarangList = [], stockCutoffDate }) {
+export default function DistribusiPage({ role, sesiList, rokokList, salesList, tokoList, tukarBarangList = [], stockCutoffSetting }) {
+  const stockCutoffDate = stockCutoffSetting?.value
   const { confirm, ConfirmModal } = useConfirm()
   const { confirmWithReason, ConfirmWithReasonModal } = useConfirmWithReason()
 
@@ -461,7 +462,19 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
     <div className="space-y-6">
       <PageHeader
         title="Distribusi"
-        subtitle="Sesi harian sales — barang keluar pagi & laporan sore."
+        subtitle={
+          <div className="flex items-center flex-wrap gap-x-2 gap-y-1">
+            <span className="text-neutral-500">
+              Sesi harian sales — barang keluar pagi & laporan sore.
+            </span>
+            {stockCutoffDate && (
+              <span className="inline-flex items-center gap-1.5 bg-indigo-50/50 text-indigo-400 px-2 py-0.5 rounded-full border border-indigo-100/50 text-[10px] font-semibold tracking-wide transition-colors hover:bg-indigo-50">
+                <History className="h-3 w-3" />
+                MULAI SISTEM: {fmtTanggal(stockCutoffDate)}
+              </span>
+            )}
+          </div>
+        }
         action={
           <div className="flex items-center gap-2">
             <div className="relative">
@@ -520,6 +533,7 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
           </div>
         }
       />
+
 
       <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] space-y-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-4">
