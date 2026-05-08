@@ -9,7 +9,7 @@ import {
 } from "lucide-react"
 import { fmtIDR } from "@/lib/utils"
 import { addRokok, updateRokok, deleteRokok, toggleAktifRokok, tambahStok, updateRokokOrder } from "@/actions/rokok"
-import { Card, PageHeader, PrimaryButton, IconButton, RowActions, Field, FormActions, Toggle, inputCls, useConfirmWithReason, Button, MoneyInput } from "@/components/ui"
+import { Card, PageHeader, PrimaryButton, IconButton, RowActions, Field, FormActions, Toggle, inputCls, useConfirm, useConfirmWithReason, Button, MoneyInput } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
 import { useLoading } from "@/components/LoadingProvider"
@@ -43,11 +43,17 @@ const SOURCE_LABEL = {
   koreksi:            { label: "Koreksi",             cls: "bg-purple-100 text-purple-700"   },
 }
 
+function SkeletonText({ w = "w-24" }) {
+  return <div className={`h-3.5 ${w} animate-pulse rounded bg-neutral-200`} />
+}
+
 export default function RokokPage({ role, rokokList, usedIds, mutasiHariIni = [] }) {
   const router = useRouter()
   const [isLocalPending, startLocalTransition] = useTransition()
   const { isPending, navigate } = useLoading()
+  const { confirm, ConfirmModal } = useConfirm()
   const { confirmWithReason, ConfirmWithReasonModal } = useConfirmWithReason()
+  const [localList, setLocalList] = useState(rokokList)
   const [mode, setMode] = useState(null)
   const [editing, setEditing] = useState(null)
   const [stokTarget, setStokTarget] = useState(null)
@@ -56,18 +62,26 @@ export default function RokokPage({ role, rokokList, usedIds, mutasiHariIni = []
   const [isSorting, setIsSorting] = useState(false)
   const [sortedList, setSortedList] = useState([])
   const [isSaving, setIsSaving] = useState(false)
-  const [deletingId, setDeletingId] = useState(null)
 
-  // Initialize sortedList when rokokList changes or isSorting is enabled
   useEffect(() => {
+    setLocalList(rokokList)
     setSortedList(rokokList)
   }, [rokokList])
 
+  const upsertLocal = (record) => {
+    if (!record?.id) return
+    setLocalList((prev) =>
+      prev.some((r) => r.id === record.id)
+        ? prev.map((r) => r.id === record.id ? record : r)
+        : [record, ...prev]
+    )
+  }
+  const removeLocal = (id) => setLocalList((prev) => prev.filter((r) => r.id !== id))
+
   const rows = useMemo(() => {
-    // During transition or sorting, keep the local sortedList
     if (isSorting || isPending || isSaving) return sortedList
-    return [...rokokList]
-  }, [rokokList, isSorting, sortedList, isPending, isSaving])
+    return localList
+  }, [localList, isSorting, sortedList, isPending, isSaving])
 
   const isUsed = (id) => usedIds.includes(id)
 
@@ -76,18 +90,18 @@ export default function RokokPage({ role, rokokList, usedIds, mutasiHariIni = []
   const handleDelete = async (r) => {
     const alasan = await confirmWithReason(`Hapus rokok "${r.nama}"? Data distribusi & retur tidak akan ikut terhapus.`, { title: "Hapus Rokok", variant: "danger", confirmLabel: "Ya, Hapus" })
     if (!alasan) return
-    setDeletingId(r.id)
-    try {
-      await deleteRokok(r.id, alasan)
-      router.refresh()
-    } finally {
-      setDeletingId(null)
-    }
+    removeLocal(r.id)
+    deleteRokok(r.id, alasan).catch(async (error) => {
+      upsertLocal(r)
+      await confirm(error?.message || "Gagal menghapus rokok.", { title: "Gagal Hapus", hideCancel: true })
+    })
   }
 
-  const handleToggle = async (id) => {
-    await toggleAktifRokok(id)
-    router.refresh()
+  const handleToggle = (id) => {
+    setLocalList((prev) => prev.map((r) => r.id === id ? { ...r, aktif: !r.aktif } : r))
+    toggleAktifRokok(id).catch(() => {
+      setLocalList((prev) => prev.map((r) => r.id === id ? { ...r, aktif: !r.aktif } : r))
+    })
   }
 
   const sensors = useSensors(
@@ -221,10 +235,10 @@ export default function RokokPage({ role, rokokList, usedIds, mutasiHariIni = []
             empty="Belum ada rokok."
             columns={[
               { key: "no",   label: "No",         render: (_, idx) => idx + 1 },
-              { key: "nama", label: "Nama Rokok" },
+              { key: "nama", label: "Nama Rokok",  render: (r) => r._pending ? <SkeletonText w="w-28" /> : r.nama },
               {
                 key: "stok", label: "Stok", align: "right",
-                render: (r) => (
+                render: (r) => r._pending ? <SkeletonText w="w-12" /> : (
                   <div className="flex items-center justify-end gap-2">
                     <span className={`font-semibold tabular-nums ${(r.stok ?? 0) < 50 ? "text-red-600" : (r.stok ?? 0) < 150 ? "text-amber-500" : "text-green-600"}`}>{r.stok ?? 0}</span>
                     {role !== "staff" && (
@@ -235,30 +249,40 @@ export default function RokokPage({ role, rokokList, usedIds, mutasiHariIni = []
               },
               {
                 key: "actions", label: "", align: "right",
-                render: (r) => (
-                  <div className="flex items-center justify-end gap-1">
-                    <IconButton
-                      onClick={() => setDetailTarget(r)}
-                      icon={Eye}
-                      label="Detail"
-                      className="bg-white text-neutral-500 hover:bg-neutral-50 border-neutral-200 shadow-sm"
-                    />
-                    <RowActions
-                      onEdit={role !== "staff" ? () => { setEditing(r); setMode("edit") } : null}
-                      onDelete={role !== "staff" ? () => handleDelete(r) : null}
-                      deleteDisabled={isUsed(r.id)}
-                      deleteTitle="Rokok sudah digunakan di data distribusi/retur"
-                      deleteLoading={deletingId === r.id}
-                    />
-                    <button
-                      onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
-                      className="inline-flex items-center justify-center h-7 w-7 rounded-md text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 transition"
-                      title="Lihat mutasi hari ini"
-                    >
-                      <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${expandedId === r.id ? "rotate-180" : ""}`} />
-                    </button>
-                  </div>
-                ),
+                render: (r) => {
+                  if (r._pending) return (
+                    <div className="flex items-center justify-end gap-2 pr-1">
+                      <svg className="h-4 w-4 animate-spin text-neutral-400" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                      </svg>
+                      <span className="text-xs text-neutral-400">Menyimpan...</span>
+                    </div>
+                  )
+                  return (
+                    <div className="flex items-center justify-end gap-1">
+                      <IconButton
+                        onClick={() => setDetailTarget(r)}
+                        icon={Eye}
+                        label="Detail"
+                        className="bg-white text-neutral-500 hover:bg-neutral-50 border-neutral-200 shadow-sm"
+                      />
+                      <RowActions
+                        onEdit={role !== "staff" ? () => { setEditing(r); setMode("edit") } : null}
+                        onDelete={role !== "staff" ? () => handleDelete(r) : null}
+                        deleteDisabled={isUsed(r.id)}
+                        deleteTitle="Rokok sudah digunakan di data distribusi/retur"
+                      />
+                      <button
+                        onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
+                        className="inline-flex items-center justify-center h-7 w-7 rounded-md text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 transition"
+                        title="Lihat mutasi hari ini"
+                      >
+                        <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${expandedId === r.id ? "rotate-180" : ""}`} />
+                      </button>
+                    </div>
+                  )
+                },
               },
             ]}
             rowExtra={(r) => expandedId === r.id ? (
@@ -271,47 +295,58 @@ export default function RokokPage({ role, rokokList, usedIds, mutasiHariIni = []
             mobileRender={(r) => (
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-neutral-900">{r.nama}</p>
-                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                    <span className={`text-xs font-semibold tabular-nums ${(r.stok ?? 0) < 50 ? "text-red-600" : (r.stok ?? 0) < 150 ? "text-amber-500" : "text-green-600"}`}>
-                      Stok: {r.stok ?? 0}
-                    </span>
-                    <IconButton
-                      onClick={() => setStokTarget(r)}
-                      icon={Plus}
-                      label="Tambah stok"
-                      className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border-emerald-100"
-                    />
-                    <button
-                      onClick={() => setDetailTarget(r)}
-                      className="inline-flex items-center gap-0.5 text-xs text-neutral-500 hover:text-neutral-700"
-                    >
-                      <Eye className="h-3 w-3" />
-                      Detail
-                    </button>
-                    <button
-                      onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
-                      className="inline-flex items-center gap-0.5 text-xs text-neutral-500 hover:text-neutral-700"
-                    >
-                      <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${expandedId === r.id ? "rotate-180" : ""}`} />
-                      Mutasi
-                    </button>
-                  </div>
+                  <p className="font-medium text-neutral-900">{r._pending ? <SkeletonText w="w-28" /> : r.nama}</p>
+                  {r._pending ? (
+                    <div className="flex items-center gap-2 mt-1">
+                      <svg className="h-4 w-4 animate-spin text-neutral-400" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                      </svg>
+                      <span className="text-xs text-neutral-400">Menyimpan...</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      <span className={`text-xs font-semibold tabular-nums ${(r.stok ?? 0) < 50 ? "text-red-600" : (r.stok ?? 0) < 150 ? "text-amber-500" : "text-green-600"}`}>
+                        Stok: {r.stok ?? 0}
+                      </span>
+                      <IconButton
+                        onClick={() => setStokTarget(r)}
+                        icon={Plus}
+                        label="Tambah stok"
+                        className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border-emerald-100"
+                      />
+                      <button
+                        onClick={() => setDetailTarget(r)}
+                        className="inline-flex items-center gap-0.5 text-xs text-neutral-500 hover:text-neutral-700"
+                      >
+                        <Eye className="h-3 w-3" />
+                        Detail
+                      </button>
+                      <button
+                        onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
+                        className="inline-flex items-center gap-0.5 text-xs text-neutral-500 hover:text-neutral-700"
+                      >
+                        <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${expandedId === r.id ? "rotate-180" : ""}`} />
+                        Mutasi
+                      </button>
+                    </div>
+                  )}
                   {expandedId === r.id && (
                     <div className="mt-2">
                       <MutasiHariIni mutations={mutasiHariIni.filter(m => m.rokok_id === r.id)} />
                     </div>
                   )}
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <RowActions
-                    onEdit={() => { setEditing(r); setMode("edit") }}
-                    onDelete={() => { handleDelete(r) }}
-                    deleteDisabled={isUsed(r.id)}
-                    deleteTitle="Rokok sudah digunakan di data distribusi/retur"
-                    deleteLoading={deletingId === r.id}
-                  />
-                </div>
+                {!r._pending && (
+                  <div className="flex items-center gap-2 shrink-0">
+                    <RowActions
+                      onEdit={() => { setEditing(r); setMode("edit") }}
+                      onDelete={() => { handleDelete(r) }}
+                      deleteDisabled={isUsed(r.id)}
+                      deleteTitle="Rokok sudah digunakan di data distribusi/retur"
+                    />
+                  </div>
+                )}
               </div>
             )}
           />
@@ -326,15 +361,27 @@ export default function RokokPage({ role, rokokList, usedIds, mutasiHariIni = []
             rokokList={rokokList}
             onSubmit={async (data) => {
               if (mode === "add") {
-                await addRokok(data)
+                const tempId = `temp-${Date.now()}`
+                upsertLocal({ id: tempId, ...data, _pending: true })
                 close()
-                router.refresh()
+                addRokok(data)
+                  .then(() => router.refresh())
+                  .catch(async (error) => {
+                    removeLocal(tempId)
+                    await confirm(error?.message || "Gagal menambah rokok.", { title: "Gagal Tambah", hideCancel: true })
+                  })
               } else {
+                const captured = editing
                 close()
-                const alasan = await confirmWithReason(`Edit rokok "${editing.nama}"?`, { title: "Edit Rokok", confirmLabel: "Ya, Simpan" })
+                const alasan = await confirmWithReason(`Edit rokok "${captured.nama}"?`, { title: "Edit Rokok", confirmLabel: "Ya, Simpan" })
                 if (!alasan) return
-                await updateRokok(editing.id, data, alasan)
-                router.refresh()
+                upsertLocal({ ...captured, ...data, _pending: true })
+                updateRokok(captured.id, data, alasan)
+                  .then(() => router.refresh())
+                  .catch(async (error) => {
+                    upsertLocal({ ...captured, _pending: false })
+                    await confirm(error?.message || "Gagal mengedit rokok.", { title: "Gagal Edit", hideCancel: true })
+                  })
               }
             }}
             onCancel={close}
@@ -352,9 +399,15 @@ export default function RokokPage({ role, rokokList, usedIds, mutasiHariIni = []
           <TambahStokForm
             rokok={stokTarget}
             onSubmit={async (qty, date, ket) => {
-              await tambahStok(stokTarget.id, qty, date, ket)
+              const captured = stokTarget
+              upsertLocal({ ...captured, stok: (captured.stok ?? 0) + qty, _pending: true })
               setStokTarget(null)
-              router.refresh()
+              tambahStok(captured.id, qty, date, ket)
+                .then(() => router.refresh())
+                .catch(async (error) => {
+                  upsertLocal({ ...captured, _pending: false })
+                  await confirm(error?.message || "Gagal menambah stok.", { title: "Gagal Tambah Stok", hideCancel: true })
+                })
             }}
             onCancel={() => setStokTarget(null)}
           />
@@ -437,6 +490,7 @@ export default function RokokPage({ role, rokokList, usedIds, mutasiHariIni = []
         </Modal>
       )}
 
+      {ConfirmModal}
       {ConfirmWithReasonModal}
     </div>
   )
