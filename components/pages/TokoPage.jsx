@@ -19,7 +19,7 @@ function SkeletonText({ w = "w-24" }) {
   return <div className={`h-3.5 ${w} animate-pulse rounded bg-neutral-200`} />
 }
 
-export default function TokoPage({ role, tokoList, titipJualList }) {
+export default function TokoPage({ role, tokoList, usedTokoIds = [] }) {
   const router = useRouter()
   const { confirm, ConfirmModal } = useConfirm()
   const [localList, setLocalList] = useState(tokoList)
@@ -44,7 +44,8 @@ export default function TokoPage({ role, tokoList, titipJualList }) {
     return [...pending, ...rest]
   }, [localList])
 
-  const isUsed = (id) => titipJualList.some((k) => k.toko_id === id)
+  const usedSet = useMemo(() => new Set(usedTokoIds), [usedTokoIds])
+  const isUsed = (id) => usedSet.has(id)
 
   const close = () => { setMode(null); setEditing(null) }
 

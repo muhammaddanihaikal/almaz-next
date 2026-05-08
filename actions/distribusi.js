@@ -123,10 +123,10 @@ function serialize(s) {
   }
 }
 
-// Default: hanya muat sesi 90 hari terakhir untuk performa.
+// Default: hanya muat sesi 60 hari terakhir untuk performa.
 // Data lebih lama tetap ada di DB dan bisa diakses via halaman Riwayat
 // atau dengan memanggil getSesiList(daysBack) dengan nilai lebih besar.
-export async function getSesiList(daysBack = 90) {
+export async function getSesiList(daysBack = 60) {
   const where = {}
   if (daysBack && Number.isFinite(daysBack)) {
     const since = new Date()

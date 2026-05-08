@@ -1,6 +1,5 @@
 import { auth } from "@/lib/auth"
-import { getTokoList } from "@/actions/toko"
-import { getTitipJualList } from "@/actions/titip_jual"
+import { getTokoList, getUsedTokoIds } from "@/actions/toko"
 import TokoPage from "@/components/pages/TokoPage"
 
 export const revalidate = 0
@@ -10,10 +9,10 @@ export const metadata = {
 }
 
 export default async function Page() {
-  const [session, tokoList, titipJualList] = await Promise.all([
+  const [session, tokoList, usedTokoIds] = await Promise.all([
     auth(),
     getTokoList(),
-    getTitipJualList(null),
+    getUsedTokoIds(),
   ])
-  return <TokoPage role={session?.user?.role} tokoList={tokoList} titipJualList={titipJualList} />
+  return <TokoPage role={session?.user?.role} tokoList={tokoList} usedTokoIds={usedTokoIds} />
 }

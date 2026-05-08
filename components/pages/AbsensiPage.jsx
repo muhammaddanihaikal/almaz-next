@@ -1,13 +1,17 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Plus } from "lucide-react"
 import { fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc, downloadExcel } from "@/lib/utils"
 import { saveAbsensi, deleteAbsensi } from "@/actions/absensi"
-import { Card, PageHeader, DateFilter, DownloadButton, PrimaryButton, Field, FormActions, SelectInput, RowActions, inputCls, useConfirm } from "@/components/ui"
+import { Card, PageHeader, DateFilter, DownloadButton, PrimaryButton, Field, FormActions, SelectInput, RowActions, Button, inputCls, useConfirm } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
+
+function SkeletonText({ w = "w-24" }) {
+  return <div className={`h-3.5 ${w} animate-pulse rounded bg-neutral-200`} />
+}
 
 const PAGE_SIZE = 10
 
@@ -39,13 +43,42 @@ function groupByDate(absensiList) {
 export default function AbsensiPage({ role, absensiList, salesList }) {
   const router = useRouter()
   const { confirm, ConfirmModal } = useConfirm()
+  const [localList, setLocalList] = useState(absensiList)
+  const [pendingTanggal, setPendingTanggal] = useState(() => new Set())
   const [mode, setMode] = useState(null)
   const [editingTanggal, setEditingTanggal] = useState(null)
   const [detail, setDetail] = useState(null)
   const [dateRange, setDateRange] = useState(defaultDateRange("minggu_ini"))
-  const [deletingId, setDeletingId] = useState(null)
 
-  const filteredFlat = useMemo(() => filterByDateRange(absensiList, dateRange), [absensiList, dateRange])
+  useEffect(() => {
+    setLocalList(absensiList)
+    setPendingTanggal(new Set())
+  }, [absensiList])
+
+  const markPending = (tanggal) =>
+    setPendingTanggal((prev) => {
+      const next = new Set(prev)
+      next.add(tanggal)
+      return next
+    })
+  const unmarkPending = (tanggal) =>
+    setPendingTanggal((prev) => {
+      const next = new Set(prev)
+      next.delete(tanggal)
+      return next
+    })
+
+  const replaceForTanggal = (tanggal, records) => {
+    setLocalList((prev) => [
+      ...prev.filter((a) => a.tanggal !== tanggal),
+      ...records,
+    ])
+  }
+  const removeForTanggal = (tanggal) => {
+    setLocalList((prev) => prev.filter((a) => a.tanggal !== tanggal))
+  }
+
+  const filteredFlat = useMemo(() => filterByDateRange(localList, dateRange), [localList, dateRange])
   const rows = useMemo(() => sortByDateDesc(groupByDate(filteredFlat)), [filteredFlat])
 
   const handleDownload = () => {
@@ -69,14 +102,14 @@ export default function AbsensiPage({ role, absensiList, salesList }) {
   const handleDelete = async (tanggal) => {
     const ok = await confirm(`Hapus semua data absensi tanggal ${fmtTanggal(tanggal)}?`, { title: "Hapus Absensi", variant: "danger", confirmLabel: "Ya, Hapus" })
     if (!ok) return
-    
-    setDeletingId(tanggal)
-    try {
-      await deleteAbsensi(tanggal)
-      router.refresh()
-    } finally {
-      setDeletingId(null)
-    }
+    const snapshot = localList.filter((a) => a.tanggal === tanggal)
+    removeForTanggal(tanggal)
+    deleteAbsensi(tanggal)
+      .then(() => router.refresh())
+      .catch(async (error) => {
+        setLocalList((prev) => [...prev, ...snapshot])
+        await confirm(error?.message || "Gagal menghapus absensi.", { title: "Gagal Hapus", hideCancel: true })
+      })
   }
 
   return (
@@ -115,6 +148,7 @@ export default function AbsensiPage({ role, absensiList, salesList }) {
             {
               key: "rekap", label: "Rekap Kehadiran",
               render: (r) => {
+                if (pendingTanggal.has(r.tanggal)) return <SkeletonText w="w-40" />
                 const hadir = r.records.filter((a) => a.status === "hadir").length
                 const izin  = r.records.filter((a) => a.status === "izin").length
                 const sakit = r.records.filter((a) => a.status === "sakit").length
@@ -129,20 +163,31 @@ export default function AbsensiPage({ role, absensiList, salesList }) {
                 )
               },
             },
-            { key: "total", label: "Total", align: "right", render: (r) => <span className="text-sm text-neutral-500">{r.records.length} sales</span> },
+            { key: "total", label: "Total", align: "right", render: (r) => pendingTanggal.has(r.tanggal) ? <SkeletonText w="w-16" /> : <span className="text-sm text-neutral-500">{r.records.length} sales</span> },
             {
               key: "actions", label: "", align: "right",
-              render: (r) => (
-                <RowActions
-                  onDetail={() => setDetail(r)}
-                  onEdit={role !== "staff" ? () => { setEditingTanggal(r.tanggal); setMode("edit") } : null}
-                  onDelete={role !== "staff" ? () => handleDelete(r.tanggal) : null}
-                  deleteLoading={deletingId === r.tanggal}
-                />
-              ),
+              render: (r) => {
+                if (pendingTanggal.has(r.tanggal)) return (
+                  <div className="flex items-center justify-end gap-2 pr-1">
+                    <svg className="h-4 w-4 animate-spin text-neutral-400" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                    </svg>
+                    <span className="text-xs text-neutral-400">Menyimpan...</span>
+                  </div>
+                )
+                return (
+                  <RowActions
+                    onDetail={() => setDetail(r)}
+                    onEdit={role !== "staff" ? () => { setEditingTanggal(r.tanggal); setMode("edit") } : null}
+                    onDelete={role !== "staff" ? () => handleDelete(r.tanggal) : null}
+                  />
+                )
+              },
             },
           ]}
           mobileRender={(r) => {
+            const isPending = pendingTanggal.has(r.tanggal)
             const hadir = r.records.filter((a) => a.status === "hadir").length
             const izin  = r.records.filter((a) => a.status === "izin").length
             const sakit = r.records.filter((a) => a.status === "sakit").length
@@ -152,21 +197,32 @@ export default function AbsensiPage({ role, absensiList, salesList }) {
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="font-medium text-neutral-900">{fmtTanggal(r.tanggal)}</p>
-                    <p className="text-xs text-neutral-500">{r.records.length} sales</p>
+                    {isPending ? <SkeletonText w="w-16" /> : <p className="text-xs text-neutral-500">{r.records.length} sales</p>}
                   </div>
-                  <RowActions
-                    onDetail={() => setDetail(r)}
-                    onEdit={role !== "staff" ? () => { setEditingTanggal(r.tanggal); setMode("edit") } : null}
-                    onDelete={role !== "staff" ? () => { handleDelete(r.tanggal) } : null}
-                    deleteLoading={deletingId === r.tanggal}
-                  />
+                  {isPending ? (
+                    <div className="flex items-center gap-2 pr-1">
+                      <svg className="h-4 w-4 animate-spin text-neutral-400" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                      </svg>
+                      <span className="text-xs text-neutral-400">Menyimpan...</span>
+                    </div>
+                  ) : (
+                    <RowActions
+                      onDetail={() => setDetail(r)}
+                      onEdit={role !== "staff" ? () => { setEditingTanggal(r.tanggal); setMode("edit") } : null}
+                      onDelete={role !== "staff" ? () => { handleDelete(r.tanggal) } : null}
+                    />
+                  )}
                 </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {hadir > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">{hadir} Hadir</span>}
-                  {izin  > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-700">{izin} Izin</span>}
-                  {sakit > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700">{sakit} Sakit</span>}
-                  {alpha > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700">{alpha} Alpha</span>}
-                </div>
+                {!isPending && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {hadir > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700">{hadir} Hadir</span>}
+                    {izin  > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-700">{izin} Izin</span>}
+                    {sakit > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700">{sakit} Sakit</span>}
+                    {alpha > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700">{alpha} Alpha</span>}
+                  </div>
+                )}
               </div>
             )
           }}
@@ -200,12 +256,27 @@ export default function AbsensiPage({ role, absensiList, salesList }) {
         >
           <AbsensiForm
             tanggal={editingTanggal}
-            absensiList={absensiList}
+            absensiList={localList}
             salesList={salesList}
             onSubmit={async (tanggal, records) => {
-              await saveAbsensi(tanggal, records)
+              const snapshot = localList.filter((a) => a.tanggal === tanggal)
+              const optimistic = records.map((r, idx) => ({
+                id:       `temp-${tanggal}-${r.sales_id}-${idx}`,
+                tanggal,
+                sales_id: r.sales_id,
+                status:   r.status,
+                reason:   r.reason || "",
+              }))
+              replaceForTanggal(tanggal, optimistic)
+              markPending(tanggal)
               close()
-              router.refresh()
+              saveAbsensi(tanggal, records)
+                .then(() => router.refresh())
+                .catch(async (error) => {
+                  unmarkPending(tanggal)
+                  replaceForTanggal(tanggal, snapshot)
+                  await confirm(error?.message || "Gagal menyimpan absensi.", { title: "Gagal Simpan", hideCancel: true })
+                })
             }}
             onCancel={close}
           />
