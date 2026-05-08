@@ -1583,6 +1583,7 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, stockCutoffDate
           <input
             type="date"
             value={tanggal}
+            max={today}
             onChange={(e) => {
               setTanggal(e.target.value)
               setSalesId("")
