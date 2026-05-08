@@ -1,11 +1,11 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AlertCircle, Clock, Search, CheckCircle, ChevronDown } from "lucide-react"
 import { fmtIDR, fmtTanggal, defaultDateRange } from "@/lib/utils"
 import { settleTitipJual, editSettlement, revertSettlement, editTitipJualDetail, deleteTitipJual } from "@/actions/titip_jual"
-import { Card, PageHeader, SelectInput, Field, FormActions, inputCls, useConfirmWithReason, DateFilter, Button, IconButton } from "@/components/ui"
+import { Card, PageHeader, SelectInput, Field, FormActions, inputCls, useConfirm, useConfirmWithReason, DateFilter, Button, IconButton } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
 import SettlementForm from "@/components/SettlementForm"
@@ -48,9 +48,13 @@ function TabButton({ active, onClick, children }) {
   )
 }
 
+function SkeletonText({ w = "w-24" }) {
+  return <div className={`h-3.5 ${w} animate-pulse rounded bg-neutral-200`} />
+}
+
 export default function KonsinyasiPage({ role, titipJualList, salesList }) {
-  const konsinyasiList = titipJualList
   const router = useRouter()
+  const [localList, setLocalList] = useState(titipJualList)
   const [activeTab,    setActiveTab]    = useState("aktif")
   const [search,       setSearch]       = useState("")
   const [salesFilter,  setSalesFilter]  = useState("")
@@ -58,14 +62,29 @@ export default function KonsinyasiPage({ role, titipJualList, salesList }) {
   const [dateRange, setDateRange] = useState(defaultDateRange("minggu_ini"))
   const [expandedHariIni, setExpandedHariIni] = useState(false)
   const [expandedSegera,  setExpandedSegera]  = useState(false)
+  const { confirm, ConfirmModal }                     = useConfirm()
   const { confirmWithReason, ConfirmWithReasonModal } = useConfirmWithReason()
   const [settling,          setSettling]          = useState(null)
   const [editingSettlement, setEditingSettlement] = useState(null)
   const [editingDetail,     setEditingDetail]     = useState(null)
   const [detail,            setDetail]            = useState(null)
 
-  const jatuhTempoHariIni = konsinyasiList.filter((k) => k.status === "aktif" && k.selisihHari <= 0)
-  const jatuhTempoSegera  = konsinyasiList.filter((k) => k.status === "aktif" && k.selisihHari > 0 && k.selisihHari <= 3)
+  useEffect(() => { setLocalList(titipJualList) }, [titipJualList])
+
+  const upsertLocal = (record) => {
+    if (!record?.id) return
+    setLocalList((prev) =>
+      prev.some((r) => r.id === record.id)
+        ? prev.map((r) => r.id === record.id ? record : r)
+        : [record, ...prev]
+    )
+  }
+  const removeLocal = (id) => setLocalList((prev) => prev.filter((r) => r.id !== id))
+
+  const konsinyasiList = localList
+
+  const jatuhTempoHariIni = konsinyasiList.filter((k) => k.status === "aktif" && !k._pending && k.selisihHari <= 0)
+  const jatuhTempoSegera  = konsinyasiList.filter((k) => k.status === "aktif" && !k._pending && k.selisihHari > 0 && k.selisihHari <= 3)
 
   const { rows, countAktif, countSelesai } = useMemo(() => {
     const listAktif   = konsinyasiList.filter(r => r.status === "aktif")
@@ -264,23 +283,23 @@ export default function KonsinyasiPage({ role, titipJualList, salesList }) {
           empty={`Tidak ada titip jual ${activeTab}.`}
           columns={[
             { key: "no",         label: "No",           render: (_, idx) => idx + 1 },
-            { key: "jatuh_tempo", label: "Jatuh Tempo", render: (r) => (
+            { key: "jatuh_tempo", label: "Jatuh Tempo", render: (r) => r._pending ? <SkeletonText w="w-20" /> : (
               <span className={r.status === "aktif" && r.selisihHari <= 0 ? "text-red-600 font-semibold" : r.status === "aktif" && r.selisihHari <= 3 ? "text-amber-600 font-semibold" : ""}>
                 {fmtTanggal(r.tanggal_jatuh_tempo)}
               </span>
             )},
-            { key: "sales",      label: "Sales",        render: (r) => r.sales },
-            { key: "nama_toko",  label: "Toko",         render: (r) => r.nama_toko },
-            { key: "kategori",   label: "Kategori",     render: (r) => <Badge label={r.kategori} colorClass={KATEGORI_COLOR[r.kategori] || "bg-neutral-100 text-neutral-600"} /> },
+            { key: "sales",      label: "Sales",        render: (r) => r._pending ? <SkeletonText w="w-16" /> : r.sales },
+            { key: "nama_toko",  label: "Toko",         render: (r) => r._pending ? <SkeletonText w="w-16" /> : r.nama_toko },
+            { key: "kategori",   label: "Kategori",     render: (r) => r._pending ? <SkeletonText w="w-12" /> : <Badge label={r.kategori} colorClass={KATEGORI_COLOR[r.kategori] || "bg-neutral-100 text-neutral-600"} /> },
             {
               key: "items", label: "Rokok",
-              render: (r) => <RokokItemsTooltip items={r.items.map(it => ({ ...it, qty: it.qty_keluar }))} />,
+              render: (r) => r._pending ? <SkeletonText w="w-28" /> : <RokokItemsTooltip items={r.items.map(it => ({ ...it, qty: it.qty_keluar }))} />,
             },
-            { key: "nilai", label: "Nilai", align: "right", render: (r) => fmtIDR(r.nilaiTotal) },
-            ...(activeTab === "selesai" ? [{ key: "tgl_selesai", label: "Tgl Selesai", render: (r) => r.tanggal_selesai ? <span className="text-green-700 font-medium">{fmtTanggal(r.tanggal_selesai)}</span> : <span className="text-neutral-300">—</span> }] : []),
+            { key: "nilai", label: "Nilai", align: "right", render: (r) => r._pending ? <SkeletonText w="w-16" /> : fmtIDR(r.nilaiTotal) },
+            ...(activeTab === "selesai" ? [{ key: "tgl_selesai", label: "Tgl Selesai", render: (r) => r._pending ? <SkeletonText w="w-20" /> : r.tanggal_selesai ? <span className="text-green-700 font-medium">{fmtTanggal(r.tanggal_selesai)}</span> : <span className="text-neutral-300">—</span> }] : []),
             {
               key: "flag", label: "",
-              render: (r) => r.flagSetoran ? (
+              render: (r) => r._pending ? null : r.flagSetoran ? (
                 <span className="flex items-center gap-1 text-xs text-red-600 whitespace-nowrap">
                   <AlertCircle className="h-3 w-3" /> Selisih setoran
                 </span>
@@ -292,94 +311,87 @@ export default function KonsinyasiPage({ role, titipJualList, salesList }) {
             },
             {
               key: "actions", label: "", align: "right",
-              render: (r) => (
-                <div className="flex items-center justify-end gap-1.5">
-                  {r.status === "aktif" && (
-                    <>
-                      {role !== "staff" && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setSettling(r)}
-                          className="border border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
-                        >
-                          Selesaikan
+              render: (r) => {
+                if (r._pending) return (
+                  <div className="flex items-center justify-end gap-2 pr-1">
+                    <svg className="h-4 w-4 animate-spin text-neutral-400" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                    </svg>
+                    <span className="text-xs text-neutral-400">Menyimpan...</span>
+                  </div>
+                )
+                return (
+                  <div className="flex items-center justify-end gap-1.5">
+                    {r.status === "aktif" && (
+                      <>
+                        {role !== "staff" && (
+                          <Button size="sm" variant="ghost" onClick={() => setSettling(r)} className="border border-green-200 bg-green-50 text-green-700 hover:bg-green-100">
+                            Selesaikan
+                          </Button>
+                        )}
+                        <Button size="sm" variant="ghost" onClick={() => setDetail(r)} className="border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100">
+                          Detail
                         </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setDetail(r)}
-                        className="border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
-                      >
-                        Detail
-                      </Button>
-                      {role !== "staff" && (
-                        <>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setEditingDetail(r)}
-                            className="border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={async () => {
-                              const alasan = await confirmWithReason(`Hapus titip jual "${r.nama_toko}"? Stok akan dikembalikan.`, { title: "Hapus Titip Jual", variant: "danger", confirmLabel: "Ya, Hapus" })
-                              if (!alasan) return
-                              await deleteTitipJual(r.id, alasan)
-                              router.refresh()
-                            }}
-                            className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-                          >
-                            Hapus
-                          </Button>
-                        </>
-                      )}
-                    </>
-                  )}
-                  {r.status === "selesai" && (
-                    <>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setDetail(r)}
-                        className="border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
-                      >
-                        Detail
-                      </Button>
-                      {role !== "staff" && (
-                        <>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setEditingSettlement(r)}
-                            className="border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={async () => {
-                              const alasan = await confirmWithReason(`Batalkan penyelesaian titip jual "${r.nama_toko}"? Status akan kembali ke Aktif.`, { title: "Batalkan Penyelesaian", variant: "danger", confirmLabel: "Ya, Batalkan" })
-                              if (!alasan) return
-                              await revertSettlement(r.id, alasan)
-                              router.refresh()
-                            }}
-                            className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-                          >
-                            Batalkan
-                          </Button>
-                        </>
-                      )}
-                    </>
-                  )}
-                </div>
-              ),
+                        {role !== "staff" && (
+                          <>
+                            <Button size="sm" variant="ghost" onClick={() => setEditingDetail(r)} className="border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100">
+                              Edit
+                            </Button>
+                            <Button
+                              size="sm" variant="ghost"
+                              className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                              onClick={async () => {
+                                const alasan = await confirmWithReason(`Hapus titip jual "${r.nama_toko}"? Stok akan dikembalikan.`, { title: "Hapus Titip Jual", variant: "danger", confirmLabel: "Ya, Hapus" })
+                                if (!alasan) return
+                                removeLocal(r.id)
+                                deleteTitipJual(r.id, alasan)
+                                  .catch(async (error) => {
+                                    upsertLocal(r)
+                                    await confirm(error?.message || "Gagal menghapus titip jual.", { title: "Gagal Hapus", hideCancel: true })
+                                  })
+                              }}
+                            >
+                              Hapus
+                            </Button>
+                          </>
+                        )}
+                      </>
+                    )}
+                    {r.status === "selesai" && (
+                      <>
+                        <Button size="sm" variant="ghost" onClick={() => setDetail(r)} className="border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100">
+                          Detail
+                        </Button>
+                        {role !== "staff" && (
+                          <>
+                            <Button size="sm" variant="ghost" onClick={() => setEditingSettlement(r)} className="border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100">
+                              Edit
+                            </Button>
+                            <Button
+                              size="sm" variant="ghost"
+                              className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                              onClick={async () => {
+                                const alasan = await confirmWithReason(`Batalkan penyelesaian titip jual "${r.nama_toko}"? Status akan kembali ke Aktif.`, { title: "Batalkan Penyelesaian", variant: "danger", confirmLabel: "Ya, Batalkan" })
+                                if (!alasan) return
+                                upsertLocal({ ...r, _pending: true })
+                                revertSettlement(r.id, alasan)
+                                  .then(() => router.refresh())
+                                  .catch(async (error) => {
+                                    upsertLocal({ ...r, _pending: false })
+                                    await confirm(error?.message || "Gagal membatalkan penyelesaian.", { title: "Gagal Batalkan", hideCancel: true })
+                                  })
+                              }}
+                            >
+                              Batalkan
+                            </Button>
+                          </>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )
+              },
             },
           ]}
         />
@@ -398,9 +410,15 @@ export default function KonsinyasiPage({ role, titipJualList, salesList }) {
           <SettlementForm
             konsinyasi={settling}
             onSubmit={async (data) => {
-              await settleTitipJual(settling.id, data)
+              const captured = settling
+              upsertLocal({ ...captured, _pending: true })
               setSettling(null)
-              router.refresh()
+              settleTitipJual(captured.id, data)
+                .then(() => router.refresh())
+                .catch(async (error) => {
+                  upsertLocal({ ...captured, _pending: false })
+                  await confirm(error?.message || "Gagal menyelesaikan titip jual.", { title: "Gagal Selesaikan", hideCancel: true })
+                })
             }}
             onCancel={() => setSettling(null)}
           />
@@ -417,8 +435,13 @@ export default function KonsinyasiPage({ role, titipJualList, salesList }) {
               setEditingDetail(null)
               const alasan = await confirmWithReason(`Edit detail titip jual "${captured.nama_toko}"?`, { title: "Edit Titip Jual", confirmLabel: "Ya, Simpan" })
               if (!alasan) return
-              await editTitipJualDetail(captured.id, data, alasan)
-              router.refresh()
+              upsertLocal({ ...captured, _pending: true })
+              editTitipJualDetail(captured.id, data, alasan)
+                .then(() => router.refresh())
+                .catch(async (error) => {
+                  upsertLocal({ ...captured, _pending: false })
+                  await confirm(error?.message || "Gagal mengedit titip jual.", { title: "Gagal Edit", hideCancel: true })
+                })
             }}
             onCancel={() => setEditingDetail(null)}
           />
@@ -436,13 +459,19 @@ export default function KonsinyasiPage({ role, titipJualList, salesList }) {
               setEditingSettlement(null)
               const alasan = await confirmWithReason(`Edit penyelesaian titip jual "${captured.nama_toko}"?`, { title: "Edit Penyelesaian", confirmLabel: "Ya, Simpan" })
               if (!alasan) return
-              await editSettlement(captured.id, data, alasan)
-              router.refresh()
+              upsertLocal({ ...captured, _pending: true })
+              editSettlement(captured.id, data, alasan)
+                .then(() => router.refresh())
+                .catch(async (error) => {
+                  upsertLocal({ ...captured, _pending: false })
+                  await confirm(error?.message || "Gagal mengedit penyelesaian.", { title: "Gagal Edit", hideCancel: true })
+                })
             }}
             onCancel={() => setEditingSettlement(null)}
           />
         </Modal>
       )}
+      {ConfirmModal}
       {ConfirmWithReasonModal}
     </div>
   )
