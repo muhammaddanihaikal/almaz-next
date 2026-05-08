@@ -36,6 +36,14 @@ function Badge({ label, colorClass }) {
   )
 }
 
+function SkeletonText({ w = "w-24" }) {
+  return <div className={`h-3.5 ${w} animate-pulse rounded bg-neutral-200`} />
+}
+
+function SkeletonBadge() {
+  return <div className="h-5 w-14 animate-pulse rounded-full bg-neutral-200" />
+}
+
 function collectSessionRokokIds(session) {
   const ids = new Set()
   const add = (items = []) => items.forEach((it) => it?.rokok_id && ids.add(String(it.rokok_id)))
@@ -373,8 +381,8 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
   const [rokokFilter, setRokokFilter] = useState([])
   const [statusFilter, setStatusFilter] = useState("")
   const [showExportMenu, setShowExportMenu] = useState(false)
-  const [deletingId, setDeletingId] = useState(null)
   const [localSesiList, setLocalSesiList] = useState(sesiList)
+  const [pendingIds, setPendingIds] = useState(new Set())
 
   useEffect(() => {
     setLocalSesiList(sesiList)
@@ -443,19 +451,15 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
       confirmLabel: "Ya, Hapus"
     })
     if (!alasan) return
-    setDeletingId(r.id)
-    try {
-      const result = await deleteSesi(r.id, alasan)
-      if (result && result.success === false) {
-        throw new Error(result.error || "Gagal menghapus sesi.")
-      }
-      removeLocalSesi(r.id)
-    } catch (error) {
-      console.error("[deleteSesi]", error)
-      await confirm(error?.message || "Gagal menghapus sesi.", { title: "Gagal Hapus Sesi", hideCancel: true })
-    } finally {
-      setDeletingId(null)
-    }
+    removeLocalSesi(r.id)
+    deleteSesi(r.id, alasan)
+      .then((result) => {
+        if (result && result.success === false) throw new Error(result.error || "Gagal menghapus sesi.")
+      })
+      .catch(async (error) => {
+        upsertLocalSesi(r)
+        await confirm(error?.message || "Gagal menghapus sesi.", { title: "Gagal Hapus Sesi", hideCancel: true })
+      })
   }
 
   return (
@@ -580,11 +584,12 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
           empty="Belum ada sesi distribusi."
           columns={[
             { key: "no",      label: "No",      render: (_, idx) => idx + 1 },
-            { key: "tanggal", label: "Tanggal", render: (r) => fmtTanggal(r.tanggal) },
-            { key: "sales",   label: "Sales",   render: (r) => r.sales },
+            { key: "tanggal", label: "Tanggal", render: (r) => r._pending ? <SkeletonText w="w-20" /> : fmtTanggal(r.tanggal) },
+            { key: "sales",   label: "Sales",   render: (r) => r._pending ? <SkeletonText w="w-24" /> : r.sales },
             {
               key: "status", label: "Status",
               render: (r) => {
+                if (r._pending) return <SkeletonBadge />
                 const hasAktifKonsinyasi = r.konsinyasi?.some((k) => k.status === "aktif")
                 const tukarAktifSales = tukarBarangList.filter((t) => t.status === "aktif" && t.sales_id === r.sales_id).length
                 return (
@@ -609,39 +614,49 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
             },
             {
               key: "keluar", label: "Barang Keluar",
-              render: (r) => <RokokItemsTooltip items={r.barangKeluar} />
+              render: (r) => r._pending ? <SkeletonText w="w-40" /> : <RokokItemsTooltip items={r.barangKeluar} />
             },
             {
               key: "actions", label: "", align: "right",
-              render: (r) => (
-                <div className="flex items-center justify-end gap-1">
-                  {role !== "staff" && r.status === "aktif" && (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => setLaporanSesi(r)}
-                    >
-                      Input Laporan
-                    </Button>
-                  )}
-                  {role !== "staff" && r.status === "selesai" && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
-                      onClick={() => setEditLaporan(r)}
-                    >
-                      Edit Laporan
-                    </Button>
-                  )}
-                  <RowActions
-                    onDetail={() => setDetail(r)}
-                    onEdit={role !== "staff" ? () => { setEditing(r); setMode("edit") } : null}
-                    onDelete={role !== "staff" ? () => { handleDelete(r) } : null}
-                    deleteLoading={deletingId === r.id}
-                  />
-                </div>
-              ),
+              render: (r) => {
+                if (r._pending) return (
+                  <div className="flex items-center justify-end gap-2 pr-1">
+                    <svg className="h-4 w-4 animate-spin text-neutral-400" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                    </svg>
+                    <span className="text-xs text-neutral-400">Menyimpan...</span>
+                  </div>
+                )
+                return (
+                  <div className="flex items-center justify-end gap-1">
+                    {role !== "staff" && r.status === "aktif" && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setLaporanSesi(r)}
+                      >
+                        Input Laporan
+                      </Button>
+                    )}
+                    {role !== "staff" && r.status === "selesai" && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                        onClick={() => setEditLaporan(r)}
+                      >
+                        Edit Laporan
+                      </Button>
+                    )}
+                    <RowActions
+                      onDetail={() => setDetail(r)}
+                      onEdit={role !== "staff" ? () => { setEditing(r); setMode("edit") } : null}
+                      onDelete={role !== "staff" ? () => { handleDelete(r) } : null}
+                    />
+                  </div>
+                )
+              },
             },
           ]}
         />
@@ -659,26 +674,72 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
             initial={editing}
             rokokList={rokokList}
             salesList={salesList}
-            sesiList={localSesiList}
+            sesiList={localSesiList.filter((s) => !s._pending)}
             stockCutoffDate={stockCutoffDate}
             onSubmit={async (data) => {
               if (mode === "add") {
-                const result = await createSesi(data)
-                if (result && result.success === false) {
-                  throw new Error(result.error || "Gagal membuat sesi distribusi.")
+                const tempId = `__pending__${Date.now()}`
+                const salesName = salesList.find((s) => s.id === data.sales_id)?.nama || ""
+                const optimisticRow = {
+                  id: tempId,
+                  tanggal: data.tanggal,
+                  sales_id: data.sales_id,
+                  sales: salesName,
+                  status: "aktif",
+                  is_historical: false,
+                  catatan: data.catatan || null,
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                  barangKeluar: (data.barangKeluar || []).map((it) => ({
+                    rokok_id: it.rokok_id,
+                    rokok: rokokList.find((r) => r.id === it.rokok_id)?.nama || "???",
+                    qty: it.qty,
+                  })),
+                  penjualan: [], setoran: [], barangKembali: [],
+                  konsinyasi: [], tukarBarang: [], tukarBarangSelesaiDiSesi: [],
+                  flagSetoran: false, flagQty: false,
+                  nilaiPenjualan: 0, totalSetoran: 0,
+                  _pending: true,
                 }
-                upsertLocalSesi(result.data)
+                setPendingIds((prev) => new Set([...prev, tempId]))
+                upsertLocalSesi(optimisticRow)
                 close()
+                try {
+                  const result = await createSesi(data)
+                  if (result && result.success === false) {
+                    throw new Error(result.error || "Gagal membuat sesi distribusi.")
+                  }
+                  setLocalSesiList((prev) => {
+                    const withoutTemp = prev.filter((s) => s.id !== tempId)
+                    const exists = withoutTemp.some((s) => s.id === result.data.id)
+                    const next = exists ? withoutTemp.map((s) => s.id === result.data.id ? result.data : s) : [result.data, ...withoutTemp]
+                    return next.sort((a, b) => {
+                      const byTanggal = b.tanggal.localeCompare(a.tanggal)
+                      if (byTanggal !== 0) return byTanggal
+                      return (b.createdAt || "").localeCompare(a.createdAt || "")
+                    })
+                  })
+                } catch (error) {
+                  removeLocalSesi(tempId)
+                  await confirm(error?.message || "Gagal membuat sesi distribusi.", { title: "Gagal Buat Sesi", hideCancel: true })
+                } finally {
+                  setPendingIds((prev) => { const next = new Set(prev); next.delete(tempId); return next })
+                }
               } else {
                 const captured = editing
                 const alasan = await confirmWithReason(`Edit distribusi pagi ${captured.sales}?`, { title: "Edit Distribusi Pagi", confirmLabel: "Ya, Simpan" })
                 if (!alasan) return
-                const result = await updateSesiPagi(captured.id, data, alasan)
-                if (result && result.success === false) {
-                  throw new Error(result.error || "Gagal mengubah sesi distribusi.")
-                }
-                upsertLocalSesi(result.data)
+                upsertLocalSesi({ ...captured, _pending: true })
                 close()
+                updateSesiPagi(captured.id, data, alasan)
+                  .then((result) => {
+                    if (result && result.success === false) throw new Error(result.error || "Gagal mengubah sesi distribusi.")
+                    upsertLocalSesi(result.data)
+                  })
+                  .catch(async (error) => {
+                    upsertLocalSesi({ ...captured, _pending: false })
+                    await confirm(error?.message || "Gagal mengubah sesi distribusi.", { title: "Gagal Edit Sesi", hideCancel: true })
+                  })
               }
             }}
             onCancel={close}
@@ -694,13 +755,19 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
             tokoList={tokoList}
             tukarBarangList={tukarBarangList}
             onSessionChange={upsertLocalSesi}
-            onSubmit={async (data) => {
-              const result = await submitLaporanSore(laporanSesi.id, { ...data, sales_id: laporanSesi.sales_id, tanggal: laporanSesi.tanggal })
-              if (result && result.success === false) {
-                throw new Error(result.error || "Gagal submit laporan sore.")
-              }
-              upsertLocalSesi(result.data)
+            onSubmit={(data) => {
+              const captured = laporanSesi
+              upsertLocalSesi({ ...captured, _pending: true })
               setLaporanSesi(null)
+              submitLaporanSore(captured.id, { ...data, sales_id: captured.sales_id, tanggal: captured.tanggal })
+                .then((result) => {
+                  if (result && result.success === false) throw new Error(result.error || "Gagal submit laporan sore.")
+                  upsertLocalSesi(result.data)
+                })
+                .catch(async (error) => {
+                  upsertLocalSesi({ ...captured, _pending: false })
+                  await confirm(error?.message || "Gagal submit laporan sore.", { title: "Gagal Input Laporan", hideCancel: true })
+                })
             }}
             onCancel={() => setLaporanSesi(null)}
           />
@@ -720,12 +787,17 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
               const captured = editLaporan
               const alasan = await confirmWithReason(`Edit laporan sore ${captured.sales}?`, { title: "Edit Laporan Sore", confirmLabel: "Ya, Simpan" })
               if (!alasan) return
-              const result = await editLaporanSore(captured.id, { ...data, sales_id: captured.sales_id, tanggal: captured.tanggal }, alasan)
-              if (result && result.success === false) {
-                throw new Error(result.error || "Gagal edit laporan sore.")
-              }
-              upsertLocalSesi(result.data)
+              upsertLocalSesi({ ...captured, _pending: true })
               setEditLaporan(null)
+              editLaporanSore(captured.id, { ...data, sales_id: captured.sales_id, tanggal: captured.tanggal }, alasan)
+                .then((result) => {
+                  if (result && result.success === false) throw new Error(result.error || "Gagal edit laporan sore.")
+                  upsertLocalSesi(result.data)
+                })
+                .catch(async (error) => {
+                  upsertLocalSesi({ ...captured, _pending: false })
+                  await confirm(error?.message || "Gagal edit laporan sore.", { title: "Gagal Edit Laporan", hideCancel: true })
+                })
             }}
             onCancel={() => setEditLaporan(null)}
           />
