@@ -591,7 +591,7 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
                   <div className="flex flex-col gap-1 items-start">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <Badge label={r.status === "selesai" ? "Selesai" : "Aktif"} colorClass={STATUS_COLOR[r.status]} />
-                      {r.is_historical && <Badge label="Data Lama" colorClass="bg-indigo-100 text-indigo-700 border border-indigo-300 justify-center" />}
+                      {r.is_historical && <Badge label="Data Lama" colorClass="bg-indigo-100 text-indigo-700 justify-center" />}
                     </div>
                     {hasAktifKonsinyasi && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
@@ -754,7 +754,7 @@ function SesiDetail({ record }) {
           <p className="text-xs text-neutral-500">Status</p>
           <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
             <Badge label={record.status === "selesai" ? "Selesai" : "Aktif"} colorClass={STATUS_COLOR[record.status]} />
-            {record.is_historical && <Badge label="Data Lama" colorClass="bg-indigo-100 text-indigo-700 border border-indigo-300 justify-center" />}
+            {record.is_historical && <Badge label="Data Lama" colorClass="bg-indigo-100 text-indigo-700 justify-center" />}
           </div>
         </div>
         {record.status === "selesai" && (
