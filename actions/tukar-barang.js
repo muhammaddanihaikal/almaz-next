@@ -2,7 +2,15 @@
 
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
-import { mutateStock, MUTATION_SOURCE } from "@/lib/stock"
+import { mutateStock, mutateStockBatch, MUTATION_SOURCE } from "@/lib/stock"
+
+function pushOrMutate(mutQueue, tx, mutation) {
+  if (mutQueue) {
+    mutQueue.push(mutation)
+    return
+  }
+  return mutateStock({ tx, ...mutation })
+}
 import { auth } from "@/lib/auth"
 import { logAudit, AUDIT_ACTION, AUDIT_ENTITY } from "@/lib/audit"
 
@@ -139,7 +147,7 @@ export async function deleteTukarBarang(id, alasan) {
  *   status = "selesai", sesi_selesai_id = sesi_id, tanggal_selesai = sesi.tanggal
  * - Else status = "aktif"
  */
-export async function createTukarBarangInSesi(tx, sesi, data, session, langsungSelesai = false) {
+export async function createTukarBarangInSesi(tx, sesi, data, session, langsungSelesai = false, mutQueue = null) {
   const itemsMasuk  = (data.itemsMasuk  || []).filter((it) => it.rokok_id && Number(it.qty) > 0)
   const itemsKeluar = (data.itemsKeluar || []).filter((it) => it.rokok_id && Number(it.qty) > 0)
   if (itemsMasuk.length === 0)  throw new Error("Minimal 1 rokok dari toko harus diisi.")
@@ -174,31 +182,29 @@ export async function createTukarBarangInSesi(tx, sesi, data, session, langsungS
 
   for (const it of itemsMasuk) {
     if (!sesi.is_historical) {
-      await mutateStock({
-      tx,
-      rokok_id: it.rokok_id,
-      tanggal:  sesi.tanggal,
-      jenis:    'in',
-      qty:      Number(it.qty),
-      source:   MUTATION_SOURCE.TUKAR_MASUK,
-      reference_id: tukar.id,
-      user_id:  session?.user?.id,
-    })
+      await pushOrMutate(mutQueue, tx, {
+        rokok_id: it.rokok_id,
+        tanggal:  sesi.tanggal,
+        jenis:    'in',
+        qty:      Number(it.qty),
+        source:   MUTATION_SOURCE.TUKAR_MASUK,
+        reference_id: tukar.id,
+        user_id:  session?.user?.id,
+      })
     }
   }
   if (langsungSelesai) {
     for (const it of itemsKeluar) {
       if (!sesi.is_historical) {
-        await mutateStock({
-        tx,
-        rokok_id: it.rokok_id,
-        tanggal:  sesi.tanggal,
-        jenis:    'out',
-        qty:      Number(it.qty),
-        source:   MUTATION_SOURCE.TUKAR_KELUAR,
-        reference_id: tukar.id,
-        user_id:  session?.user?.id,
-      })
+        await pushOrMutate(mutQueue, tx, {
+          rokok_id: it.rokok_id,
+          tanggal:  sesi.tanggal,
+          jenis:    'out',
+          qty:      Number(it.qty),
+          source:   MUTATION_SOURCE.TUKAR_KELUAR,
+          reference_id: tukar.id,
+          user_id:  session?.user?.id,
+        })
       }
     }
   }
@@ -228,7 +234,7 @@ export async function createTukarBarangInSesi(tx, sesi, data, session, langsungS
  * Selesaikan tukar barang yang masih aktif (dipanggil dari laporan sore hari-N).
  * TUKAR_KELUAR OUT untuk itemsKeluar — rokok A keluar gudang ke toko.
  */
-export async function selesaikanTukarBarangInSesi(tx, sesi, tukar_id, session) {
+export async function selesaikanTukarBarangInSesi(tx, sesi, tukar_id, session, mutQueue = null) {
   const tukar = await tx.tukarBarang.findUnique({
     where: { id: tukar_id },
     include: { itemsKeluar: true },
@@ -247,8 +253,7 @@ export async function selesaikanTukarBarangInSesi(tx, sesi, tukar_id, session) {
 
   for (const it of tukar.itemsKeluar) {
     if (it.qty > 0 && !sesi.is_historical) {
-      await mutateStock({
-        tx,
+      await pushOrMutate(mutQueue, tx, {
         rokok_id: it.rokok_id,
         tanggal:  sesi.tanggal,
         jenis:    'out',
@@ -280,7 +285,7 @@ export async function selesaikanTukarBarangInSesi(tx, sesi, tukar_id, session) {
  * Batalkan penyelesaian tukar barang (dipanggil saat edit/revert laporan sore).
  * Revert TUKAR_KELUAR OUT untuk itemsKeluar.
  */
-export async function revertSelesaiTukarBarangInSesi(tx, tukar_id, session) {
+export async function revertSelesaiTukarBarangInSesi(tx, tukar_id, session, mutQueue = null) {
   const tukar = await tx.tukarBarang.findUnique({
     where: { id: tukar_id },
     include: { itemsKeluar: true },
@@ -290,8 +295,7 @@ export async function revertSelesaiTukarBarangInSesi(tx, tukar_id, session) {
 
   for (const it of tukar.itemsKeluar) {
     if (it.qty > 0) {
-      await mutateStock({
-        tx,
+      await pushOrMutate(mutQueue, tx, {
         rokok_id: it.rokok_id,
         tanggal:  tukar.tanggal_selesai || tukar.tanggal,
         jenis:    'in',
