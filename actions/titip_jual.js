@@ -64,9 +64,9 @@ function serialize(k) {
 }
 
 // Default: muat semua titip jual yang masih aktif (apapun tanggalnya)
-// + titip jual selesai dari 60 hari terakhir. Data selesai lebih lama
+// + titip jual selesai dari 30 hari terakhir. Data selesai lebih lama
 // bisa diakses via filter tanggal di halaman atau halaman Riwayat.
-export async function getTitipJualList(daysBack = 60) {
+export async function getTitipJualList(daysBack = 30) {
   const where = {}
   if (daysBack && Number.isFinite(daysBack)) {
     const since = new Date()
