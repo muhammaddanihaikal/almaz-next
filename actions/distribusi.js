@@ -45,7 +45,17 @@ function serializeTukarList(list) {
 function serialize(s) {
   const tanggal = s.tanggal.toISOString().split("T")[0]
 
-  const nilaiPenjualan = s.penjualan.reduce((sum, it) => sum + it.qty * it.harga, 0)
+  const nilaiPenjualanLangsung = s.penjualan.reduce((sum, it) => sum + it.qty * it.harga, 0)
+  const nilaiTitipJual = s.titipJual.reduce((sum, k) => (
+    sum + k.items.reduce((ss, it) => ss + it.qty_keluar * it.harga, 0)
+  ), 0)
+  const tukarMap = new Map([...(s.tukarBarang || []), ...(s.tukarBarangSelesai || [])].map((t) => [t.id, t]))
+  const nilaiTukar = [...tukarMap.values()].reduce((sum, t) => {
+    const totalMasuk = t.itemsMasuk.reduce((ss, it) => ss + it.qty * it.harga_satuan, 0)
+    const totalKeluar = t.itemsKeluar.reduce((ss, it) => ss + it.qty * it.harga_satuan, 0)
+    return sum + (totalMasuk - totalKeluar)
+  }, 0)
+  const nilaiPenjualan = nilaiPenjualanLangsung + nilaiTitipJual + nilaiTukar
   const totalSetoran   = s.setoran.reduce((sum, it) => sum + it.jumlah, 0)
   const qtyKeluar      = s.barangKeluar.reduce((sum, it) => sum + it.qty, 0)
   const qtyTerjual     = s.penjualan.reduce((sum, it) => sum + it.qty, 0)
@@ -64,6 +74,7 @@ function serialize(s) {
     is_historical: s.is_historical,
     catatan:   s.catatan,
     createdAt: s.createdAt.toISOString(),
+    updatedAt: s.updatedAt.toISOString(),
     flagSetoran,
     flagQty,
     nilaiPenjualan,

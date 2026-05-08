@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState, Fragment } from "react"
-import { Plus, Trash2, AlertCircle, ChevronDown, ChevronUp, Download } from "lucide-react"
+import { Plus, Trash2, AlertCircle, ChevronDown, ChevronUp, Download, X } from "lucide-react"
 import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc } from "@/lib/utils"
 import { createSesi, updateSesiPagi, submitLaporanSore, editLaporanSore, deleteSesi } from "@/actions/distribusi"
 import { settleTitipJual, createTitipJual, editSettlement, revertSettlement, editTitipJualDetail, deleteTitipJual } from "@/actions/titip_jual"
@@ -634,8 +634,8 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
       </Card>
 
       {detail && (
-        <Modal title="Detail Sesi" onClose={() => setDetail(null)} width="max-w-4xl">
-          <SesiDetail record={detail} />
+        <Modal title="Detail Sesi" onClose={() => setDetail(null)} width="max-w-5xl" hideHeader>
+          <SesiDetailRedesign record={detail} onClose={() => setDetail(null)} />
         </Modal>
       )}
 
@@ -913,6 +913,528 @@ function SimpleTable({ rows, cols, labels }) {
 
 // ─── Form Sesi Pagi ───────────────────────────────────────────────────────────
 
+// Detail Sesi Redesign
+function SesiDetailRedesign({ record, onClose }) {
+  const [activeTab, setActiveTab] = useState("penjualan")
+
+  const penjualan = record.penjualan || []
+  const konsinyasi = record.konsinyasi || []
+  const barangKeluar = record.barangKeluar || []
+  const barangKembali = record.barangKembali || []
+  const setoran = record.setoran || []
+  const tukarBarang = useMemo(() => mergeTukarBarang(record), [record])
+
+  const kembaliMap = Object.fromEntries(barangKembali.map((it) => [it.rokok_id, it.qty]))
+  const totalBarangKeluar = barangKeluar.reduce((sum, it) => sum + Number(it.qty || 0), 0)
+  const totalQtyTerjual = penjualan.reduce((sum, it) => sum + Number(it.qty || 0), 0)
+    + konsinyasi.reduce((sum, k) => sum + (k.items || []).reduce((ss, it) => ss + Number(it.qty_terjual || 0), 0), 0)
+
+  const directTotals = penjualan.reduce((acc, it) => {
+    const kategori = it.kategori || "lainnya"
+    acc[kategori] = (acc[kategori] || 0) + Number(it.qty || 0) * Number(it.harga || 0)
+    return acc
+  }, {})
+  const totalPenjualanLangsung = Object.values(directTotals).reduce((sum, value) => sum + value, 0)
+  const totalTitipJual = konsinyasi.reduce((sum, k) => (
+    sum + (k.items || []).reduce((ss, it) => ss + Number(it.qty_keluar || 0) * Number(it.harga || 0), 0)
+  ), 0)
+  const totalTitipTerjual = konsinyasi.reduce((sum, k) => (
+    sum + (k.items || []).reduce((ss, it) => ss + Number(it.qty_terjual || 0) * Number(it.harga || 0), 0)
+  ), 0)
+  const totalTukarMasuk = tukarBarang.reduce((sum, t) => sum + totalTukarItems(t.itemsMasuk), 0)
+  const totalTukarKeluar = tukarBarang.reduce((sum, t) => sum + totalTukarItems(t.itemsKeluar), 0)
+  const selisihTukar = totalTukarMasuk - totalTukarKeluar
+  const totalKeseluruhan = totalPenjualanLangsung + totalTitipJual + selisihTukar
+
+  const setoranByMethod = setoran.reduce((acc, it) => {
+    const metode = (it.metode || "lainnya").toLowerCase()
+    acc[metode] = (acc[metode] || 0) + Number(it.jumlah || 0)
+    return acc
+  }, {})
+  const totalSetoran = Object.values(setoranByMethod).reduce((sum, value) => sum + value, 0)
+  const selisihSetoran = totalSetoran - totalKeseluruhan
+  const jamSesi = formatJamSesi(record)
+  const statusTone = record.status === "selesai" ? "green" : "amber"
+
+  return (
+    <div className="-m-6 overflow-hidden rounded-xl bg-white text-sm">
+      <div className="flex items-start justify-between border-b border-neutral-100 px-5 py-5 sm:px-7">
+        <div>
+          <div className="mb-1.5 flex flex-wrap items-center gap-2">
+            <span className="rounded bg-neutral-100 px-2 py-0.5 font-mono text-[11px] uppercase tracking-wider text-neutral-500">
+              Sesi #{record.tanggal}
+            </span>
+            <DetailStatusPill tone={statusTone}>{record.status === "selesai" ? "Selesai" : "Aktif"}</DetailStatusPill>
+            {record.is_historical && <DetailStatusPill tone="blue">Data Lama</DetailStatusPill>}
+          </div>
+          <h2 className="text-xl font-semibold tracking-tight text-neutral-900 sm:text-2xl">Detail Sesi Distribusi</h2>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Tutup detail sesi"
+          className="flex h-9 w-9 items-center justify-center rounded-lg text-neutral-500 transition hover:bg-neutral-100 hover:text-neutral-900"
+        >
+          <X className="h-4 w-4" strokeWidth={2.25} />
+        </button>
+      </div>
+
+      <div className="border-b border-neutral-100 bg-gradient-to-b from-neutral-50/80 to-white px-5 py-5 sm:px-7">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <DetailSummaryItem label="Tanggal" value={fmtTanggal(record.tanggal)} sub={formatHari(record.tanggal)} />
+          <DetailSummaryItem label="Jam" value={jamSesi} sub={record.status === "selesai" ? "Pagi sampai sore" : "Sesi berjalan"} />
+          <DetailSummaryItem label="Sales" value={record.sales} sub={record.sales_kategori ? `Kategori ${record.sales_kategori}` : "Tim operasional"} />
+          <DetailSummaryItem label="Total Terjual" value={`${totalQtyTerjual} bungkus`} sub={`${penjualan.length} transaksi langsung`} />
+        </div>
+      </div>
+
+      <div className="border-b border-neutral-100 px-5 py-5 sm:px-7">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="rounded bg-neutral-100 px-2 py-0.5 font-mono text-[11px] uppercase tracking-wider text-neutral-500">Pagi</span>
+            <h3 className="text-sm font-semibold text-neutral-800">Barang Keluar</h3>
+          </div>
+          <span className="text-xs tabular-nums text-neutral-500">{totalBarangKeluar} bungkus total</span>
+        </div>
+        {barangKeluar.length > 0 ? (
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {barangKeluar.map((it) => (
+              <div key={it.id || it.rokok_id} className="flex items-center justify-between gap-3 rounded-lg border border-neutral-100 bg-neutral-50 px-3 py-2.5">
+                <span className="truncate text-sm text-neutral-700">{it.rokok}</span>
+                <span className="shrink-0 text-sm font-semibold tabular-nums text-neutral-900">{it.qty}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <DetailEmpty text="Belum ada barang keluar." />
+        )}
+      </div>
+
+      <div className="px-5 pt-5 sm:px-7">
+        <div className="flex gap-1 overflow-x-auto border-b border-neutral-200">
+          <DetailTabButton id="penjualan" active={activeTab} onClick={setActiveTab} count={penjualan.length}>Penjualan Langsung</DetailTabButton>
+          <DetailTabButton id="konsinyasi" active={activeTab} onClick={setActiveTab} count={konsinyasi.length}>Titip Jual</DetailTabButton>
+          <DetailTabButton id="tukar" active={activeTab} onClick={setActiveTab} count={tukarBarang.length}>Tukar Barang</DetailTabButton>
+        </div>
+      </div>
+
+      <div className="px-5 py-5 sm:px-7">
+        {activeTab === "penjualan" && (
+          penjualan.length > 0 ? (
+            <div className="overflow-x-auto rounded-lg ring-1 ring-neutral-200">
+              <table className="w-full min-w-[720px] text-sm">
+                <thead className="bg-neutral-50 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
+                  <tr>
+                    <th className="px-3 py-2.5 text-left">Rokok</th>
+                    <th className="px-3 py-2.5 text-left">Kategori</th>
+                    <th className="px-3 py-2.5 text-right">Terjual</th>
+                    <th className="px-3 py-2.5 text-right">Kembali</th>
+                    <th className="px-3 py-2.5 text-right">Harga</th>
+                    <th className="px-3 py-2.5 text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100">
+                  {penjualan.map((it, i) => {
+                    const isFirstOfRokok = i === 0 || penjualan[i - 1].rokok_id !== it.rokok_id
+                    const kembali = isFirstOfRokok ? kembaliMap[it.rokok_id] : null
+                    const total = Number(it.qty || 0) * Number(it.harga || 0)
+                    return (
+                      <tr key={it.id || i} className="bg-white">
+                        <td className="px-3 py-2.5 text-neutral-800">{isFirstOfRokok ? it.rokok : ""}</td>
+                        <td className="px-3 py-2.5"><DetailCategoryChip kategori={it.kategori} /></td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-neutral-800">{it.qty}</td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-neutral-400">{isFirstOfRokok ? (kembali ?? "-") : ""}</td>
+                        <td className="px-3 py-2.5 text-right tabular-nums text-neutral-700">{fmtIDR(it.harga)}</td>
+                        <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-neutral-900">{fmtIDR(total)}</td>
+                      </tr>
+                    )
+                  })}
+                  <tr className="bg-neutral-50">
+                    <td colSpan={5} className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-neutral-600">Total</td>
+                    <td className="px-3 py-2.5 text-right font-semibold tabular-nums text-neutral-900">{fmtIDR(totalPenjualanLangsung)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <DetailEmpty text="Tidak ada penjualan langsung pada sesi ini." />
+          )
+        )}
+
+        {activeTab === "konsinyasi" && (
+          <div className="space-y-3">
+            {konsinyasi.length > 0 ? (
+              konsinyasi.map((k) => {
+                const nilaiTitip = (k.items || []).reduce((sum, it) => sum + Number(it.qty_keluar || 0) * Number(it.harga || 0), 0)
+                return (
+                  <div key={k.id} className="overflow-hidden rounded-lg ring-1 ring-neutral-200">
+                    <div className="flex flex-col gap-2 border-b border-neutral-200 bg-neutral-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <div className="text-sm font-semibold text-neutral-900">{k.nama_toko}</div>
+                        <div className="mt-0.5 text-xs text-neutral-500">Jatuh Tempo: {fmtTanggal(k.tanggal_jatuh_tempo)}</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <DetailCategoryChip kategori={k.kategori} />
+                        <DetailStatusPill tone={k.status === "selesai" ? "green" : "amber"}>{k.status === "selesai" ? "Selesai" : "Aktif"}</DetailStatusPill>
+                      </div>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[720px] text-sm">
+                        <thead className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
+                          <tr className="border-b border-neutral-100">
+                            <th className="px-4 py-2 text-left">Rokok</th>
+                            <th className="px-4 py-2 text-right">Harga</th>
+                            <th className="px-4 py-2 text-right">Keluar</th>
+                            <th className="px-4 py-2 text-right">Terjual</th>
+                            <th className="px-4 py-2 text-right">Kembali</th>
+                            <th className="px-4 py-2 text-right">Nilai Titip</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-neutral-100">
+                          {(k.items || []).map((it) => (
+                            <tr key={it.id}>
+                              <td className="px-4 py-2.5 text-neutral-800">{it.rokok}</td>
+                              <td className="px-4 py-2.5 text-right tabular-nums text-neutral-700">{fmtIDR(it.harga)}</td>
+                              <td className="px-4 py-2.5 text-right tabular-nums text-neutral-700">{it.qty_keluar}</td>
+                              <td className="px-4 py-2.5 text-right tabular-nums text-neutral-700">{it.qty_terjual}</td>
+                              <td className="px-4 py-2.5 text-right tabular-nums text-neutral-400">{it.qty_kembali}</td>
+                              <td className="px-4 py-2.5 text-right font-semibold tabular-nums text-neutral-900">{fmtIDR(Number(it.qty_keluar || 0) * Number(it.harga || 0))}</td>
+                            </tr>
+                          ))}
+                          <tr className="bg-neutral-50">
+                            <td colSpan={5} className="px-4 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-neutral-600">Total Nilai Dititipkan</td>
+                            <td className="px-4 py-2 text-right font-semibold tabular-nums text-neutral-900">{fmtIDR(nilaiTitip)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )
+              })
+            ) : (
+              <DetailEmpty text="Tidak ada titip jual pada sesi ini." />
+            )}
+          </div>
+        )}
+
+        {activeTab === "tukar" && (
+          tukarBarang.length > 0 ? (
+            <div className="overflow-hidden rounded-lg ring-1 ring-neutral-200">
+              <div className="grid grid-cols-[1fr_auto_1fr] bg-neutral-50 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
+                <div className="px-4 py-2.5">Rokok dari Toko</div>
+                <div className="px-3 py-2.5"></div>
+                <div className="px-4 py-2.5">Rokok Pengganti</div>
+              </div>
+              <div className="divide-y divide-neutral-100">
+                {tukarBarang.map((t, i) => {
+                  const totalMasuk = totalTukarItems(t.itemsMasuk)
+                  const totalKeluar = totalTukarItems(t.itemsKeluar)
+                  const diff = totalMasuk - totalKeluar
+                  return (
+                    <div key={t.id || i} className="grid grid-cols-1 bg-white sm:grid-cols-[1fr_auto_1fr]">
+                      <div className="px-4 py-3">
+                        <TukarItems items={t.itemsMasuk} empty="Belum ada barang dari toko." />
+                      </div>
+                      <div className="hidden items-center justify-center px-3 text-neutral-300 sm:flex">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-neutral-100">-&gt;</div>
+                      </div>
+                      <div className="border-t border-neutral-100 px-4 py-3 sm:border-l sm:border-t-0">
+                        <TukarItems items={t.itemsKeluar} empty="Belum ada barang pengganti." />
+                        <div className={`mt-2 flex items-center justify-end gap-1.5 border-t border-dashed border-neutral-200 pt-2 text-[11px] tabular-nums ${diff > 0 ? "text-emerald-700" : diff < 0 ? "text-rose-700" : "text-neutral-500"}`}>
+                          <span className="text-neutral-500">selisih nilai</span>
+                          <span className="font-semibold">{fmtSignedIDR(diff)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ) : (
+            <DetailEmpty text="Tidak ada tukar barang pada sesi ini." />
+          )
+        )}
+      </div>
+
+      <div className="border-t border-neutral-100 bg-neutral-50 px-5 py-5 sm:px-7">
+        <div className="mb-4 flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-neutral-800">Ringkasan Keuangan & Setoran</h3>
+          <span className="font-mono text-[11px] uppercase tracking-wider text-neutral-500">A vs B</span>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div>
+            <div className="mb-2 px-1 font-mono text-[10px] uppercase tracking-wider text-neutral-500">A · Penjualan</div>
+            <div className="overflow-hidden rounded-xl bg-white ring-1 ring-neutral-200">
+              <div className="divide-y divide-neutral-100">
+                <DetailMoneyRow label="Penjualan Grosir" value={directTotals.grosir || 0} sub={`${countPenjualanByKategori(penjualan, "grosir")} item`} />
+                <DetailMoneyRow label="Penjualan Toko" value={directTotals.toko || 0} sub={`${countPenjualanByKategori(penjualan, "toko")} item`} />
+                {(directTotals.perorangan || 0) > 0 && <DetailMoneyRow label="Penjualan Perorangan" value={directTotals.perorangan} sub={`${countPenjualanByKategori(penjualan, "perorangan")} item`} />}
+                <DetailMoneyRow label="Titip Jual" value={totalTitipJual} sub={`${konsinyasi.length} toko, terjual ${fmtIDR(totalTitipTerjual)}`} muted={totalTitipJual === 0} />
+                <DetailMoneyRow label="Tukar Barang" value={selisihTukar} sub={`${fmtIDR(totalTukarMasuk)} masuk - ${fmtIDR(totalTukarKeluar)} keluar`} signed />
+              </div>
+              <div className="flex items-center justify-between bg-neutral-900 px-4 py-3">
+                <span className="text-xs font-semibold uppercase tracking-wide text-white/70">Total Penjualan</span>
+                <span className="text-lg font-bold tabular-nums tracking-tight text-white">{fmtIDR(totalKeseluruhan)}</span>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-2 px-1 font-mono text-[10px] uppercase tracking-wider text-neutral-500">B · Setoran · Sore</div>
+            <div className="overflow-hidden rounded-xl bg-white ring-1 ring-neutral-200">
+              <div className="divide-y divide-neutral-100">
+                <SetoranSummaryRow label="Cash" sub="Tunai" value={setoranByMethod.cash || 0} tone="emerald" />
+                <SetoranSummaryRow label="Transfer" sub="Bank / e-wallet" value={setoranByMethod.transfer || 0} tone="sky" />
+              </div>
+              <div className="flex items-center justify-between bg-neutral-900 px-4 py-3">
+                <span className="text-xs font-semibold uppercase tracking-wide text-white/70">Total Setoran</span>
+                <span className="text-lg font-bold tabular-nums tracking-tight text-white">{fmtIDR(totalSetoran)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <SelisihSetoranRow selisih={selisihSetoran} totalPenjualan={totalKeseluruhan} totalSetoran={totalSetoran} />
+      </div>
+    </div>
+  )
+}
+
+function mergeTukarBarang(record) {
+  const map = new Map()
+  for (const item of [...(record.tukarBarang || []), ...(record.tukarBarangSelesaiDiSesi || [])]) {
+    if (!item) continue
+    map.set(item.id || `${item.tanggal}-${map.size}`, item)
+  }
+  return [...map.values()]
+}
+
+function totalTukarItems(items = []) {
+  return items.reduce((sum, it) => sum + Number(it.qty || 0) * Number(it.harga_satuan || 0), 0)
+}
+
+function countPenjualanByKategori(items, kategori) {
+  return items.filter((it) => it.kategori === kategori).length
+}
+
+function fmtSignedIDR(value) {
+  if (!value) return fmtIDR(0)
+  return `${value > 0 ? "+" : "-"}${fmtIDR(Math.abs(value))}`
+}
+
+function formatHari(iso) {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ""
+  return d.toLocaleDateString("id-ID", { weekday: "long" })
+}
+
+function formatJam(value) {
+  if (!value) return null
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return null
+  return d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
+}
+
+function formatJamSesi(record) {
+  const mulai = formatJam(record.createdAt)
+  const selesai = record.status === "selesai" ? formatJam(record.updatedAt) : null
+  if (mulai && selesai && mulai !== selesai) return `${mulai} - ${selesai}`
+  return mulai || selesai || "-"
+}
+
+function DetailSummaryItem({ label, value, sub }) {
+  return (
+    <div className="min-w-0 px-1 py-1">
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">{label}</div>
+      <div className="mt-0.5 truncate text-base font-semibold text-neutral-900">{value}</div>
+      {sub && <div className="mt-0.5 truncate text-[11px] tabular-nums text-neutral-500">{sub}</div>}
+    </div>
+  )
+}
+
+function DetailTabButton({ id, active, onClick, count, children }) {
+  const isActive = active === id
+  return (
+    <button
+      type="button"
+      onClick={() => onClick(id)}
+      className={`relative shrink-0 px-4 py-2.5 text-sm font-medium transition-colors ${
+        isActive ? "text-neutral-900" : "text-neutral-500 hover:text-neutral-700"
+      }`}
+    >
+      <span className="flex items-center gap-1.5">
+        {children}
+        <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${isActive ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-500"}`}>{count || 0}</span>
+      </span>
+      {isActive && <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t bg-neutral-900" />}
+    </button>
+  )
+}
+
+function DetailCategoryChip({ kategori }) {
+  const styles = {
+    grosir: "bg-violet-50 text-violet-700 ring-violet-200",
+    toko: "bg-sky-50 text-sky-700 ring-sky-200",
+    perorangan: "bg-amber-50 text-amber-700 ring-amber-200",
+  }
+  return (
+    <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ring-1 ${styles[kategori] || "bg-neutral-100 text-neutral-700 ring-neutral-200"}`}>
+      {kategori || "-"}
+    </span>
+  )
+}
+
+function DetailStatusPill({ children, tone = "green" }) {
+  const tones = {
+    green: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+    blue: "bg-sky-50 text-sky-700 ring-sky-200",
+    amber: "bg-amber-50 text-amber-700 ring-amber-200",
+    neutral: "bg-neutral-100 text-neutral-700 ring-neutral-200",
+  }
+  const dots = {
+    green: "bg-emerald-500",
+    blue: "bg-sky-500",
+    amber: "bg-amber-500",
+    neutral: "bg-neutral-500",
+  }
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ${tones[tone] || tones.neutral}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${dots[tone] || dots.neutral}`} />
+      {children}
+    </span>
+  )
+}
+
+function DetailMoneyRow({ label, value, sub, signed = false, muted = false }) {
+  const valueClass = signed && value !== 0
+    ? (value > 0 ? "text-emerald-700" : "text-rose-700")
+    : muted ? "text-neutral-400" : "text-neutral-900"
+  return (
+    <div className="flex items-center justify-between gap-4 bg-white px-4 py-3">
+      <div>
+        <div className="text-sm font-medium text-neutral-800">{label}</div>
+        {sub && <div className="mt-0.5 text-[11px] tabular-nums text-neutral-500">{sub}</div>}
+      </div>
+      <div className={`shrink-0 text-sm font-semibold tabular-nums ${valueClass}`}>{signed ? fmtSignedIDR(value) : fmtIDR(value)}</div>
+    </div>
+  )
+}
+
+function DetailEmpty({ text }) {
+  return (
+    <div className="rounded-lg border border-dashed border-neutral-200 bg-neutral-50 px-4 py-6 text-center text-xs text-neutral-400">
+      {text}
+    </div>
+  )
+}
+
+function SetoranSummaryRow({ label, sub, value, tone }) {
+  const toneCls = tone === "sky"
+    ? "bg-sky-50 text-sky-600 ring-sky-100"
+    : "bg-emerald-50 text-emerald-600 ring-emerald-100"
+  return (
+    <div className="flex items-center justify-between gap-4 bg-white px-4 py-3">
+      <div className="flex items-center gap-2.5">
+        <div className={`flex h-7 w-7 items-center justify-center rounded-md ring-1 ${toneCls}`}>
+          <span className="text-[11px] font-bold">{label.charAt(0)}</span>
+        </div>
+        <div>
+          <div className="text-sm font-medium text-neutral-800">{label}</div>
+          {sub && <div className="mt-0.5 text-[11px] text-neutral-500">{sub}</div>}
+        </div>
+      </div>
+      <span className="shrink-0 text-base font-semibold tabular-nums text-neutral-900">{fmtIDR(value)}</span>
+    </div>
+  )
+}
+
+function SelisihSetoranRow({ selisih, totalPenjualan, totalSetoran }) {
+  const isSesuai = selisih === 0
+  const isKurang = selisih < 0
+  const tone = isSesuai
+    ? {
+        box: "bg-emerald-50 ring-1 ring-emerald-200",
+        icon: "bg-emerald-100 text-emerald-600",
+        title: "text-emerald-900",
+        text: "text-emerald-700/80",
+        value: "text-emerald-700",
+        label: "Setoran Sesuai",
+      }
+    : isKurang
+      ? {
+          box: "bg-rose-50 ring-1 ring-rose-200",
+          icon: "bg-rose-100 text-rose-600",
+          title: "text-rose-900",
+          text: "text-rose-700/80",
+          value: "text-rose-700",
+          label: "Setoran Kurang",
+        }
+      : {
+          box: "bg-amber-50 ring-1 ring-amber-200",
+          icon: "bg-amber-100 text-amber-600",
+          title: "text-amber-900",
+          text: "text-amber-700/80",
+          value: "text-amber-700",
+          label: "Setoran Lebih",
+        }
+
+  return (
+    <div className={`mt-4 flex items-center justify-between gap-4 rounded-xl p-4 ${tone.box}`}>
+      <div className="flex items-center gap-3">
+        <div className={`flex h-9 w-9 items-center justify-center rounded-full ${tone.icon}`}>
+          <AlertCircle className="h-4 w-4" strokeWidth={2.25} />
+        </div>
+        <div>
+          <div className={`text-sm font-bold ${tone.title}`}>{tone.label}</div>
+          <div className={`mt-0.5 text-[11px] tabular-nums ${tone.text}`}>
+            Setoran {fmtIDR(totalSetoran)} - Penjualan {fmtIDR(totalPenjualan)}
+          </div>
+        </div>
+      </div>
+      <div className="shrink-0 text-right">
+        <div className={`text-[10px] font-semibold uppercase tracking-wide ${tone.value}`}>Selisih (B - A)</div>
+        <div className={`text-xl font-bold tabular-nums tracking-tight ${tone.value}`}>{fmtSignedIDR(selisih)}</div>
+      </div>
+    </div>
+  )
+}
+
+function TukarItems({ items = [], empty }) {
+  if (!items.length) return <div className="text-xs italic text-neutral-400">{empty}</div>
+  return (
+    <div className="space-y-1.5">
+      {items.map((it, i) => (
+        <div key={it.id || i} className="flex items-center justify-between gap-3 text-sm">
+          <div className="min-w-0">
+            <div className="truncate text-neutral-800">{it.rokok}</div>
+            <div className="text-[11px] tabular-nums text-neutral-500">{it.qty} x {fmtIDR(it.harga_satuan)}</div>
+          </div>
+          <span className="shrink-0 font-semibold tabular-nums text-neutral-900">{fmtIDR(Number(it.qty || 0) * Number(it.harga_satuan || 0))}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function SetoranCard({ label, value, tone }) {
+  const toneCls = tone === "sky"
+    ? "bg-sky-50 text-sky-600 ring-sky-100"
+    : "bg-emerald-50 text-emerald-600 ring-emerald-100"
+  return (
+    <div className="rounded-lg bg-white p-3 ring-1 ring-neutral-200">
+      <div className="mb-1 flex items-center gap-1.5">
+        <div className={`flex h-6 w-6 items-center justify-center rounded-md ring-1 ${toneCls}`}>
+          <span className="text-[11px] font-bold">{label.charAt(0)}</span>
+        </div>
+        <span className="text-xs text-neutral-500">{label}</span>
+      </div>
+      <div className="text-xl font-semibold tabular-nums tracking-tight text-neutral-900">{fmtIDR(value)}</div>
+    </div>
+  )
+}
+
+// Form Sesi Pagi
 function SesiPagiForm({ initial, rokokList, salesList, sesiList, stockCutoffDate, onSubmit, onCancel }) {
   const today = new Date().toISOString().slice(0, 10)
   const [tanggal,  setTanggal]  = useState(initial?.tanggal || today)
