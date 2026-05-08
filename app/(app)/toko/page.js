@@ -13,7 +13,7 @@ export default async function Page() {
   const [session, tokoList, titipJualList] = await Promise.all([
     auth(),
     getTokoList(),
-    getTitipJualList(),
+    getTitipJualList(null),
   ])
   return <TokoPage role={session?.user?.role} tokoList={tokoList} titipJualList={titipJualList} />
 }

@@ -286,44 +286,28 @@ export async function updateRokokOrder(items) {
 }
 
 export async function getUsedRokokIds() {
-  // Cek semua tabel yang mungkin mereferensi rokok_id
-  const [
-    mutations,
-    barangKeluar,
-    penjualan,
-    barangKembali,
-    titipJual,
-    retur,
-    tukarMasuk,
-    tukarKeluar
-  ] = await Promise.all([
-    // Exclude stok_awal agar rokok yang baru dibuat (hanya ada stok awal) masih bisa dihapus jika salah input
-    prisma.stockMutation.findMany({ 
-      where: { NOT: { source: MUTATION_SOURCE.STOK_AWAL } },
-      select: { rokok_id: true }, 
-      distinct: ["rokok_id"] 
-    }),
-    prisma.sesiBarangKeluar.findMany({ select: { rokok_id: true }, distinct: ["rokok_id"] }),
-    prisma.sesiPenjualan.findMany({ select: { rokok_id: true }, distinct: ["rokok_id"] }),
-    prisma.sesiBarangKembali.findMany({ select: { rokok_id: true }, distinct: ["rokok_id"] }),
-    prisma.titipJualItem.findMany({ select: { rokok_id: true }, distinct: ["rokok_id"] }),
-    prisma.returItem.findMany({ select: { rokok_id: true }, distinct: ["rokok_id"] }),
-    prisma.tukarBarangItemMasuk.findMany({ select: { rokok_id: true }, distinct: ["rokok_id"] }),
-    prisma.tukarBarangItemKeluar.findMany({ select: { rokok_id: true }, distinct: ["rokok_id"] }),
-  ])
-
-  const ids = new Set([
-    ...mutations.map(m => m.rokok_id),
-    ...barangKeluar.map(m => m.rokok_id),
-    ...penjualan.map(m => m.rokok_id),
-    ...barangKembali.map(m => m.rokok_id),
-    ...titipJual.map(m => m.rokok_id),
-    ...retur.map(m => m.rokok_id),
-    ...tukarMasuk.map(m => m.rokok_id),
-    ...tukarKeluar.map(m => m.rokok_id),
-  ])
-
-  return Array.from(ids)
+  // Satu query UNION untuk seluruh tabel yang mereferensi rokok_id.
+  // UNION (tanpa ALL) sudah menghilangkan duplikat, jadi cukup di-flatten ke array.
+  // stok_awal di-exclude agar rokok yang baru dibuat (hanya ada stok awal)
+  // masih bisa dihapus jika salah input.
+  const rows = await prisma.$queryRaw`
+    SELECT rokok_id FROM "StockMutation" WHERE source <> ${MUTATION_SOURCE.STOK_AWAL}
+    UNION
+    SELECT rokok_id FROM "SesiBarangKeluar"
+    UNION
+    SELECT rokok_id FROM "SesiPenjualan"
+    UNION
+    SELECT rokok_id FROM "SesiBarangKembali"
+    UNION
+    SELECT rokok_id FROM "TitipJualItem"
+    UNION
+    SELECT rokok_id FROM "ReturItem"
+    UNION
+    SELECT rokok_id FROM "TukarBarangItemMasuk"
+    UNION
+    SELECT rokok_id FROM "TukarBarangItemKeluar"
+  `
+  return rows.map((r) => r.rokok_id)
 }
 
 export async function getMutasiStok(startDate, endDate) {

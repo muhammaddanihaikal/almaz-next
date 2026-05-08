@@ -1,10 +1,33 @@
 "use server"
 
 import { prisma } from "@/lib/db"
-import { revalidatePath } from "next/cache"
+import { revalidatePath, revalidateTag, unstable_cache } from "next/cache"
+
+const TOKO_TAG = "toko-list"
+
+const _getTokoListCached = unstable_cache(
+  async () => {
+    const rows = await prisma.toko.findMany({ orderBy: { nama: "asc" } })
+    return rows.map((t) => ({
+      id:       t.id,
+      nama:     t.nama,
+      alamat:   t.alamat || "",
+      kategori: t.kategori || "toko",
+      aktif:    t.aktif,
+    }))
+  },
+  ["toko-list"],
+  { tags: [TOKO_TAG] }
+)
 
 export async function getTokoList() {
-  return prisma.toko.findMany({ orderBy: { nama: "asc" } })
+  return _getTokoListCached()
+}
+
+function bustTokoCache() {
+  revalidateTag(TOKO_TAG)
+  revalidatePath("/toko")
+  revalidatePath("/distribusi")
 }
 
 export async function addToko(data) {
@@ -16,8 +39,7 @@ export async function addToko(data) {
       aktif:    true,
     },
   })
-  revalidatePath("/toko")
-  revalidatePath("/distribusi")
+  bustTokoCache()
 }
 
 export async function updateToko(id, data) {
@@ -29,17 +51,16 @@ export async function updateToko(id, data) {
       kategori: data.kategori,
     },
   })
-  revalidatePath("/toko")
-  revalidatePath("/distribusi")
+  bustTokoCache()
 }
 
 export async function deleteToko(id) {
   await prisma.toko.delete({ where: { id } })
-  revalidatePath("/toko")
+  bustTokoCache()
 }
 
 export async function toggleAktifToko(id) {
   const t = await prisma.toko.findUnique({ where: { id } })
   await prisma.toko.update({ where: { id }, data: { aktif: !t.aktif } })
-  revalidatePath("/toko")
+  bustTokoCache()
 }

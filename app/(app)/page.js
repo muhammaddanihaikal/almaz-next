@@ -1,5 +1,5 @@
 import { getSesiList } from "@/actions/distribusi"
-import { getTitipJualList, getTitipJualJatuhTempo } from "@/actions/titip_jual"
+import { getTitipJualList } from "@/actions/titip_jual"
 import { getRokokList } from "@/actions/rokok"
 import { getPengeluaran } from "@/actions/pengeluaran"
 import DashboardPage from "@/components/pages/DashboardPage"
@@ -12,10 +12,9 @@ export const metadata = {
 }
 
 export default async function Page() {
-  const [sesiList, titipJualList, titipJualJatuhTempo, rokokList, pengeluaranList] = await Promise.all([
+  const [sesiList, titipJualList, rokokList, pengeluaranList] = await Promise.all([
     getSesiList(),
     getTitipJualList(),
-    getTitipJualJatuhTempo(),
     getRokokList(),
     getPengeluaran(),
   ])
@@ -23,7 +22,6 @@ export default async function Page() {
     <DashboardPage
       sesiList={sesiList}
       titipJualList={titipJualList}
-      titipJualJatuhTempo={titipJualJatuhTempo}
       rokokList={rokokList}
       pengeluaranList={pengeluaranList}
     />

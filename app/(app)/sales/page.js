@@ -13,7 +13,7 @@ export default async function Page() {
   const [session, salesList, sesiList] = await Promise.all([
     auth(),
     getSalesList(),
-    getSesiList(),
+    getSesiList(null),
   ])
   return <SalesPage role={session?.user?.role} salesList={salesList} sesiList={sesiList} />
 }

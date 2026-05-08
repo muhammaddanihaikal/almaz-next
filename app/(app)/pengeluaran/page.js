@@ -10,8 +10,8 @@ export default async function Page() {
   const [session, pengeluaranList, sesiList, titipJualList] = await Promise.all([
     auth(),
     getPengeluaran(),
-    getSesiList(),
-    getTitipJualList(),
+    getSesiList(null),
+    getTitipJualList(null),
   ])
   return <PengeluaranPage role={session?.user?.role} pengeluaranList={pengeluaranList} sesiList={sesiList} titipJualList={titipJualList} />
 }

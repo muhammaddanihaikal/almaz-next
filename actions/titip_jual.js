@@ -63,8 +63,22 @@ function serialize(k) {
   }
 }
 
-export async function getTitipJualList() {
+// Default: muat semua titip jual yang masih aktif (apapun tanggalnya)
+// + titip jual selesai dari 90 hari terakhir. Data selesai lebih lama
+// bisa diakses via filter tanggal di halaman atau halaman Riwayat.
+export async function getTitipJualList(daysBack = 90) {
+  const where = {}
+  if (daysBack && Number.isFinite(daysBack)) {
+    const since = new Date()
+    since.setHours(0, 0, 0, 0)
+    since.setDate(since.getDate() - daysBack)
+    where.OR = [
+      { status: "aktif" },
+      { status: "selesai", tanggal_selesai: { gte: since } },
+    ]
+  }
   const rows = await prisma.titipJual.findMany({
+    where,
     include,
     orderBy: { tanggal_jatuh_tempo: "asc" },
   })
