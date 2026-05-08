@@ -343,6 +343,98 @@ async function main() {
     // ─── Distribusi: 2 Aktif ──────────────────────────────────────────────────
 
     // S8 Apr 30 – Hendra
+    // Tambahan data dashboard: akhir bulan lalu, minggu lalu, dan minggu ini
+    const sApr29 = await buatSesiSelesai({
+      tgl: "2026-04-29", salesNama: "Budi Santoso",
+      keluar:    [{ nama: "Gudang Garam Surya 12", qty: 90 }, { nama: "Sampoerna A Mild 16", qty: 65 }, { nama: "Gudang Garam Merah", qty: 80 }],
+      penjualan: [{ nama: "Gudang Garam Surya 12", kategori: "grosir", qty: 82, harga: 22000 },
+                  { nama: "Sampoerna A Mild 16",   kategori: "toko",   qty: 58, harga: 25500 },
+                  { nama: "Gudang Garam Merah",    kategori: "grosir", qty: 74, harga: 19500 }],
+      kembali:   [{ nama: "Gudang Garam Surya 12", qty: 8 }, { nama: "Sampoerna A Mild 16", qty: 7 }, { nama: "Gudang Garam Merah", qty: 6 }],
+      setoran:   [{ metode: "cash", jumlah: 82 * 22000 + 74 * 19500 }, { metode: "transfer", jumlah: 58 * 25500 }],
+    })
+
+    const sApr30 = await buatSesiSelesai({
+      tgl: "2026-04-30", salesNama: "Agus Prasetyo",
+      keluar:    [{ nama: "LA Bold", qty: 70 }, { nama: "Dunhill Filter", qty: 35 }, { nama: "Marlboro Merah", qty: 28 }],
+      penjualan: [{ nama: "LA Bold",        kategori: "toko",       qty: 62, harga: 22500 },
+                  { nama: "Dunhill Filter", kategori: "perorangan", qty: 30, harga: 32000 },
+                  { nama: "Marlboro Merah", kategori: "toko",       qty: 24, harga: 32500 }],
+      kembali:   [{ nama: "LA Bold", qty: 8 }, { nama: "Dunhill Filter", qty: 5 }, { nama: "Marlboro Merah", qty: 4 }],
+      setoran:   [{ metode: "transfer", jumlah: 62 * 22500 + 30 * 32000 + 24 * 32500 }],
+    })
+
+    const sMay02 = await buatSesiSelesai({
+      tgl: "2026-05-02", salesNama: "Siti Rahayu",
+      keluar:    [{ nama: "Dji Sam Soe 234", qty: 45 }, { nama: "Camel Filter", qty: 35 }, { nama: "Gudang Garam Merah", qty: 95 }],
+      penjualan: [{ nama: "Dji Sam Soe 234",    kategori: "toko",   qty: 38, harga: 28500 },
+                  { nama: "Camel Filter",       kategori: "toko",   qty: 30, harga: 27000 },
+                  { nama: "Gudang Garam Merah", kategori: "grosir", qty: 88, harga: 19500 }],
+      kembali:   [{ nama: "Dji Sam Soe 234", qty: 7 }, { nama: "Camel Filter", qty: 5 }, { nama: "Gudang Garam Merah", qty: 7 }],
+      setoran:   [{ metode: "cash", jumlah: 38 * 28500 + 88 * 19500 }, { metode: "transfer", jumlah: 30 * 27000 }],
+    })
+
+    const sMay04 = await buatSesiSelesai({
+      tgl: "2026-05-04", salesNama: "Budi Santoso",
+      keluar:    [{ nama: "Gudang Garam Surya 12", qty: 110 }, { nama: "Sampoerna A Mild 16", qty: 75 }, { nama: "Gudang Garam Merah", qty: 90 }],
+      penjualan: [{ nama: "Gudang Garam Surya 12", kategori: "grosir", qty: 102, harga: 22000 },
+                  { nama: "Sampoerna A Mild 16",   kategori: "toko",   qty: 68,  harga: 25500 },
+                  { nama: "Gudang Garam Merah",    kategori: "grosir", qty: 84,  harga: 19500 }],
+      kembali:   [{ nama: "Gudang Garam Surya 12", qty: 8 }, { nama: "Sampoerna A Mild 16", qty: 7 }, { nama: "Gudang Garam Merah", qty: 6 }],
+      setoran:   [{ metode: "cash", jumlah: 102 * 22000 + 84 * 19500 }, { metode: "transfer", jumlah: 68 * 25500 }],
+    })
+
+    const sMay05 = await buatSesiSelesai({
+      tgl: "2026-05-05", salesNama: "Agus Prasetyo",
+      keluar:    [{ nama: "LA Bold", qty: 95 }, { nama: "Dunhill Filter", qty: 42 }, { nama: "Marlboro Merah", qty: 38 }],
+      penjualan: [{ nama: "LA Bold",        kategori: "toko",       qty: 86, harga: 22500 },
+                  { nama: "Dunhill Filter", kategori: "perorangan", qty: 37, harga: 32000 },
+                  { nama: "Marlboro Merah", kategori: "toko",       qty: 32, harga: 32500 }],
+      kembali:   [{ nama: "LA Bold", qty: 9 }, { nama: "Dunhill Filter", qty: 5 }, { nama: "Marlboro Merah", qty: 6 }],
+      setoran:   [{ metode: "transfer", jumlah: 86 * 22500 + 37 * 32000 + 32 * 32500 }],
+    })
+
+    const sMay06 = await buatSesiSelesai({
+      tgl: "2026-05-06", salesNama: "Siti Rahayu",
+      keluar:    [{ nama: "Dji Sam Soe 234", qty: 55 }, { nama: "Camel Filter", qty: 42 }, { nama: "Sampoerna A Mild 16", qty: 70 }],
+      penjualan: [{ nama: "Dji Sam Soe 234",     kategori: "perorangan", qty: 48, harga: 30000 },
+                  { nama: "Camel Filter",        kategori: "toko",       qty: 36, harga: 27000 },
+                  { nama: "Sampoerna A Mild 16", kategori: "grosir",     qty: 64, harga: 24500 }],
+      kembali:   [{ nama: "Dji Sam Soe 234", qty: 7 }, { nama: "Camel Filter", qty: 6 }, { nama: "Sampoerna A Mild 16", qty: 6 }],
+      setoran:   [{ metode: "cash", jumlah: 48 * 30000 + 36 * 27000 }, { metode: "transfer", jumlah: 64 * 24500 }],
+    })
+
+    const sMay07 = await buatSesiSelesai({
+      tgl: "2026-05-07", salesNama: "Hendra Kusuma",
+      keluar:    [{ nama: "Gudang Garam Surya 12", qty: 85 }, { nama: "Gudang Garam Merah", qty: 115 }, { nama: "LA Bold", qty: 60 }],
+      penjualan: [{ nama: "Gudang Garam Surya 12", kategori: "toko",   qty: 78,  harga: 23000 },
+                  { nama: "Gudang Garam Merah",    kategori: "grosir", qty: 106, harga: 19500 },
+                  { nama: "LA Bold",               kategori: "toko",   qty: 54,  harga: 22500 }],
+      kembali:   [{ nama: "Gudang Garam Surya 12", qty: 7 }, { nama: "Gudang Garam Merah", qty: 9 }, { nama: "LA Bold", qty: 6 }],
+      setoran:   [{ metode: "cash", jumlah: 78 * 23000 + 106 * 19500 + 54 * 22500 }],
+    })
+
+    const sMay08 = await buatSesiSelesai({
+      tgl: "2026-05-08", salesNama: "Dian Safitri",
+      keluar:    [{ nama: "Sampoerna A Mild 16", qty: 88 }, { nama: "Dunhill Filter", qty: 48 }, { nama: "Marlboro Merah", qty: 44 }],
+      penjualan: [{ nama: "Sampoerna A Mild 16", kategori: "toko",       qty: 80, harga: 25500 },
+                  { nama: "Dunhill Filter",      kategori: "perorangan", qty: 42, harga: 32000 },
+                  { nama: "Marlboro Merah",      kategori: "toko",       qty: 38, harga: 32500 }],
+      kembali:   [{ nama: "Sampoerna A Mild 16", qty: 8 }, { nama: "Dunhill Filter", qty: 6 }, { nama: "Marlboro Merah", qty: 6 }],
+      setoran:   [{ metode: "transfer", jumlah: 80 * 25500 + 42 * 32000 + 38 * 32500 }],
+    })
+
+    for (const [tgl, jumlah, keterangan] of [
+      ["2026-05-02",  95000, "Bensin Motor Siti Rahayu"],
+      ["2026-05-04", 110000, "Bensin Motor Budi Santoso"],
+      ["2026-05-05",  65000, "Parkir & Tol Distribusi Minggu Ini"],
+      ["2026-05-06", 135000, "Makan Siang Tim Sales"],
+      ["2026-05-08", 125000, "Bensin Motor Dian Safitri"],
+    ]) {
+      await tx.pengeluaran.create({ data: { tanggal: new Date(tgl), jumlah, keterangan, sumber: "penjualan" } })
+    }
+
+    // S8 May 5 - Hendra
     const s8 = await tx.sesiHarian.create({
       data: {
         tanggal:  new Date("2026-05-05"),
@@ -538,9 +630,9 @@ async function main() {
   console.log("   Users   : 5 (2 superadmin/admin, 3 staff)")
   console.log("   Rokok   : 8 jenis")
   console.log("   Sales   : 5 orang | Toko: 6")
-  console.log("   Distribusi: 7 selesai, 2 aktif")
+  console.log("   Distribusi: 15 selesai, 2 aktif")
   console.log("   Titip Jual: 2 selesai, 3 aktif (1 hari ini, 1 overdue)")
-  console.log("   Pengeluaran: 10 | Retur: 5 | Audit Log: 6")
+  console.log("   Pengeluaran: 15 | Retur: 5 | Audit Log: 6")
 }
 
 main()
