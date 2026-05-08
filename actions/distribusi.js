@@ -123,8 +123,19 @@ function serialize(s) {
   }
 }
 
-export async function getSesiList() {
+// Default: hanya muat sesi 90 hari terakhir untuk performa.
+// Data lebih lama tetap ada di DB dan bisa diakses via halaman Riwayat
+// atau dengan memanggil getSesiList(daysBack) dengan nilai lebih besar.
+export async function getSesiList(daysBack = 90) {
+  const where = {}
+  if (daysBack && Number.isFinite(daysBack)) {
+    const since = new Date()
+    since.setHours(0, 0, 0, 0)
+    since.setDate(since.getDate() - daysBack)
+    where.tanggal = { gte: since }
+  }
   const rows = await prisma.sesiHarian.findMany({
+    where,
     include,
     orderBy: [{ tanggal: "desc" }, { createdAt: "desc" }],
   })
