@@ -51,16 +51,16 @@ model Rokok {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  sesiBarangKeluar    SesiBarangKeluar[]
-  sesiPenjualan       SesiPenjualan[]
-  sesiBarangKembali   SesiBarangKembali[]
-  titipJualItems      TitipJualItem[]
-  returItems          ReturItem[]
-  stokMasuk           StokMasuk[]
-  stockMutations      StockMutation[]
-  closingHarian       ClosingHarian[]
-  tukarBarangMasuk    TukarBarangItemMasuk[]
-  tukarBarangKeluar   TukarBarangItemKeluar[]
+  sesiBarangKeluar  SesiBarangKeluar[]
+  sesiPenjualan     SesiPenjualan[]
+  sesiBarangKembali SesiBarangKembali[]
+  titipJualItems    TitipJualItem[]
+  returItems        ReturItem[]
+  stokMasuk         StokMasuk[]
+  stockMutations    StockMutation[]
+  closingHarian     ClosingHarian[]
+  tukarBarangMasuk  TukarBarangItemMasuk[]
+  tukarBarangKeluar TukarBarangItemKeluar[]
 }
 
 model StokMasuk {
@@ -93,25 +93,28 @@ model Sales {
 // ─── DISTRIBUSI ───────────────────────────────────────────────────────────────
 
 model SesiHarian {
-  id        String   @id @default(cuid())
-  tanggal   DateTime @db.Date
-  sales_id  String
-  status    String   @default("aktif") // "aktif" | "selesai"
-  catatan   String?
-  is_historical Boolean @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String   @id @default(cuid())
+  tanggal       DateTime @db.Date
+  sales_id      String
+  status        String   @default("aktif") // "aktif" | "selesai"
+  catatan       String?
+  is_historical Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  sales              Sales              @relation(fields: [sales_id], references: [id])
+  sales              Sales               @relation(fields: [sales_id], references: [id])
   barangKeluar       SesiBarangKeluar[]
   penjualan          SesiPenjualan[]
   setoran            SesiSetoran[]
   barangKembali      SesiBarangKembali[]
   titipJual          TitipJual[]
-  tukarBarang        TukarBarang[]      @relation("TukarBarangSesi")
-  tukarBarangSelesai TukarBarang[]      @relation("TukarBarangSesiSelesai")
+  tukarBarang        TukarBarang[]       @relation("TukarBarangSesi")
+  tukarBarangSelesai TukarBarang[]       @relation("TukarBarangSesiSelesai")
 
   @@unique([tanggal, sales_id])
+  @@index([tanggal, createdAt])
+  @@index([sales_id])
+  @@index([status])
 }
 
 model SesiBarangKeluar {
@@ -122,6 +125,9 @@ model SesiBarangKeluar {
 
   sesi  SesiHarian @relation(fields: [sesi_id], references: [id], onDelete: Cascade)
   rokok Rokok      @relation(fields: [rokok_id], references: [id])
+
+  @@index([sesi_id])
+  @@index([rokok_id])
 }
 
 model SesiPenjualan {
@@ -134,6 +140,9 @@ model SesiPenjualan {
 
   sesi  SesiHarian @relation(fields: [sesi_id], references: [id], onDelete: Cascade)
   rokok Rokok      @relation(fields: [rokok_id], references: [id])
+
+  @@index([sesi_id])
+  @@index([rokok_id])
 }
 
 model SesiSetoran {
@@ -143,6 +152,8 @@ model SesiSetoran {
   jumlah  Int
 
   sesi SesiHarian @relation(fields: [sesi_id], references: [id], onDelete: Cascade)
+
+  @@index([sesi_id])
 }
 
 model SesiBarangKembali {
@@ -153,30 +164,40 @@ model SesiBarangKembali {
 
   sesi  SesiHarian @relation(fields: [sesi_id], references: [id], onDelete: Cascade)
   rokok Rokok      @relation(fields: [rokok_id], references: [id])
+
+  @@index([sesi_id])
+  @@index([rokok_id])
 }
 
 // ─── TITIP JUAL ───────────────────────────────────────────────────────────────
 
 model TitipJual {
-  id                  String   @id @default(cuid())
-  sesi_id             String
-  sales_id            String
-  toko_id             String
-  kategori            String   // "grosir" | "toko"
-  tanggal_jatuh_tempo DateTime  @db.Date
-  tanggal_selesai     DateTime? @db.Date
-  status              String    @default("aktif") // "aktif" | "selesai"
+  id                   String    @id @default(cuid())
+  sesi_id              String
+  sales_id             String
+  toko_id              String
+  kategori             String // "grosir" | "toko"
+  tanggal_jatuh_tempo  DateTime  @db.Date
+  tanggal_selesai      DateTime? @db.Date
+  status               String    @default("aktif") // "aktif" | "selesai"
   flag_selisih_setoran Boolean   @default(false)
-  is_historical       Boolean   @default(false)
-  catatan             String?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  is_historical        Boolean   @default(false)
+  catatan              String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
-  sesi    SesiHarian      @relation(fields: [sesi_id], references: [id])
-  sales   Sales           @relation(fields: [sales_id], references: [id])
-  toko    Toko            @relation(fields: [toko_id], references: [id])
+  sesi    SesiHarian         @relation(fields: [sesi_id], references: [id])
+  sales   Sales              @relation(fields: [sales_id], references: [id])
+  toko    Toko               @relation(fields: [toko_id], references: [id])
   items   TitipJualItem[]
   setoran TitipJualSetoran[]
+
+  @@index([sesi_id])
+  @@index([sales_id])
+  @@index([toko_id])
+  @@index([status])
+  @@index([tanggal_jatuh_tempo])
+  @@index([tanggal_selesai])
 }
 
 model TitipJualItem {
@@ -190,17 +211,24 @@ model TitipJualItem {
 
   titipJual TitipJual @relation(fields: [titip_jual_id], references: [id], onDelete: Cascade)
   rokok     Rokok     @relation(fields: [rokok_id], references: [id])
+
+  @@index([titip_jual_id])
+  @@index([rokok_id])
 }
 
 model TitipJualSetoran {
   id                   String   @id @default(cuid())
   titip_jual_id        String
-  metode               String   // "cash" | "transfer"
+  metode               String // "cash" | "transfer"
   jumlah               Int
   tanggal              DateTime @db.Date
   sesi_penyelesaian_id String?
 
   titipJual TitipJual @relation(fields: [titip_jual_id], references: [id], onDelete: Cascade)
+
+  @@index([titip_jual_id])
+  @@index([sesi_penyelesaian_id])
+  @@index([tanggal])
 }
 
 // ─── LAINNYA ──────────────────────────────────────────────────────────────────
@@ -219,7 +247,7 @@ model Absensi {
   id        String   @id @default(cuid())
   tanggal   DateTime @db.Date
   sales_id  String
-  status    String   // "hadir" | "izin" | "alpha" | "sakit"
+  status    String // "hadir" | "izin" | "alpha" | "sakit"
   reason    String?
   createdAt DateTime @default(now())
 
@@ -259,47 +287,54 @@ model ReturItem {
 
 model TukarBarang {
   id              String    @id @default(cuid())
-  tanggal         DateTime  @db.Date          // hari-1, saat tukar dibuat (B diserahkan toko)
-  sesi_id         String                       // sesi sales hari-1
-  sesi_selesai_id String?                      // sesi sales hari-N (saat tukar diselesaikan)
-  status          String    @default("aktif")  // "aktif" | "selesai"
+  tanggal         DateTime  @db.Date // hari-1, saat tukar dibuat (B diserahkan toko)
+  sesi_id         String // sesi sales hari-1
+  sesi_selesai_id String? // sesi sales hari-N (saat tukar diselesaikan)
+  status          String    @default("aktif") // "aktif" | "selesai"
   kategori        String    @default("grosir") // "grosir" | "toko"
-  tanggal_selesai DateTime? @db.Date           // hari-N, null kalau masih aktif
-  selisih_uang    Int       @default(0)        // positif: toko bayar tambahan, negatif: sales kasih kembalian
+  tanggal_selesai DateTime? @db.Date // hari-N, null kalau masih aktif
+  selisih_uang    Int       @default(0) // positif: toko bayar tambahan, negatif: sales kasih kembalian
   catatan         String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  sesi         SesiHarian              @relation("TukarBarangSesi", fields: [sesi_id], references: [id])
-  sesiSelesai  SesiHarian?             @relation("TukarBarangSesiSelesai", fields: [sesi_selesai_id], references: [id])
-  itemsMasuk   TukarBarangItemMasuk[]  // rokok dari toko (kembali, fisik di hari-1)
-  itemsKeluar  TukarBarangItemKeluar[] // rokok dari sales (planned di hari-1, fisik di hari-N)
+  sesi        SesiHarian              @relation("TukarBarangSesi", fields: [sesi_id], references: [id])
+  sesiSelesai SesiHarian?             @relation("TukarBarangSesiSelesai", fields: [sesi_selesai_id], references: [id])
+  itemsMasuk  TukarBarangItemMasuk[] // rokok dari toko (kembali, fisik di hari-1)
+  itemsKeluar TukarBarangItemKeluar[] // rokok dari sales (planned di hari-1, fisik di hari-N)
 
   @@index([tanggal])
   @@index([sesi_id])
+  @@index([sesi_selesai_id])
   @@index([status])
 }
 
 model TukarBarangItemMasuk {
-  id              String @id @default(cuid())
-  tukar_id        String
-  rokok_id        String
-  qty             Int
-  harga_satuan    Int    // harga per pcs/slop saat tukar (auto-fill dari master, editable)
+  id           String @id @default(cuid())
+  tukar_id     String
+  rokok_id     String
+  qty          Int
+  harga_satuan Int // harga per pcs/slop saat tukar (auto-fill dari master, editable)
 
   tukar TukarBarang @relation(fields: [tukar_id], references: [id], onDelete: Cascade)
   rokok Rokok       @relation(fields: [rokok_id], references: [id])
+
+  @@index([tukar_id])
+  @@index([rokok_id])
 }
 
 model TukarBarangItemKeluar {
-  id              String @id @default(cuid())
-  tukar_id        String
-  rokok_id        String
-  qty             Int
-  harga_satuan    Int    // harga jual saat tukar (auto-fill dari master, editable)
+  id           String @id @default(cuid())
+  tukar_id     String
+  rokok_id     String
+  qty          Int
+  harga_satuan Int // harga jual saat tukar (auto-fill dari master, editable)
 
   tukar TukarBarang @relation(fields: [tukar_id], references: [id], onDelete: Cascade)
   rokok Rokok       @relation(fields: [rokok_id], references: [id])
+
+  @@index([tukar_id])
+  @@index([rokok_id])
 }
 
 // ─── STOK (LEDGER BASED) ────────────────────────────────────────────────────────
@@ -308,12 +343,12 @@ model StockMutation {
   id           String   @id @default(cuid())
   rokok_id     String
   tanggal      DateTime @db.Date
-  jenis        String   // "in" | "out"
+  jenis        String // "in" | "out"
   qty          Int
-  source       String   // "stok_awal", "adjustment", "koreksi", "penjualan", "distribusi_sales", "retur_sales", "retur", "konsinyasi_keluar", "konsinyasi_kembali", "tukar_masuk", "tukar_keluar"
-  reference_id String?  // Optional: ID transaksi asal
-  keterangan   String?  // Optional: Catatan tambahan untuk mutasi ini
-  user_id      String?  // Optional: User yang melakukan mutasi
+  source       String // "stok_awal", "adjustment", "koreksi", "penjualan", "distribusi_sales", "retur_sales", "retur", "konsinyasi_keluar", "konsinyasi_kembali", "tukar_masuk", "tukar_keluar"
+  reference_id String? // Optional: ID transaksi asal
+  keterangan   String? // Optional: Catatan tambahan untuk mutasi ini
+  user_id      String? // Optional: User yang melakukan mutasi
   createdAt    DateTime @default(now())
   updatedAt    DateTime @default(now()) @updatedAt
 
@@ -340,15 +375,15 @@ model ClosingHarian {
 
 model AuditLog {
   id          String   @id @default(cuid())
-  entity_type String   // "SesiHarian" | "TitipJual" | "Pengeluaran" | "Rokok" | "TukarBarang"
-  change_type String?  // misal: "Laporan Sore - Setoran", "Perpanjang JT", dll
+  entity_type String // "SesiHarian" | "TitipJual" | "Pengeluaran" | "Rokok" | "TukarBarang"
+  change_type String? // misal: "Laporan Sore - Setoran", "Perpanjang JT", dll
   entity_id   String
-  action      String   // "CREATE" | "UPDATE" | "DELETE"
+  action      String // "CREATE" | "UPDATE" | "DELETE"
   old_values  Json?
   new_values  Json?
   alasan      String?
   user_id     String?
-  user_name   String?  // disimpan langsung agar tetap ada meski user dihapus
+  user_name   String? // disimpan langsung agar tetap ada meski user dihapus
   createdAt   DateTime @default(now())
 
   user User? @relation(fields: [user_id], references: [id], onDelete: SetNull)

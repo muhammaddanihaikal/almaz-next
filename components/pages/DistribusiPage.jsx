@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useMemo, useState, Fragment } from "react"
-import { useRouter } from "next/navigation"
 import { Plus, Trash2, AlertCircle, ChevronDown, ChevronUp, Download } from "lucide-react"
 import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc } from "@/lib/utils"
 import { createSesi, updateSesiPagi, submitLaporanSore, editLaporanSore, deleteSesi } from "@/actions/distribusi"
@@ -360,7 +359,6 @@ function exportToExcelBySales(rows, rokokList, dateRange, onNoData) {
 }
 
 export default function DistribusiPage({ role, sesiList, rokokList, salesList, tokoList, tukarBarangList = [], stockCutoffDate }) {
-  const router  = useRouter()
   const { confirm, ConfirmModal } = useConfirm()
   const { confirmWithReason, ConfirmWithReasonModal } = useConfirmWithReason()
 
@@ -451,7 +449,6 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
         throw new Error(result.error || "Gagal menghapus sesi.")
       }
       removeLocalSesi(r.id)
-      router.refresh()
     } catch (error) {
       console.error("[deleteSesi]", error)
       await confirm(error?.message || "Gagal menghapus sesi.", { title: "Gagal Hapus Sesi", hideCancel: true })
@@ -658,7 +655,6 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
                 }
                 upsertLocalSesi(result.data)
                 close()
-                router.refresh()
               } else {
                 const captured = editing
                 const alasan = await confirmWithReason(`Edit distribusi pagi ${captured.sales}?`, { title: "Edit Distribusi Pagi", confirmLabel: "Ya, Simpan" })
@@ -669,7 +665,6 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
                 }
                 upsertLocalSesi(result.data)
                 close()
-                router.refresh()
               }
             }}
             onCancel={close}
@@ -692,7 +687,6 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
               }
               upsertLocalSesi(result.data)
               setLaporanSesi(null)
-              router.refresh()
             }}
             onCancel={() => setLaporanSesi(null)}
           />
@@ -718,7 +712,6 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
               }
               upsertLocalSesi(result.data)
               setEditLaporan(null)
-              router.refresh()
             }}
             onCancel={() => setEditLaporan(null)}
           />
