@@ -1,10 +1,14 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { getAuditLogs } from "@/actions/audit"
+import { getAuditLogs, getAuditLogValues } from "@/actions/audit"
 import { Card, PageHeader, DateFilter, Field, SelectInput, Button } from "@/components/ui"
 import { defaultDateRange, fmtIDR } from "@/lib/utils"
 import DataTable from "@/components/DataTable"
+
+function SkeletonText({ w = "w-24" }) {
+  return <div className={`h-3.5 ${w} animate-pulse rounded bg-neutral-200`} />
+}
 
 const ENTITY_LABELS = {
   SesiHarian:   "Distribusi",
@@ -27,6 +31,8 @@ export default function RiwayatPage({ initialLogs, users }) {
   const [userId,      setUserId]      = useState("")
   const [logs,        setLogs]        = useState(initialLogs)
   const [expanded,    setExpanded]    = useState(null)
+  const [valuesById,  setValuesById]  = useState({})
+  const [loadingId,   setLoadingId]   = useState(null)
   const [isPending,   startTransition] = useTransition()
 
   const handleFilter = () => {
@@ -39,7 +45,25 @@ export default function RiwayatPage({ initialLogs, users }) {
       })
       setLogs(result)
       setExpanded(null)
+      setValuesById({})
     })
+  }
+
+  const toggleExpanded = async (id) => {
+    if (expanded === id) {
+      setExpanded(null)
+      return
+    }
+    setExpanded(id)
+    if (!valuesById[id]) {
+      setLoadingId(id)
+      try {
+        const v = await getAuditLogValues(id)
+        setValuesById((prev) => ({ ...prev, [id]: v }))
+      } finally {
+        setLoadingId(null)
+      }
+    }
   }
 
   return (
@@ -81,6 +105,12 @@ export default function RiwayatPage({ initialLogs, users }) {
 
       {/* Tabel */}
       <Card>
+        {isPending && (
+          <div className="border-b border-neutral-100 bg-blue-50/40 px-4 py-2 text-xs font-medium text-blue-700">
+            Memuat data riwayat...
+          </div>
+        )}
+        <div className={isPending ? "opacity-60 transition-opacity" : "transition-opacity"}>
         <DataTable
           pageSize={20}
           rows={logs}
@@ -111,7 +141,7 @@ export default function RiwayatPage({ initialLogs, users }) {
               render: r => (
                 <button
                   className="text-xs font-medium text-neutral-500 underline hover:text-neutral-900"
-                  onClick={() => setExpanded(expanded === r.id ? null : r.id)}
+                  onClick={() => toggleExpanded(r.id)}
                 >
                   {expanded === r.id ? "Tutup" : "Lihat"}
                 </button>
@@ -132,25 +162,42 @@ export default function RiwayatPage({ initialLogs, users }) {
                 </div>
                 <button
                   className="text-xs font-medium text-neutral-500 underline"
-                  onClick={() => setExpanded(expanded === r.id ? null : r.id)}
+                  onClick={() => toggleExpanded(r.id)}
                 >
                   {expanded === r.id ? "Tutup" : "Detail"}
                 </button>
               </div>
               <p className="text-xs text-neutral-500">{r.createdAt} · {r.user_name ?? "-"}</p>
               {r.alasan && <p className="text-xs text-neutral-600">Alasan: {r.alasan}</p>}
-              {expanded === r.id && <DiffView old_values={r.old_values} new_values={r.new_values} />}
+              {expanded === r.id && (
+                loadingId === r.id || !valuesById[r.id]
+                  ? <DiffSkeleton />
+                  : <DiffView old_values={valuesById[r.id].old_values} new_values={valuesById[r.id].new_values} />
+              )}
             </div>
           )}
           rowExtra={(r) => expanded === r.id ? (
             <tr>
               <td colSpan={99} className="bg-neutral-50 px-4 py-3">
-                <DiffView old_values={r.old_values} new_values={r.new_values} />
+                {loadingId === r.id || !valuesById[r.id]
+                  ? <DiffSkeleton />
+                  : <DiffView old_values={valuesById[r.id].old_values} new_values={valuesById[r.id].new_values} />}
               </td>
             </tr>
           ) : null}
         />
+        </div>
       </Card>
+    </div>
+  )
+}
+
+function DiffSkeleton() {
+  return (
+    <div className="space-y-2 py-1">
+      <SkeletonText w="w-32" />
+      <SkeletonText w="w-48" />
+      <SkeletonText w="w-40" />
     </div>
   )
 }

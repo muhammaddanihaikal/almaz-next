@@ -3,11 +3,11 @@
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 
-// Default: hanya muat absensi 60 hari terakhir untuk performa.
+// Default: hanya muat absensi 30 hari terakhir untuk performa.
 // Halaman pakai filter tanggal di client; data lebih lama bisa diakses
 // dengan memanggil getAbsensi(daysBack) dengan nilai lebih besar / null.
 // Sales relation tidak di-include karena halaman sudah punya salesList sendiri.
-export async function getAbsensi(daysBack = 60) {
+export async function getAbsensi(daysBack = 30) {
   const where = {}
   if (daysBack && Number.isFinite(daysBack)) {
     const since = new Date()
