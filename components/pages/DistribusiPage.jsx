@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState, Fragment } from "react"
-import { Plus, Trash2, AlertCircle, ChevronDown, ChevronUp, Download, X, History } from "lucide-react"
+import { Plus, Trash2, AlertCircle, ChevronDown, ChevronUp, Download, X, History, Info } from "lucide-react"
 import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc } from "@/lib/utils"
 import { createSesi, updateSesiPagi, submitLaporanSore, editLaporanSore, deleteSesi } from "@/actions/distribusi"
 import { settleTitipJual, createTitipJual, editSettlement, revertSettlement, editTitipJualDetail, deleteTitipJual } from "@/actions/titip_jual"
@@ -1774,7 +1774,11 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
 
   const totalTukarMasuk = tukarSelesai.itemsMasuk.reduce((sum, it) => sum + (Number(it.qty) * Number(it.harga_satuan || 0)), 0)
   const totalTukarKeluar = tukarSelesai.itemsKeluar.reduce((sum, it) => sum + (Number(it.qty) * Number(it.harga_satuan || 0)), 0)
-  const selisihTukar = totalTukarMasuk - totalTukarKeluar
+  // Return-only mode: hanya barang masuk tanpa pengganti -> tidak ada selisih uang (akan disimpan sbg Retur biasa)
+  const tukarInValid  = tukarSelesai.itemsMasuk.some((i) => i.rokok_id && Number(i.qty) > 0)
+  const tukarOutValid = tukarSelesai.itemsKeluar.some((i) => i.rokok_id && Number(i.qty) > 0)
+  const isReturnOnly  = tukarInValid && !tukarOutValid
+  const selisihTukar  = isReturnOnly ? 0 : (totalTukarMasuk - totalTukarKeluar)
 
   const nilaiPenjualan = nilaiPenjualanLangsung + totalTitipJual + selisihTukar
   const totalSetoran = setoran.reduce((s, it) => s + (Number(it.jumlah) || 0), 0)
@@ -1795,11 +1799,17 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
 
       const inItems  = tukarSelesai.itemsMasuk.filter(i => i.rokok_id && Number(i.qty) > 0)
       const outItems = tukarSelesai.itemsKeluar.filter(i => i.rokok_id && Number(i.qty) > 0)
-      if (inItems.length > 0 || outItems.length > 0) {
-        if (inItems.length === 0 || outItems.length === 0) {
-          throw new Error(`Tukar Barang: Barang return dan barang pengganti harus diisi.`)
-        }
+      let returFromTukar = null
+      if (inItems.length > 0 && outItems.length > 0) {
         validTukarBaru.push({ ...tukarSelesai, langsungSelesai: true })
+      } else if (inItems.length > 0 && outItems.length === 0) {
+        returFromTukar = {
+          tipe_penjualan: tukarSelesai.kategori || "grosir",
+          alasan:         tukarSelesai.catatan || null,
+          items:          inItems.map((it) => ({ rokok_id: it.rokok_id, qty: Number(it.qty) || 0 })),
+        }
+      } else if (inItems.length === 0 && outItems.length > 0) {
+        throw new Error(`Tukar Barang: Barang pengganti tidak bisa diisi tanpa barang return.`)
       }
 
 
@@ -1876,6 +1886,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
           langsungSelesai: !!t.langsungSelesai,
         })),
         penyelesaianTukar: Array.from(penyelesaianTukar),
+        returFromTukar,
       }
 
       // Final validation to prevent NaN in production
@@ -2085,6 +2096,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
                       qtyTukarKeluar={qtyTukarSelesaiKeluar}
                       konsinyasiBaru={konsinyasiBaru}
                       tokoList={tokoList}
+                      tanggalSesi={sesi.tanggal}
                       onChange={(updated) => setKonsinyasiBaru(konsinyasiBaru.map((x, i) => i === idx ? updated : x))}
                       onRemove={() => setKonsinyasiBaru(konsinyasiBaru.filter((_, i) => i !== idx))}
                       isEdit={isEdit}
@@ -2589,7 +2601,7 @@ function PenyelesaianDetail({ record }) {
   )
 }
 
-function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerjualLangsung, qtyTukarKeluar = {}, konsinyasiBaru, tokoList, onChange, onRemove, onTokoCreated, extraUsedTokoIds = [], isEdit = false, isHistorical = false }) {
+function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerjualLangsung, qtyTukarKeluar = {}, konsinyasiBaru, tokoList, tanggalSesi, onChange, onRemove, onTokoCreated, extraUsedTokoIds = [], isEdit = false, isHistorical = false }) {
   const [open,        setOpen]        = useState(!(isEdit && data.toko_id))
   const [showAddToko, setShowAddToko] = useState(false)
   const [newTokoNama, setNewTokoNama] = useState("")
@@ -2694,7 +2706,7 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
               />
             </div>
             <Field label="Jatuh Tempo">
-              <input type="date" value={data.tanggal_jatuh_tempo} onChange={(e) => onChange({ ...data, tanggal_jatuh_tempo: e.target.value })} className={inputCls} />
+              <input type="date" value={data.tanggal_jatuh_tempo} min={tanggalSesi} onChange={(e) => onChange({ ...data, tanggal_jatuh_tempo: e.target.value })} className={inputCls} />
             </Field>
             <Field label="Catatan (opsional)" className="sm:col-span-2">
               <input type="text" value={data.catatan} onChange={(e) => onChange({ ...data, catatan: e.target.value })} className={inputCls} placeholder="Opsional" />
@@ -2811,6 +2823,10 @@ function TukarBarangTab({ tukarSelesai, setTukarSelesai, rokokDibawa, rokokList,
         <div className="border-b border-neutral-100 pb-3">
           <h3 className="text-sm font-bold text-neutral-800 uppercase tracking-wide">Tukar Barang Selesai</h3>
           <p className="text-[11px] text-neutral-400 mt-1 italic">Gunakan jika penukaran barang (kembali & pengganti) langsung selesai hari ini.</p>
+          <div className="mt-2 flex items-start gap-1.5 rounded-md border border-blue-100 bg-blue-50 px-2.5 py-1.5 text-[11px] text-blue-700">
+            <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+            <span>Kalau hanya isi <b>Barang Return</b> tanpa <b>Barang Pengganti</b>, akan otomatis dicatat sebagai <b>Retur biasa</b>.</span>
+          </div>
         </div>
 
         <div className="space-y-5">

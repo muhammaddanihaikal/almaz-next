@@ -235,13 +235,23 @@ export default function RokokPage({ role, rokokList, usedIds, mutasiHariIni = []
             empty="Belum ada rokok."
             columns={[
               { key: "no",   label: "No",         render: (_, idx) => idx + 1 },
-              { key: "nama", label: "Nama Rokok",  render: (r) => r._pending ? <SkeletonText w="w-28" /> : r.nama },
+              {
+                key: "nama", label: "Nama Rokok",
+                render: (r) => r._pending ? <SkeletonText w="w-28" /> : (
+                  <div className="flex items-center gap-2">
+                    <span className={r.aktif === false ? "text-neutral-400" : ""}>{r.nama}</span>
+                    {r.aktif === false && (
+                      <span className="inline-flex items-center rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-neutral-400">Nonaktif</span>
+                    )}
+                  </div>
+                )
+              },
               {
                 key: "stok", label: "Stok", align: "right",
                 render: (r) => r._pending ? <SkeletonText w="w-12" /> : (
                   <div className="flex items-center justify-end gap-2">
-                    <span className={`font-semibold tabular-nums ${(r.stok ?? 0) < 50 ? "text-red-600" : (r.stok ?? 0) < 150 ? "text-amber-500" : "text-green-600"}`}>{r.stok ?? 0}</span>
-                    {role !== "staff" && (
+                    <span className={`font-semibold tabular-nums ${r.aktif === false ? "text-neutral-400" : (r.stok ?? 0) < 50 ? "text-red-600" : (r.stok ?? 0) < 150 ? "text-amber-500" : "text-green-600"}`}>{r.stok ?? 0}</span>
+                    {role !== "staff" && r.aktif !== false && (
                       <IconButton onClick={() => setStokTarget(r)} icon={Plus} label="Tambah stok" className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border-emerald-100" />
                     )}
                   </div>
@@ -295,7 +305,12 @@ export default function RokokPage({ role, rokokList, usedIds, mutasiHariIni = []
             mobileRender={(r) => (
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-neutral-900">{r._pending ? <SkeletonText w="w-28" /> : r.nama}</p>
+                  <div className="flex items-center gap-2">
+                    <p className={`font-medium ${r._pending || r.aktif !== false ? "text-neutral-900" : "text-neutral-400"}`}>{r._pending ? <SkeletonText w="w-28" /> : r.nama}</p>
+                    {!r._pending && r.aktif === false && (
+                      <span className="inline-flex items-center rounded-full bg-neutral-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-neutral-400">Nonaktif</span>
+                    )}
+                  </div>
                   {r._pending ? (
                     <div className="flex items-center gap-2 mt-1">
                       <svg className="h-4 w-4 animate-spin text-neutral-400" viewBox="0 0 24 24" fill="none">
@@ -306,10 +321,10 @@ export default function RokokPage({ role, rokokList, usedIds, mutasiHariIni = []
                     </div>
                   ) : (
                     <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                      <span className={`text-xs font-semibold tabular-nums ${(r.stok ?? 0) < 50 ? "text-red-600" : (r.stok ?? 0) < 150 ? "text-amber-500" : "text-green-600"}`}>
+                      <span className={`text-xs font-semibold tabular-nums ${r.aktif === false ? "text-neutral-400" : (r.stok ?? 0) < 50 ? "text-red-600" : (r.stok ?? 0) < 150 ? "text-amber-500" : "text-green-600"}`}>
                         Stok: {r.stok ?? 0}
                       </span>
-                      {role !== "staff" && (
+                      {role !== "staff" && r.aktif !== false && (
                         <IconButton
                           onClick={() => setStokTarget(r)}
                           icon={Plus}
@@ -685,6 +700,7 @@ function RokokForm({ initial, rokokList, onSubmit, onCancel }) {
   const [nama, setNama]                     = useState(initial?.nama || "")
   const [stok, setStok]                     = useState(initial?.stok || "")
   const [aktif, setAktif]                   = useState(initial?.aktif !== false)
+  const isNonaktif = initial && !aktif
   const [hargaBeli, setHargaBeli]           = useState(initial?.harga_beli || "")
   const [hargaGrosir, setHargaGrosir]       = useState(initial?.harga_grosir || "")
   const [hargaToko, setHargaToko]           = useState(initial?.harga_toko || "")
@@ -724,9 +740,8 @@ function RokokForm({ initial, rokokList, onSubmit, onCancel }) {
                 value={nama} 
                 onChange={(e) => setNama(e.target.value)} 
                 placeholder="Misal: Marlboro Merah" 
-                className={`${inputCls} pl-10 border-neutral-200 focus:border-neutral-900`} 
-                autoFocus 
-                required 
+                className={`${inputCls} pl-10 border-neutral-200 focus:border-neutral-900`}
+                required
               />
               <Tag className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
             </div>
@@ -738,15 +753,22 @@ function RokokForm({ initial, rokokList, onSubmit, onCancel }) {
             )}
           </Field>
 
+          {isNonaktif && (
+            <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+              Produk nonaktif — stok dan harga tidak bisa diubah. Aktifkan dulu untuk mengedit.
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <Field label={initial ? "Stok Saat Ini" : "Stok Awal"}>
               <div className="relative">
-                <input 
-                  type="number" 
-                  min="0" 
-                  value={stok} 
-                  onChange={(e) => setStok(e.target.value)} 
-                  className={`${inputCls} pl-10 border-neutral-200 focus:border-neutral-900 tabular-nums`} 
+                <input
+                  type="number"
+                  min="0"
+                  value={stok}
+                  onChange={(e) => setStok(e.target.value)}
+                  disabled={isNonaktif}
+                  className={`${inputCls} pl-10 border-neutral-200 focus:border-neutral-900 tabular-nums${isNonaktif ? " opacity-50 cursor-not-allowed bg-neutral-50" : ""}`}
                 />
                 <Package className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
               </div>
@@ -770,13 +792,14 @@ function RokokForm({ initial, rokokList, onSubmit, onCancel }) {
           <h4 className="text-[11px] font-bold uppercase tracking-wider text-neutral-500">Daftar Harga Jual</h4>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4${isNonaktif ? " opacity-50 pointer-events-none" : ""}`}>
           <Field label="Harga Beli (Modal)">
             <div className="relative group">
-              <MoneyInput 
-                value={hargaBeli} 
-                onChange={setHargaBeli} 
-                placeholder="0" 
+              <MoneyInput
+                value={hargaBeli}
+                onChange={setHargaBeli}
+                placeholder="0"
+                disabled={isNonaktif}
                 className={`${inputCls} pl-10 border-neutral-200 focus:border-emerald-500 font-bold tabular-nums`}
               />
               <ShoppingCart className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 group-focus-within:text-emerald-500 transition-colors" />
@@ -786,10 +809,11 @@ function RokokForm({ initial, rokokList, onSubmit, onCancel }) {
 
           <Field label="Harga Grosir">
             <div className="relative group">
-              <MoneyInput 
-                value={hargaGrosir} 
-                onChange={setHargaGrosir} 
-                placeholder="0" 
+              <MoneyInput
+                value={hargaGrosir}
+                onChange={setHargaGrosir}
+                placeholder="0"
+                disabled={isNonaktif}
                 className={`${inputCls} pl-10 border-neutral-200 focus:border-indigo-500 font-bold tabular-nums`}
               />
               <TrendingUp className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 group-focus-within:text-indigo-500 transition-colors" />
@@ -799,10 +823,11 @@ function RokokForm({ initial, rokokList, onSubmit, onCancel }) {
 
           <Field label="Harga Toko">
             <div className="relative group">
-              <MoneyInput 
-                value={hargaToko} 
-                onChange={setHargaToko} 
-                placeholder="0" 
+              <MoneyInput
+                value={hargaToko}
+                onChange={setHargaToko}
+                placeholder="0"
+                disabled={isNonaktif}
                 className={`${inputCls} pl-10 border-neutral-200 focus:border-blue-500 font-bold tabular-nums`}
               />
               <Store className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 group-focus-within:text-blue-500 transition-colors" />
@@ -812,10 +837,11 @@ function RokokForm({ initial, rokokList, onSubmit, onCancel }) {
 
           <Field label="Harga Perorangan">
             <div className="relative group">
-              <MoneyInput 
-                value={hargaPerorangan} 
-                onChange={setHargaPerorangan} 
-                placeholder="0" 
+              <MoneyInput
+                value={hargaPerorangan}
+                onChange={setHargaPerorangan}
+                placeholder="0"
+                disabled={isNonaktif}
                 className={`${inputCls} pl-10 border-neutral-200 focus:border-violet-500 font-bold tabular-nums`}
               />
               <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 group-focus-within:text-violet-500 transition-colors" />

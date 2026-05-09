@@ -108,6 +108,7 @@ model SesiHarian {
   setoran            SesiSetoran[]
   barangKembali      SesiBarangKembali[]
   titipJual          TitipJual[]
+  retur              Retur[]
   tukarBarang        TukarBarang[]       @relation("TukarBarangSesi")
   tukarBarangSelesai TukarBarang[]       @relation("TukarBarangSesiSelesai")
 
@@ -263,12 +264,16 @@ model Retur {
   tanggal        DateTime @db.Date
   tipe_penjualan String?
   sales_id       String
+  sesi_id        String?
   alasan         String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   sales Sales       @relation(fields: [sales_id], references: [id])
+  sesi  SesiHarian? @relation(fields: [sesi_id], references: [id], onDelete: SetNull)
   items ReturItem[]
+
+  @@index([sesi_id])
 }
 
 model ReturItem {

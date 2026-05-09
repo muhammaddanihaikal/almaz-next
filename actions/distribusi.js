@@ -332,6 +332,22 @@ export async function submitLaporanSore(id, data) {
       }
       await tx.titipJual.deleteMany({ where: { sesi_id: id } })
 
+      // Revert & Delete existing Retur untuk sesi ini (re-submit safety)
+      const oldReturSubmit = await tx.retur.findMany({ where: { sesi_id: id }, include: { items: true } })
+      for (const r of oldReturSubmit) {
+        for (const it of r.items) {
+          if (!is_historical) {
+            mutQueue.push({
+              rokok_id: it.rokok_id, tanggal: data.tanggal, jenis: 'out', qty: it.qty,
+              source: MUTATION_SOURCE.REVERT, reference_id: r.id,
+              keterangan: "Revert retur (re-submit sore)", user_id: session?.user?.id,
+              allowNegative: true,
+            })
+          }
+        }
+      }
+      await tx.retur.deleteMany({ where: { sesi_id: id } })
+
       const penjualan = data.penjualan || []
       await tx.sesiPenjualan.createMany({
         data: penjualan.map((it) => ({
@@ -399,6 +415,34 @@ export async function submitLaporanSore(id, data) {
       const sesiObj = { id, tanggal: data.tanggal, is_historical }
       for (const t of tukarBaru) {
         await createTukarBarangInSesi(tx, sesiObj, t, session, !!t.langsungSelesai, mutQueue)
+      }
+
+      // Retur dari Tab Tukar Barang (kalau hanya isi barang return tanpa pengganti)
+      const returFromTukar = data.returFromTukar
+      if (returFromTukar && Array.isArray(returFromTukar.items) && returFromTukar.items.length > 0) {
+        const validReturItems = returFromTukar.items.filter((it) => it.rokok_id && Number(it.qty) > 0)
+        if (validReturItems.length > 0) {
+          const retur = await tx.retur.create({
+            data: {
+              tanggal:        new Date(data.tanggal),
+              tipe_penjualan: returFromTukar.tipe_penjualan || null,
+              sales_id:       data.sales_id,
+              sesi_id:        id,
+              alasan:         returFromTukar.alasan || "Retur dari sesi (tukar barang tanpa pengganti)",
+              items: {
+                create: validReturItems.map((it) => ({ rokok_id: it.rokok_id, qty: Number(it.qty) })),
+              },
+            },
+          })
+          if (!is_historical) {
+            for (const it of validReturItems) {
+              mutQueue.push({
+                rokok_id: it.rokok_id, tanggal: data.tanggal, jenis: 'in', qty: Number(it.qty),
+                source: MUTATION_SOURCE.RETUR, reference_id: retur.id, user_id: session?.user?.id,
+              })
+            }
+          }
+        }
       }
 
       // Penyelesaian Tukar Barang yang masih aktif
@@ -586,6 +630,22 @@ export async function editLaporanSore(id, data, alasan) {
       }
       await tx.titipJual.deleteMany({ where: { sesi_id: id } })
 
+      // Revert & Delete existing Retur untuk sesi ini
+      const oldReturEdit = await tx.retur.findMany({ where: { sesi_id: id }, include: { items: true } })
+      for (const r of oldReturEdit) {
+        for (const it of r.items) {
+          if (!is_historical) {
+            mutQueue.push({
+              rokok_id: it.rokok_id, tanggal: data.tanggal, jenis: 'out', qty: it.qty,
+              source: MUTATION_SOURCE.REVERT, reference_id: r.id,
+              keterangan: `Revert retur (edit sore - alasan: ${alasan})`, user_id: session?.user?.id,
+              allowNegative: true,
+            })
+          }
+        }
+      }
+      await tx.retur.deleteMany({ where: { sesi_id: id } })
+
       // 4. Buat data baru
       const penjualan = data.penjualan || []
       await tx.sesiPenjualan.createMany({
@@ -657,6 +717,34 @@ export async function editLaporanSore(id, data, alasan) {
       }
       for (const tukar_id of (data.penyelesaianTukar || [])) {
         await selesaikanTukarBarangInSesi(tx, sesiObjEdit, tukar_id, session, mutQueue)
+      }
+
+      // 6b. Retur dari Tab Tukar Barang (kalau hanya isi barang return tanpa pengganti)
+      const returFromTukarEdit = data.returFromTukar
+      if (returFromTukarEdit && Array.isArray(returFromTukarEdit.items) && returFromTukarEdit.items.length > 0) {
+        const validReturItems = returFromTukarEdit.items.filter((it) => it.rokok_id && Number(it.qty) > 0)
+        if (validReturItems.length > 0) {
+          const retur = await tx.retur.create({
+            data: {
+              tanggal:        new Date(data.tanggal),
+              tipe_penjualan: returFromTukarEdit.tipe_penjualan || null,
+              sales_id:       data.sales_id,
+              sesi_id:        id,
+              alasan:         returFromTukarEdit.alasan || "Retur dari sesi (tukar barang tanpa pengganti)",
+              items: {
+                create: validReturItems.map((it) => ({ rokok_id: it.rokok_id, qty: Number(it.qty) })),
+              },
+            },
+          })
+          if (!is_historical) {
+            for (const it of validReturItems) {
+              mutQueue.push({
+                rokok_id: it.rokok_id, tanggal: data.tanggal, jenis: 'in', qty: Number(it.qty),
+                source: MUTATION_SOURCE.RETUR, reference_id: retur.id, user_id: session?.user?.id,
+              })
+            }
+          }
+        }
       }
 
       // Flush semua mutasi stok dalam batch
@@ -828,6 +916,30 @@ export async function deleteSesi(id, alasan) {
       }
 
       await tx.titipJual.deleteMany({ where: { sesi_id: id } })
+
+      // Revert retur yang dibuat di sesi ini (dari tab tukar barang tanpa pengganti)
+      const returDiSesi = await tx.retur.findMany({
+        where: { sesi_id: id },
+        include: { items: true },
+      })
+      for (const r of returDiSesi) {
+        for (const it of r.items) {
+          if (!is_historical) {
+            mutQueue.push({
+              rokok_id: it.rokok_id,
+              tanggal: sesi.tanggal,
+              jenis: 'out',
+              qty: it.qty,
+              source: MUTATION_SOURCE.REVERT,
+              reference_id: r.id,
+              keterangan: "Revert retur (delete sesi)",
+              user_id: session?.user?.id,
+              allowNegative: true,
+            })
+          }
+        }
+      }
+      await tx.retur.deleteMany({ where: { sesi_id: id } })
 
       // Revert tukar barang yang dibuat di sesi ini
       const tukarBaruDiSesi = await tx.tukarBarang.findMany({
