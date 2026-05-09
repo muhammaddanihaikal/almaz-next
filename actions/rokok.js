@@ -52,10 +52,11 @@ export async function addRokok(data) {
   }
 
   await prisma.$transaction(async (tx) => {
+    const initialStok = Number(data.stok) || 0
     const r = await tx.rokok.create({
       data: {
         nama: data.nama,
-        stok: Number(data.stok) || 0,
+        stok: 0,
         harga_beli: Number(data.harga_beli),
         harga_grosir: Number(data.harga_grosir),
         harga_toko: Number(data.harga_toko),
@@ -63,11 +64,11 @@ export async function addRokok(data) {
         urutan: nextUrutan,
       },
     })
-    if (r.stok > 0) {
+    if (initialStok > 0) {
       const sm = await tx.stokMasuk.create({
         data: {
           rokok_id: r.id,
-          qty:      r.stok,
+          qty:      initialStok,
           tanggal:  new Date(),
           keterangan: "Stok Awal",
         },
@@ -77,7 +78,7 @@ export async function addRokok(data) {
         rokok_id: r.id,
         tanggal: new Date(),
         jenis: 'in',
-        qty: r.stok,
+        qty: initialStok,
         source: MUTATION_SOURCE.STOK_AWAL,
         reference_id: sm.id,
         keterangan: `Stok awal saat data rokok dibuat`,
@@ -90,7 +91,7 @@ export async function addRokok(data) {
       change_type: "Tambah Rokok",
       entity_id:   r.id,
       action:      AUDIT_ACTION.CREATE,
-      new_values:  { nama: r.nama, stok: r.stok, harga_beli: r.harga_beli, harga_grosir: r.harga_grosir, harga_toko: r.harga_toko, harga_perorangan: r.harga_perorangan },
+      new_values:  { nama: r.nama, stok: initialStok, harga_beli: r.harga_beli, harga_grosir: r.harga_grosir, harga_toko: r.harga_toko, harga_perorangan: r.harga_perorangan },
       user_id:     userId,
       user_name:   session?.user?.name,
     })
