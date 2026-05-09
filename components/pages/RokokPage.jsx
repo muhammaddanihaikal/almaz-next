@@ -44,7 +44,7 @@ const SOURCE_LABEL = {
 }
 
 function SkeletonText({ w = "w-24" }) {
-  return <div className={`h-3.5 ${w} animate-pulse rounded bg-neutral-200`} />
+  return <span className={`inline-block h-3.5 ${w} animate-pulse rounded bg-neutral-200`} />
 }
 
 export default function RokokPage({ role, rokokList, usedIds, mutasiHariIni = [] }) {
