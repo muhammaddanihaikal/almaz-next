@@ -2775,11 +2775,10 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
     if (!newTokoNama.trim()) return
     setSavingToko(true)
     try {
-      await addToko({ nama: newTokoNama.trim(), alamat: newTokoAlamat.trim(), kategori: newTokoKategori })
-      // Fetch toko baru — karena server action, kita buat objek sementara untuk optimistic update
-      const tempToko = { id: `__temp__${Date.now()}`, nama: newTokoNama.trim(), alamat: newTokoAlamat.trim(), kategori: newTokoKategori, aktif: true }
-      onTokoCreated(tempToko)
-      onChange({ ...data, toko_id: tempToko.id, kategori: newTokoKategori })
+      const newToko = await addToko({ nama: newTokoNama.trim(), alamat: newTokoAlamat.trim(), kategori: newTokoKategori })
+      const realToko = { id: newToko.id, nama: newTokoNama.trim(), alamat: newTokoAlamat.trim(), kategori: newTokoKategori, aktif: true }
+      onTokoCreated(realToko)
+      onChange({ ...data, toko_id: realToko.id, kategori: newTokoKategori })
       setShowAddToko(false)
       setNewTokoNama("")
       setNewTokoAlamat("")

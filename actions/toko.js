@@ -42,7 +42,7 @@ function bustTokoCache() {
 }
 
 export async function addToko(data) {
-  await prisma.toko.create({
+  const toko = await prisma.toko.create({
     data: {
       nama:     data.nama.trim(),
       alamat:   data.alamat?.trim() || null,
@@ -51,6 +51,7 @@ export async function addToko(data) {
     },
   })
   bustTokoCache()
+  return toko
 }
 
 export async function updateToko(id, data) {
