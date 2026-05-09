@@ -309,12 +309,14 @@ export default function RokokPage({ role, rokokList, usedIds, mutasiHariIni = []
                       <span className={`text-xs font-semibold tabular-nums ${(r.stok ?? 0) < 50 ? "text-red-600" : (r.stok ?? 0) < 150 ? "text-amber-500" : "text-green-600"}`}>
                         Stok: {r.stok ?? 0}
                       </span>
-                      <IconButton
-                        onClick={() => setStokTarget(r)}
-                        icon={Plus}
-                        label="Tambah stok"
-                        className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border-emerald-100"
-                      />
+                      {role !== "staff" && (
+                        <IconButton
+                          onClick={() => setStokTarget(r)}
+                          icon={Plus}
+                          label="Tambah stok"
+                          className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border-emerald-100"
+                        />
+                      )}
                       <button
                         onClick={() => setDetailTarget(r)}
                         className="inline-flex items-center gap-0.5 text-xs text-neutral-500 hover:text-neutral-700"
@@ -337,7 +339,7 @@ export default function RokokPage({ role, rokokList, usedIds, mutasiHariIni = []
                     </div>
                   )}
                 </div>
-                {!r._pending && (
+                {!r._pending && role !== "staff" && (
                   <div className="flex items-center gap-2 shrink-0">
                     <RowActions
                       onEdit={() => { setEditing(r); setMode("edit") }}
@@ -547,6 +549,7 @@ function TambahStokForm({ rokok, onSubmit, onCancel }) {
   const submit = async (e) => {
     e.preventDefault()
     if (!valid || loading) return
+    setLoading(true)
     try {
       await onSubmit(totalBungkus, tanggal, keterangan)
     } finally {

@@ -118,6 +118,7 @@ export async function updateRokok(id, data, alasan) {
         harga_grosir:     Number(data.harga_grosir),
         harga_toko:       Number(data.harga_toko),
         harga_perorangan: Number(data.harga_perorangan),
+        ...(data.aktif !== undefined && { aktif: data.aktif }),
       },
     })
 
@@ -146,8 +147,8 @@ export async function updateRokok(id, data, alasan) {
       change_type: "Edit Harga / Nama",
       entity_id:   id,
       action:      AUDIT_ACTION.UPDATE,
-      old_values:  { nama: old.nama, stok: old.stok, harga_beli: old.harga_beli, harga_grosir: old.harga_grosir, harga_toko: old.harga_toko, harga_perorangan: old.harga_perorangan },
-      new_values:  { nama: data.nama, stok: newStok ?? old.stok, harga_beli: Number(data.harga_beli), harga_grosir: Number(data.harga_grosir), harga_toko: Number(data.harga_toko), harga_perorangan: Number(data.harga_perorangan) },
+      old_values:  { nama: old.nama, stok: old.stok, aktif: old.aktif, harga_beli: old.harga_beli, harga_grosir: old.harga_grosir, harga_toko: old.harga_toko, harga_perorangan: old.harga_perorangan },
+      new_values:  { nama: data.nama, stok: newStok ?? old.stok, aktif: data.aktif ?? old.aktif, harga_beli: Number(data.harga_beli), harga_grosir: Number(data.harga_grosir), harga_toko: Number(data.harga_toko), harga_perorangan: Number(data.harga_perorangan) },
       alasan,
       user_id:     userId,
       user_name:   session?.user?.name,
