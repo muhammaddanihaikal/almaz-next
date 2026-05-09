@@ -311,7 +311,8 @@ export function Button({
   iconRight: IconRight,
   iconRightClassName = "",
   type = "button", 
-  className = "" 
+  className = "",
+  ...props
 }) {
   const [internalLoading, setInternalLoading] = useState(false)
   const loading = manualLoading || internalLoading
@@ -349,6 +350,7 @@ export function Button({
       type={type}
       onClick={handleClick}
       disabled={isDisabled}
+      {...props}
       className={`inline-flex items-center ${alignment} gap-2 rounded-lg font-medium transition whitespace-nowrap ${variants[variant]} ${sizes[size]} ${className}`}
     >
       {loading ? (

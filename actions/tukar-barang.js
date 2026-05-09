@@ -14,6 +14,64 @@ function pushOrMutate(mutQueue, tx, mutation) {
 import { auth } from "@/lib/auth"
 import { logAudit, AUDIT_ACTION, AUDIT_ENTITY } from "@/lib/audit"
 
+function mutationDateKey(tanggal) {
+  return new Date(tanggal).toISOString().split("T")[0]
+}
+
+function addMutationNet(map, mutation) {
+  const key = `${mutation.rokok_id}::${mutationDateKey(mutation.tanggal)}`
+  const current = map.get(key) || {
+    rokok_id: mutation.rokok_id,
+    tanggal: mutationDateKey(mutation.tanggal),
+    delta: 0,
+  }
+  current.delta += mutation.jenis === "in" ? mutation.qty : -mutation.qty
+  map.set(key, current)
+}
+
+async function reverseMutationRows(tx, rows, { reference_id, keterangan, session, mutQueue }) {
+  const net = new Map()
+  for (const row of rows) addMutationNet(net, row)
+
+  for (const item of net.values()) {
+    if (item.delta === 0) continue
+    await pushOrMutate(mutQueue, tx, {
+      rokok_id: item.rokok_id,
+      tanggal: item.tanggal,
+      jenis: item.delta > 0 ? "out" : "in",
+      qty: Math.abs(item.delta),
+      source: MUTATION_SOURCE.REVERT,
+      reference_id,
+      keterangan,
+      user_id: session?.user?.id,
+      allowNegative: true,
+    })
+  }
+}
+
+export async function reverseStockMutationNet(tx, reference_id, { keterangan, session, mutQueue, filter } = {}) {
+  const rows = await tx.stockMutation.findMany({
+    where: { reference_id },
+    select: { rokok_id: true, tanggal: true, jenis: true, qty: true, source: true, keterangan: true },
+  })
+  const filtered = typeof filter === "function" ? rows.filter(filter) : rows
+  await reverseMutationRows(tx, filtered, { reference_id, keterangan, session, mutQueue })
+}
+
+const TUKAR_KELUAR_REVERT_RE = /tukar(?: barang)? keluar/i
+
+export async function reverseTukarKeluarMutationNet(tx, tukar_id, { keterangan, session, mutQueue } = {}) {
+  await reverseStockMutationNet(tx, tukar_id, {
+    keterangan,
+    session,
+    mutQueue,
+    filter: (m) => (
+      m.source === MUTATION_SOURCE.TUKAR_KELUAR ||
+      (m.source === MUTATION_SOURCE.REVERT && TUKAR_KELUAR_REVERT_RE.test(m.keterangan || ""))
+    ),
+  })
+}
+
 const include = {
   sesi:        { include: { sales: true } },
   sesiSelesai: { include: { sales: true } },
@@ -103,29 +161,10 @@ export async function deleteTukarBarang(id, alasan) {
       user_name: session?.user?.name,
     })
 
-    for (const it of old.itemsMasuk) {
-      await mutateStock({
-        tx,
-        rokok_id: it.rokok_id, tanggal: old.tanggal, jenis: 'out', qty: it.qty,
-        source: MUTATION_SOURCE.REVERT, reference_id: id,
-        keterangan: "Revert tukar barang masuk (delete)",
-        user_id: session?.user?.id,
-      })
-    }
-    if (old.status === "selesai") {
-      for (const it of old.itemsKeluar) {
-        if (it.qty > 0) {
-          await mutateStock({
-            tx,
-            rokok_id: it.rokok_id, tanggal: old.tanggal_selesai || old.tanggal, jenis: 'in', qty: it.qty,
-            source: MUTATION_SOURCE.REVERT, reference_id: id,
-            keterangan: "Revert tukar barang keluar (delete)",
-            user_id: session?.user?.id,
-            allowNegative: true,
-          })
-        }
-      }
-    }
+    await reverseStockMutationNet(tx, id, {
+      keterangan: "Revert semua mutasi tukar barang (delete)",
+      session,
+    })
     await tx.tukarBarang.delete({ where: { id } })
   })
 
@@ -193,21 +232,7 @@ export async function createTukarBarangInSesi(tx, sesi, data, session, langsungS
       })
     }
   }
-  if (langsungSelesai) {
-    for (const it of itemsKeluar) {
-      if (!sesi.is_historical) {
-        await pushOrMutate(mutQueue, tx, {
-          rokok_id: it.rokok_id,
-          tanggal:  sesi.tanggal,
-          jenis:    'out',
-          qty:      Number(it.qty),
-          source:   MUTATION_SOURCE.TUKAR_KELUAR,
-          reference_id: tukar.id,
-          user_id:  session?.user?.id,
-        })
-      }
-    }
-  }
+  // No tukar_keluar mutations: items already counted in barangKeluar (physical movement model)
 
   await logAudit({
     tx,
@@ -234,7 +259,7 @@ export async function createTukarBarangInSesi(tx, sesi, data, session, langsungS
  * Selesaikan tukar barang yang masih aktif (dipanggil dari laporan sore hari-N).
  * TUKAR_KELUAR OUT untuk itemsKeluar — rokok A keluar gudang ke toko.
  */
-export async function selesaikanTukarBarangInSesi(tx, sesi, tukar_id, session, mutQueue = null) {
+export async function selesaikanTukarBarangInSesi(tx, sesi, tukar_id, session, _mutQueue = null) {
   const tukar = await tx.tukarBarang.findUnique({
     where: { id: tukar_id },
     include: { itemsKeluar: true },
@@ -251,19 +276,7 @@ export async function selesaikanTukarBarangInSesi(tx, sesi, tukar_id, session, m
     },
   })
 
-  for (const it of tukar.itemsKeluar) {
-    if (it.qty > 0 && !sesi.is_historical) {
-      await pushOrMutate(mutQueue, tx, {
-        rokok_id: it.rokok_id,
-        tanggal:  sesi.tanggal,
-        jenis:    'out',
-        qty:      it.qty,
-        source:   MUTATION_SOURCE.TUKAR_KELUAR,
-        reference_id: tukar_id,
-        user_id:  session?.user?.id,
-      })
-    }
-  }
+  // No tukar_keluar mutations: items already counted in barangKeluar (physical movement model)
 
   await logAudit({
     tx,
@@ -283,31 +296,21 @@ export async function selesaikanTukarBarangInSesi(tx, sesi, tukar_id, session, m
 
 /**
  * Batalkan penyelesaian tukar barang (dipanggil saat edit/revert laporan sore).
- * Revert TUKAR_KELUAR OUT untuk itemsKeluar.
+ * Hanya mengubah status kembali ke aktif — tidak ada stock mutation karena
+ * tukar_keluar tidak lagi menghasilkan mutasi (physical movement model).
  */
-export async function revertSelesaiTukarBarangInSesi(tx, tukar_id, session, mutQueue = null) {
+export async function revertSelesaiTukarBarangInSesi(tx, tukar_id, session, _mutQueue = null) {
   const tukar = await tx.tukarBarang.findUnique({
     where: { id: tukar_id },
-    include: { itemsKeluar: true },
   })
   if (!tukar) return
   if (tukar.status !== "selesai") return
 
-  for (const it of tukar.itemsKeluar) {
-    if (it.qty > 0) {
-      await pushOrMutate(mutQueue, tx, {
-        rokok_id: it.rokok_id,
-        tanggal:  tukar.tanggal_selesai || tukar.tanggal,
-        jenis:    'in',
-        qty:      it.qty,
-        source:   MUTATION_SOURCE.REVERT,
-        reference_id: tukar_id,
-        keterangan: "Revert tukar keluar (batalkan penyelesaian)",
-        user_id:  session?.user?.id,
-        allowNegative: true,
-      })
-    }
-  }
+  await reverseTukarKeluarMutationNet(tx, tukar_id, {
+    keterangan: "Revert tukar keluar (batalkan penyelesaian)",
+    session,
+    mutQueue: _mutQueue,
+  })
 
   await tx.tukarBarang.update({
     where: { id: tukar_id },
@@ -339,6 +342,7 @@ export async function selesaikanTukarBarang(tukar_id, itemsKeluarData) {
     const itemsKeluar = (itemsKeluarData || []).filter((it) => it.rokok_id && Number(it.qty) > 0)
     if (itemsKeluar.length === 0) throw new Error("Minimal 1 rokok pengganti harus diisi.")
 
+    await tx.tukarBarangItemKeluar.deleteMany({ where: { tukar_id } })
     await tx.tukarBarang.update({
       where: { id: tukar_id },
       data: {
@@ -391,33 +395,22 @@ export async function editTukarBarangAktif(id, data, alasan) {
   await prisma.$transaction(async (tx) => {
     const old = await tx.tukarBarang.findUnique({
       where: { id },
-      include: { itemsMasuk: true }
+      include: { itemsMasuk: true, sesi: { select: { is_historical: true } } }
     })
     if (!old) throw new Error("Data tidak ditemukan")
     if (old.status !== "aktif") throw new Error("Hanya bisa edit tukar barang yang masih aktif")
 
-    // 1. Revert old stock (masuk -> out)
-    for (const it of old.itemsMasuk) {
-       await mutateStock({
-        tx,
-        rokok_id: it.rokok_id, 
-        tanggal: old.tanggal, 
-        jenis: 'out', 
-        qty: it.qty,
-        source: MUTATION_SOURCE.REVERT, 
-        reference_id: id,
-        keterangan: "Revert tukar barang masuk (edit)",
-        user_id: session?.user?.id,
-        allowNegative: true
-      })
-    }
+    await reverseStockMutationNet(tx, id, {
+      keterangan: "Revert net tukar barang aktif (edit)",
+      session,
+    })
 
     // 2. Delete old items
     await tx.tukarBarangItemMasuk.deleteMany({ where: { tukar_id: id } })
 
     // 3. Create new items
     const itemsMasuk = data.itemsMasuk.filter(it => it.rokok_id && Number(it.qty) > 0)
-    const totalMasuk = itemsMasuk.reduce((s, it) => s + Number(it.qty) * Number(it.harga_satuan), 0)
+    if (itemsMasuk.length === 0) throw new Error("Minimal 1 rokok dari toko harus diisi.")
 
     await tx.tukarBarang.update({
       where: { id },
@@ -434,17 +427,19 @@ export async function editTukarBarangAktif(id, data, alasan) {
     })
 
     // 4. Mutate new stock (masuk -> in)
-    for (const it of itemsMasuk) {
-      await mutateStock({
-        tx,
-        rokok_id: it.rokok_id, 
-        tanggal: old.tanggal, 
-        jenis: 'in', 
-        qty: Number(it.qty),
-        source: MUTATION_SOURCE.TUKAR_MASUK, 
-        reference_id: id,
-        user_id: session?.user?.id
-      })
+    if (!old.sesi?.is_historical) {
+      for (const it of itemsMasuk) {
+        await mutateStock({
+          tx,
+          rokok_id: it.rokok_id,
+          tanggal: old.tanggal,
+          jenis: 'in',
+          qty: Number(it.qty),
+          source: MUTATION_SOURCE.TUKAR_MASUK,
+          reference_id: id,
+          user_id: session?.user?.id
+        })
+      }
     }
 
     await logAudit({

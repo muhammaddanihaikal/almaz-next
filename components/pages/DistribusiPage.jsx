@@ -783,10 +783,8 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
             tukarBarangList={tukarBarangList}
             isEdit
             onSessionChange={upsertLocalSesi}
-            onSubmit={async (data) => {
+            onSubmit={async (data, alasan) => {
               const captured = editLaporan
-              const alasan = await confirmWithReason(`Edit laporan sore ${captured.sales}?`, { title: "Edit Laporan Sore", confirmLabel: "Ya, Simpan" })
-              if (!alasan) return
               upsertLocalSesi({ ...captured, _pending: true })
               setEditLaporan(null)
               editLaporanSore(captured.id, { ...data, sales_id: captured.sales_id, tanggal: captured.tanggal }, alasan)
@@ -850,6 +848,11 @@ function SesiDetail({ record }) {
         <TabButton active={activeTab === "tukar"} onClick={() => setActiveTab("tukar")}>
           Tukar Barang {record.tukarBarang?.length > 0 && `(${record.tukarBarang.length})`}
         </TabButton>
+        {record.returDiSesi?.length > 0 && (
+          <TabButton active={activeTab === "retur"} onClick={() => setActiveTab("retur")}>
+            Retur ({record.returDiSesi.length})
+          </TabButton>
+        )}
       </div>
 
       {activeTab === "penjualan" && (
@@ -961,6 +964,17 @@ function SesiDetail({ record }) {
           ) : (
             <p className="text-xs text-neutral-400 italic">Tidak ada tukar barang pada sesi ini.</p>
           )}
+        </div>
+      )}
+
+      {activeTab === "retur" && (
+        <div className="space-y-3">
+          {(record.returDiSesi || []).map((r, i) => (
+            <div key={i} className="rounded-lg border border-teal-200 bg-teal-50/40 p-3 space-y-2">
+              {r.alasan && <p className="text-xs text-neutral-500 italic">Alasan: {r.alasan}</p>}
+              <SimpleTable rows={r.items} cols={["rokok", "qty"]} labels={["Rokok", "Qty"]} />
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -1101,6 +1115,9 @@ function SesiDetailRedesign({ record, onClose }) {
           <DetailTabButton id="penjualan" active={activeTab} onClick={setActiveTab} count={penjualan.length}>Penjualan Langsung</DetailTabButton>
           <DetailTabButton id="konsinyasi" active={activeTab} onClick={setActiveTab} count={konsinyasi.length}>Titip Jual</DetailTabButton>
           <DetailTabButton id="tukar" active={activeTab} onClick={setActiveTab} count={tukarBarang.length}>Tukar Barang</DetailTabButton>
+          {(record.returDiSesi?.length || 0) > 0 && (
+            <DetailTabButton id="retur" active={activeTab} onClick={setActiveTab} count={record.returDiSesi.length}>Retur</DetailTabButton>
+          )}
         </div>
       </div>
 
@@ -1200,6 +1217,30 @@ function SesiDetailRedesign({ record, onClose }) {
             ) : (
               <DetailEmpty text="Tidak ada titip jual pada sesi ini." />
             )}
+          </div>
+        )}
+
+        {activeTab === "retur" && (
+          <div className="space-y-3">
+            {(record.returDiSesi || []).map((r, i) => (
+              <div key={i} className="overflow-hidden rounded-lg ring-1 ring-teal-200 bg-teal-50/40">
+                {r.alasan && <p className="px-4 pt-3 text-xs text-neutral-500 italic">Alasan: {r.alasan}</p>}
+                <table className="w-full text-xs">
+                  <thead><tr className="border-b border-teal-100 text-neutral-500">
+                    <th className="px-4 py-2 text-left">Rokok</th>
+                    <th className="px-4 py-2 text-right">Qty</th>
+                  </tr></thead>
+                  <tbody>
+                    {r.items.map((it, j) => (
+                      <tr key={j} className="border-b border-teal-100/60 last:border-0">
+                        <td className="px-4 py-2 text-neutral-800">{it.rokok}</td>
+                        <td className="px-4 py-2 text-right tabular-nums text-neutral-700">{it.qty}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
           </div>
         )}
 
@@ -1716,11 +1757,22 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
   // Pre-fill dari data existing saat edit — split by kategori (now stored in DB)
   const existingSelesai = isEdit ? (sesi.tukarBarang || []).filter(t => t.status === "selesai") : []
   const existingBelum   = isEdit ? (sesi.tukarBarang || []).filter(t => t.status === "aktif")   : []
+  // Retur-only dari tab tukar (tidak punya TukarBarang record, hanya Retur record)
+  const existingReturItems = isEdit && existingSelesai.length === 0
+    ? (sesi.returDiSesi || []).flatMap(r => r.items || [])
+    : []
 
+  const defaultKategori = existingSelesai[0]?.kategori || sesi.sales_kategori || "grosir"
+  const existingReturAlasan = isEdit && existingReturItems.length > 0
+    ? (sesi.returDiSesi || [])[0]?.alasan || null
+    : null
   const [tukarSelesai, setTukarSelesai] = useState({
-    kategori: existingSelesai[0]?.kategori || sesi.sales_kategori || "grosir",
-    itemsMasuk:  mapItems(aggregateItems(existingSelesai.flatMap(t => t.itemsMasuk  || [])), (existingSelesai[0]?.kategori || sesi.sales_kategori || "grosir")),
-    itemsKeluar: mapItems(aggregateItems(existingSelesai.flatMap(t => t.itemsKeluar || [])), (existingSelesai[0]?.kategori || sesi.sales_kategori || "grosir")),
+    kategori: defaultKategori,
+    catatan: existingSelesai[0]?.catatan || existingReturAlasan || "",
+    itemsMasuk:  existingSelesai.length > 0
+      ? mapItems(aggregateItems(existingSelesai.flatMap(t => t.itemsMasuk  || [])), defaultKategori)
+      : mapItems(aggregateItems(existingReturItems), defaultKategori),
+    itemsKeluar: mapItems(aggregateItems(existingSelesai.flatMap(t => t.itemsKeluar || [])), defaultKategori),
   })
 
   // Set ID tukar yang dicentang untuk diselesaikan di sesi ini
@@ -1783,14 +1835,26 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
   const nilaiPenjualan = nilaiPenjualanLangsung + totalTitipJual + selisihTukar
   const totalSetoran = setoran.reduce((s, it) => s + (Number(it.jumlah) || 0), 0)
   const flagSetoran  = nilaiPenjualan > 0 && totalSetoran !== nilaiPenjualan
-  const setoranEmpty = totalSetoran === 0
+  const setoranEmpty = nilaiPenjualan > 0 && totalSetoran === 0
 
   const [submitError, setSubmitError] = useState("")
-  const submit = async (e) => {
+  const preventFormSubmit = (e) => {
     e.preventDefault()
+  }
+  const goToSummary = (e) => {
+    e?.preventDefault?.()
+    e?.stopPropagation?.()
+    setStep(2)
+  }
+  const submitFinal = async (e) => {
+    e?.preventDefault?.()
+    e?.stopPropagation?.()
+    if (step !== 2) {
+      setStep(2)
+      return
+    }
     if (setoranEmpty || loading) return
     setSubmitError("")
-    setLoading(true)
     try {
       const validPenjualan  = penjualan.filter((it) => it.rokok_id && Number(it.qty) > 0)
       const validSetoran    = setoran.filter((it) => Number(it.jumlah) > 0)
@@ -1904,7 +1968,15 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
         throw new Error("Terdapat input angka yang tidak valid (NaN). Silakan cek kembali data Anda.")
       }
 
-      await onSubmit(payload)
+      if (isEdit) {
+        const alasan = await confirmWithReason("Simpan perubahan laporan sore?", { title: "Konfirmasi Edit", confirmLabel: "Ya, Simpan" })
+        if (!alasan) { setLoading(false); return }
+        setLoading(true)
+        await onSubmit(payload, alasan)
+      } else {
+        setLoading(true)
+        await onSubmit(payload)
+      }
     } catch (err) {
       setSubmitError(err?.message || "Terjadi kesalahan saat menyimpan laporan sore.")
     } finally {
@@ -1991,7 +2063,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
   const goNextSub = () => setActiveTab(SUBTABS[subIdx + 1])
 
   return (
-    <form onSubmit={submit} className="-mx-6 -mb-6 flex flex-col" style={{ maxHeight: 'calc(100vh - 8rem)' }}>
+    <form onSubmit={preventFormSubmit} className="-mx-6 -mb-6 flex flex-col" style={{ maxHeight: 'calc(100vh - 8rem)' }}>
       {/* ── Stepper Header ── */}
       <div className="flex items-center gap-2 border-b border-neutral-200 bg-white px-6 py-3 shrink-0">
         {[
@@ -2368,7 +2440,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
               {!isLastSub ? (
                 <Button type="button" className="bg-blue-700 text-white hover:bg-blue-800" onClick={goNextSub}>Lanjut →</Button>
               ) : (
-                <Button type="button" className="bg-blue-700 text-white hover:bg-blue-800" onClick={() => setStep(2)}>Lanjut ke Ringkasan →</Button>
+                <Button type="button" className="bg-blue-700 text-white hover:bg-blue-800" onClick={goToSummary}>Lanjut ke Ringkasan →</Button>
               )}
             </div>
           </>
@@ -2381,7 +2453,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
                   <AlertCircle className="h-4 w-4 shrink-0" /> {submitError}
                 </div>
               )}
-              <Button type="submit" className="bg-green-600 text-white hover:bg-green-700" disabled={setoranEmpty || loading} loading={loading}>
+              <Button type="button" className="bg-green-600 text-white hover:bg-green-700" disabled={setoranEmpty || loading} loading={loading} onClick={submitFinal}>
                 {isEdit ? "Simpan Perubahan" : "Submit Laporan"}
               </Button>
             </div>
@@ -2821,12 +2893,8 @@ function TukarBarangTab({ tukarSelesai, setTukarSelesai, rokokDibawa, rokokList,
     <div className="space-y-6">
       <div className="rounded-xl border border-neutral-200 bg-white p-5 space-y-5">
         <div className="border-b border-neutral-100 pb-3">
-          <h3 className="text-sm font-bold text-neutral-800 uppercase tracking-wide">Tukar Barang Selesai</h3>
+          <h3 className="text-sm font-bold text-neutral-800 uppercase tracking-wide">Tukar Barang / Retur</h3>
           <p className="text-[11px] text-neutral-400 mt-1 italic">Gunakan jika penukaran barang (kembali & pengganti) langsung selesai hari ini.</p>
-          <div className="mt-2 flex items-start gap-1.5 rounded-md border border-blue-100 bg-blue-50 px-2.5 py-1.5 text-[11px] text-blue-700">
-            <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-            <span>Kalau hanya isi <b>Barang Return</b> tanpa <b>Barang Pengganti</b>, akan otomatis dicatat sebagai <b>Retur biasa</b>.</span>
-          </div>
         </div>
 
         <div className="space-y-5">
@@ -2982,10 +3050,11 @@ function TukarInputBlock({ data, onChange, rokokDibawa, rokokList, type, kategor
     )
   }
 
-  const totalMasuk  = (data.itemsMasuk || []).reduce((s, it)  => s + Number(it.qty || 0) * Number(it.harga_satuan || 0), 0)
-  const totalKeluar = (data.itemsKeluar || []).reduce((s, it) => s + Number(it.qty || 0) * Number(it.harga_satuan || 0), 0)
-  const selisih     = totalKeluar - totalMasuk
-  const invalid     = type === "selesai" && selisih < 0
+  const totalMasuk    = (data.itemsMasuk || []).reduce((s, it)  => s + Number(it.qty || 0) * Number(it.harga_satuan || 0), 0)
+  const totalKeluar   = (data.itemsKeluar || []).reduce((s, it) => s + Number(it.qty || 0) * Number(it.harga_satuan || 0), 0)
+  const selisih       = totalKeluar - totalMasuk
+  const isReturnOnly  = type === "selesai" && !(data.itemsKeluar || []).some(it => it.rokok_id && Number(it.qty) > 0)
+  const invalid       = type === "selesai" && !isReturnOnly && selisih < 0
 
   const labelKat = label || (kategori === "grosir" ? "Grosir" : "Toko")
   const KATEGORI_DOT = {
@@ -3012,23 +3081,37 @@ function TukarInputBlock({ data, onChange, rokokDibawa, rokokList, type, kategor
             </p>
           )}
 
-          <div className="rounded border border-neutral-300 bg-neutral-50 p-3 text-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-neutral-600 text-xs">Nilai pengganti − Nilai kembalian</span>
-              <span className="font-medium tabular-nums text-xs">{fmtIDR(totalKeluar)} − {fmtIDR(totalMasuk)}</span>
+          {isReturnOnly ? (
+            <div className="rounded border border-teal-200 bg-teal-50 p-3 flex items-start gap-2 text-sm">
+              <Info className="h-4 w-4 text-teal-600 mt-0.5 shrink-0" />
+              <div>
+                <span className="font-semibold text-teal-800">Akan diproses sebagai Retur</span>
+                <p className="text-teal-700 text-xs mt-0.5">
+                  Tidak ada barang pengganti — barang yang dikembalikan toko akan dicatat sebagai retur masuk ke stok.
+                </p>
+              </div>
             </div>
-            <div className="flex items-center justify-between mt-1">
-              <span className="font-semibold text-sm">Selisih (toko bayar tambahan)</span>
-              <span className={`font-bold tabular-nums ${invalid ? "text-red-600" : selisih > 0 ? "text-emerald-700" : "text-neutral-700"}`}>
-                {fmtIDR(Math.abs(selisih))}
-              </span>
+          ) : (
+            <div className="rounded border border-neutral-300 bg-neutral-50 p-3 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-neutral-600 text-xs">Nilai pengganti − Nilai kembalian</span>
+                <span className="font-medium tabular-nums text-xs">{fmtIDR(totalKeluar)} − {fmtIDR(totalMasuk)}</span>
+              </div>
+              <div className="flex items-center justify-between mt-1">
+                <span className="font-semibold text-sm">
+                  {selisih > 0 ? "Selisih (toko bayar tambahan)" : selisih < 0 ? "Selisih (sales kasih kembalian)" : "Seimbang"}
+                </span>
+                <span className={`font-bold tabular-nums ${invalid ? "text-red-600" : selisih > 0 ? "text-emerald-700" : selisih < 0 ? "text-amber-600" : "text-neutral-700"}`}>
+                  {selisih === 0 ? "—" : fmtIDR(Math.abs(selisih))}
+                </span>
+              </div>
+              {invalid && (
+                <p className="mt-1 text-xs text-red-600">
+                  Nilai pengganti dari sales harus ≥ nilai kembalian dari toko.
+                </p>
+              )}
             </div>
-            {invalid && (
-              <p className="mt-1 text-xs text-red-600">
-                Nilai pengganti dari sales harus ≥ nilai kembalian dari toko.
-              </p>
-            )}
-          </div>
+          )}
         </>
       )}
 
