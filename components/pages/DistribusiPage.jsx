@@ -506,13 +506,15 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
     })
     if (!alasan) return
     syncLocalStockFromSessionChange(r, null)
-    removeLocalSesi(r.id)
+    upsertLocalSesi({ ...r, _pending: true, _deleting: true })
     deleteSesi(r.id, alasan)
       .then((result) => {
         if (result && result.success === false) throw new Error(result.error || "Gagal menghapus sesi.")
+        removeLocalSesi(r.id)
       })
       .catch(async (error) => {
-        upsertLocalSesi(r)
+        syncLocalStockFromSessionChange(null, r)
+        upsertLocalSesi({ ...r, _pending: false, _deleting: false })
         await confirm(error?.message || "Gagal menghapus sesi.", { title: "Gagal Hapus Sesi", hideCancel: true })
       })
   }
@@ -680,7 +682,7 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
                     </svg>
-                    <span className="text-xs text-neutral-400">Menyimpan...</span>
+                    <span className="text-xs text-neutral-400">{r._deleting ? "Menghapus..." : "Menyimpan..."}</span>
                   </div>
                 )
                 return (
@@ -727,7 +729,7 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
         <Modal title={mode === "add" ? "Buat Sesi Pagi" : "Edit Sesi Pagi"} onClose={close} width="max-w-2xl">
           <SesiPagiForm
             initial={editing}
-            rokokList={rokokList}
+            rokokList={localRokokList}
             salesList={salesList}
             sesiList={localSesiList.filter((s) => !s._pending)}
             stockCutoffDate={stockCutoffDate}
