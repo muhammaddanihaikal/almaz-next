@@ -56,6 +56,43 @@ function collectSessionRokokIds(session) {
   return ids
 }
 
+function addStockDelta(map, rokokId, qty) {
+  if (!rokokId || !Number.isFinite(Number(qty))) return
+  const key = String(rokokId)
+  map.set(key, (map.get(key) || 0) + Number(qty))
+}
+
+function getSessionStockEffect(session) {
+  const effect = new Map()
+  if (!session || session.is_historical) return effect
+
+  for (const it of session.barangKeluar || []) addStockDelta(effect, it.rokok_id, -Number(it.qty || 0))
+  for (const it of session.barangKembali || []) addStockDelta(effect, it.rokok_id, Number(it.qty || 0))
+
+  for (const retur of session.returDiSesi || []) {
+    for (const it of retur.items || []) addStockDelta(effect, it.rokok_id, Number(it.qty || 0))
+  }
+
+  const tukarMap = new Map()
+  for (const t of session.tukarBarang || []) tukarMap.set(t.id, t)
+  for (const t of session.tukarBarangSelesaiDiSesi || []) tukarMap.set(t.id, t)
+  for (const tukar of tukarMap.values()) {
+    if (tukar.sesi_id && tukar.sesi_id !== session.id) continue
+    for (const it of tukar.itemsMasuk || []) addStockDelta(effect, it.rokok_id, Number(it.qty || 0))
+  }
+
+  return effect
+}
+
+function getStockDeltaBetweenSessions(beforeSession, afterSession) {
+  const before = getSessionStockEffect(beforeSession)
+  const after = getSessionStockEffect(afterSession)
+  const delta = new Map()
+  for (const [rokokId, qty] of after.entries()) addStockDelta(delta, rokokId, qty)
+  for (const [rokokId, qty] of before.entries()) addStockDelta(delta, rokokId, -qty)
+  return delta
+}
+
 function TabButton({ active, onClick, children }) {
   return (
     <button
@@ -382,11 +419,28 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
   const [statusFilter, setStatusFilter] = useState("")
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [localSesiList, setLocalSesiList] = useState(sesiList)
+  const [localRokokList, setLocalRokokList] = useState(rokokList)
   const [pendingIds, setPendingIds] = useState(new Set())
 
   useEffect(() => {
     setLocalSesiList(sesiList)
   }, [sesiList])
+
+  useEffect(() => {
+    setLocalRokokList(rokokList)
+  }, [rokokList])
+
+  const applyLocalStockDelta = (deltaMap) => {
+    if (!deltaMap || deltaMap.size === 0) return
+    setLocalRokokList((prev) => prev.map((rokok) => {
+      const delta = deltaMap.get(String(rokok.id)) || 0
+      return delta === 0 ? rokok : { ...rokok, stok: (Number(rokok.stok) || 0) + delta }
+    }))
+  }
+
+  const syncLocalStockFromSessionChange = (beforeSession, afterSession) => {
+    applyLocalStockDelta(getStockDeltaBetweenSessions(beforeSession, afterSession))
+  }
 
   const upsertLocalSesi = (record) => {
     if (!record?.id) return
@@ -451,6 +505,7 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
       confirmLabel: "Ya, Hapus"
     })
     if (!alasan) return
+    syncLocalStockFromSessionChange(r, null)
     removeLocalSesi(r.id)
     deleteSesi(r.id, alasan)
       .then((result) => {
@@ -719,6 +774,7 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
                       return (b.createdAt || "").localeCompare(a.createdAt || "")
                     })
                   })
+                  syncLocalStockFromSessionChange(null, result.data)
                 } catch (error) {
                   removeLocalSesi(tempId)
                   await confirm(error?.message || "Gagal membuat sesi distribusi.", { title: "Gagal Buat Sesi", hideCancel: true })
@@ -735,6 +791,7 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
                   .then((result) => {
                     if (result && result.success === false) throw new Error(result.error || "Gagal mengubah sesi distribusi.")
                     upsertLocalSesi(result.data)
+                    syncLocalStockFromSessionChange(captured, result.data)
                   })
                   .catch(async (error) => {
                     upsertLocalSesi({ ...captured, _pending: false })
@@ -751,7 +808,7 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
         <Modal title={`Laporan Sore — ${laporanSesi.sales} (${fmtTanggal(laporanSesi.tanggal)})`} onClose={() => setLaporanSesi(null)} width="max-w-4xl">
           <LaporanSoreForm
             sesi={laporanSesi}
-            rokokList={rokokList}
+            rokokList={localRokokList}
             tokoList={tokoList}
             tukarBarangList={tukarBarangList}
             onSessionChange={upsertLocalSesi}
@@ -763,6 +820,7 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
                 .then((result) => {
                   if (result && result.success === false) throw new Error(result.error || "Gagal submit laporan sore.")
                   upsertLocalSesi(result.data)
+                  syncLocalStockFromSessionChange(captured, result.data)
                 })
                 .catch(async (error) => {
                   upsertLocalSesi({ ...captured, _pending: false })
@@ -778,7 +836,7 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
         <Modal title={`Edit Laporan — ${editLaporan.sales} (${fmtTanggal(editLaporan.tanggal)})`} onClose={() => setEditLaporan(null)} width="max-w-4xl">
           <LaporanSoreForm
             sesi={editLaporan}
-            rokokList={rokokList}
+            rokokList={localRokokList}
             tokoList={tokoList}
             tukarBarangList={tukarBarangList}
             isEdit
@@ -791,6 +849,7 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
                 .then((result) => {
                   if (result && result.success === false) throw new Error(result.error || "Gagal edit laporan sore.")
                   upsertLocalSesi(result.data)
+                  syncLocalStockFromSessionChange(captured, result.data)
                 })
                 .catch(async (error) => {
                   upsertLocalSesi({ ...captured, _pending: false })
