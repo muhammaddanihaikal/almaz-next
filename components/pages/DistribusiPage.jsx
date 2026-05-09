@@ -2430,7 +2430,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
                 <div key={idx} className="flex items-end gap-3 mt-3">
                   <div className="w-36">
                     <Field label={idx === 0 ? "Metode" : ""}>
-                      <SelectInput value={it.metode} onChange={(e) => setSetoran(setoran.map((s, i) => i === idx ? { ...s, metode: e.target.value } : s))} disabled={setoranAuto || nilaiPenjualan === 0}>
+                      <SelectInput value={it.metode} onChange={(e) => setSetoran(setoran.map((s, i) => i === idx ? { ...s, metode: e.target.value } : s))} disabled={setoranAuto}>
                         <option value="cash">Cash</option>
                         <option value="transfer">Transfer</option>
                       </SelectInput>
@@ -2442,8 +2442,8 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
                         value={it.jumlah}
                         onChange={(raw) => setSetoran(setoran.map((s, i) => i === idx ? { ...s, jumlah: raw } : s))}
                         placeholder="0"
-                        className={inputCls + (setoranAuto || nilaiPenjualan === 0 ? " bg-neutral-50 opacity-70" : "")}
-                        disabled={setoranAuto || nilaiPenjualan === 0}
+                        className={inputCls + (setoranAuto ? " bg-neutral-50 opacity-70" : "")}
+                        disabled={setoranAuto}
                       />
                     </Field>
                   </div>
