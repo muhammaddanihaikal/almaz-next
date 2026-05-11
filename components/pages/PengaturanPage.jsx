@@ -15,6 +15,10 @@ export default function PengaturanPage({ initialStockCutoffDate, hasData }) {
   const handleSave = async (e) => {
     e.preventDefault()
     if (hasData) return
+    if (!stockCutoffDate) {
+      setErrorMsg("Tanggal mulai stok aktif wajib diisi.")
+      return
+    }
 
     setLoading(true)
     setSuccessMsg("")

@@ -137,6 +137,13 @@ export async function cleanupTestSales(salesId) {
 
 export async function cleanupTestToko(tokoId) {
   if (!tokoId) return
-  // Titip jual sudah dihapus oleh cleanupSesiWithAllStock — langsung hapus toko
+  // Hapus sisa titip jual yang mungkin tertinggal (FK constraint)
+  const titipJualList = await prisma.titipJual.findMany({ where: { toko_id: tokoId } })
+  for (const tj of titipJualList) {
+    await revertStockMutationsByRef(tj.id)
+    await prisma.titipJualSetoran.deleteMany({ where: { titip_jual_id: tj.id } })
+    await prisma.titipJualItem.deleteMany({ where: { titip_jual_id: tj.id } })
+  }
+  await prisma.titipJual.deleteMany({ where: { toko_id: tokoId } })
   await prisma.toko.deleteMany({ where: { id: tokoId } })
 }

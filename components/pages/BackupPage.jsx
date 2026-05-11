@@ -86,7 +86,7 @@ export default function BackupPage() {
     <div className="space-y-6">
       <PageHeader
         title="Backup Database"
-        subtitle="Unduh backup database Neon DB dalam format SQL. Hanya dapat diakses oleh Super Admin."
+        subtitle="Unduh backup database Neon DB dalam format SQL. Hanya dapat diakses oleh Admin dan Super Admin."
       />
 
       <Card>
