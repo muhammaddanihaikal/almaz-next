@@ -993,6 +993,9 @@ function SesiDetail({ record }) {
                   </div>
                 </div>
                 <p className="text-xs text-neutral-500">Jatuh Tempo: {fmtTanggal(k.tanggal_jatuh_tempo)}</p>
+                {k.status === "selesai" && k.tanggal_selesai && (
+                  <p className="text-xs text-green-600">Diselesaikan: {fmtTanggal(k.tanggal_selesai)}</p>
+                )}
                 <SimpleTable rows={k.items} cols={["rokok", "qty_keluar", "qty_terjual", "qty_kembali"]} labels={["Rokok", "Keluar", "Terjual", "Kembali"]} />
               </div>
             ))
@@ -1104,8 +1107,9 @@ function SesiDetailRedesign({ record, onClose }) {
   ), 0)
   const totalTukarMasuk = tukarBarang.reduce((sum, t) => sum + totalTukarItems(t.itemsMasuk), 0)
   const totalTukarKeluar = tukarBarang.reduce((sum, t) => sum + totalTukarItems(t.itemsKeluar), 0)
-  const selisihTukar = totalTukarMasuk - totalTukarKeluar
-  const totalKeseluruhan = totalPenjualanLangsung + totalTitipJual + selisihTukar
+  const selisihTukar = totalTukarKeluar - totalTukarMasuk
+  // Titip jual tidak masuk total penjualan — uang diterima saat diselesaikan, bukan saat dititipkan
+  const totalKeseluruhan = totalPenjualanLangsung + selisihTukar
 
   const setoranByMethod = setoran.reduce((acc, it) => {
     const metode = (it.metode || "lainnya").toLowerCase()
@@ -1236,6 +1240,9 @@ function SesiDetailRedesign({ record, onClose }) {
                       <div>
                         <div className="text-sm font-semibold text-neutral-900">{k.nama_toko}</div>
                         <div className="mt-0.5 text-xs text-neutral-500">Jatuh Tempo: {fmtTanggal(k.tanggal_jatuh_tempo)}</div>
+                        {k.status === "selesai" && k.tanggal_selesai && (
+                          <div className="mt-0.5 text-xs text-green-600">Diselesaikan: {fmtTanggal(k.tanggal_selesai)}</div>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <DetailCategoryChip kategori={k.kategori} />
@@ -1358,8 +1365,8 @@ function SesiDetailRedesign({ record, onClose }) {
                 <DetailMoneyRow label="Penjualan Grosir" value={directTotals.grosir || 0} sub={`${countPenjualanByKategori(penjualan, "grosir")} item`} />
                 <DetailMoneyRow label="Penjualan Toko" value={directTotals.toko || 0} sub={`${countPenjualanByKategori(penjualan, "toko")} item`} />
                 {(directTotals.perorangan || 0) > 0 && <DetailMoneyRow label="Penjualan Perorangan" value={directTotals.perorangan} sub={`${countPenjualanByKategori(penjualan, "perorangan")} item`} />}
-                <DetailMoneyRow label="Titip Jual" value={totalTitipJual} sub={`${konsinyasi.length} toko, terjual ${fmtIDR(totalTitipTerjual)}`} muted={totalTitipJual === 0} />
-                <DetailMoneyRow label="Tukar Barang" value={selisihTukar} sub={`${fmtIDR(totalTukarMasuk)} masuk - ${fmtIDR(totalTukarKeluar)} keluar`} signed />
+                <DetailMoneyRow label="Titip Jual" value={totalTitipJual} sub={`${konsinyasi.length} toko, terjual ${fmtIDR(totalTitipTerjual)} · tidak termasuk total`} muted />
+                <DetailMoneyRow label="Tukar Barang" value={selisihTukar} sub={`${fmtIDR(totalTukarKeluar)} keluar - ${fmtIDR(totalTukarMasuk)} masuk`} signed />
               </div>
               <div className="flex items-center justify-between bg-neutral-900 px-4 py-3">
                 <span className="text-xs font-semibold uppercase tracking-wide text-white/70">Total Penjualan</span>
