@@ -81,11 +81,8 @@ function serialize(s) {
   const tanggal = s.tanggal.toISOString().split("T")[0]
 
   const nilaiPenjualanLangsung = s.penjualan.reduce((sum, it) => sum + it.qty * it.harga, 0)
-  const nilaiTitipJual = s.titipJual.reduce((sum, k) => (
-    sum + k.items.reduce((ss, it) => ss + it.qty_keluar * it.harga, 0)
-  ), 0)
-  const tukarMap = new Map([...(s.tukarBarang || []), ...(s.tukarBarangSelesai || [])].map((t) => [t.id, t]))
-  const nilaiTukar = [...tukarMap.values()].reduce((sum, t) => {
+  // Hanya tukar yang selesai di sesi ini (itemsKeluar sudah benar-benar diserahkan)
+  const nilaiTukar = (s.tukarBarangSelesai || []).reduce((sum, t) => {
     const totalMasuk = t.itemsMasuk.reduce((ss, it) => ss + it.qty * it.harga_satuan, 0)
     const totalKeluar = t.itemsKeluar.reduce((ss, it) => ss + it.qty * it.harga_satuan, 0)
     return sum + (totalKeluar - totalMasuk)
@@ -96,8 +93,12 @@ function serialize(s) {
   const qtyTerjual     = s.penjualan.reduce((sum, it) => sum + it.qty, 0)
   const qtyKonsinyasi  = s.titipJual.reduce((sum, k) => sum + k.items.reduce((ss, it) => ss + it.qty_keluar, 0), 0)
   const qtyKembali     = s.barangKembali.reduce((sum, it) => sum + it.qty, 0)
+  // Tukar masuk (dari customer, diciptakan di sesi ini) → tambah pool
+  const qtyTukarMasuk = (s.tukarBarang || []).reduce((sum, t) => sum + t.itemsMasuk.reduce((ss, it) => ss + it.qty, 0), 0)
+  // Tukar keluar pengganti (diselesaikan di sesi ini) → dari pool barangKeluar
+  const qtyTukarSelesaiKeluar = (s.tukarBarangSelesai || []).reduce((sum, t) => sum + t.itemsKeluar.reduce((ss, it) => ss + it.qty, 0), 0)
   const flagSetoran    = nilaiPenjualan > 0 && totalSetoran !== nilaiPenjualan
-  const flagQty        = qtyKeluar > 0 && s.status === "selesai" && (qtyTerjual + qtyKonsinyasi + qtyKembali) !== qtyKeluar
+  const flagQty        = qtyKeluar > 0 && s.status === "selesai" && (qtyTerjual + qtyKonsinyasi + qtyKembali + qtyTukarSelesaiKeluar - qtyTukarMasuk) !== qtyKeluar
 
   return {
     id:        s.id,
@@ -495,34 +496,6 @@ export async function submitLaporanSore(id, data) {
         await createTukarBarangInSesi(tx, sesiObj, t, session, !!t.langsungSelesai, mutQueue)
       }
 
-      // Retur dari Tab Tukar Barang (kalau hanya isi barang return tanpa pengganti)
-      const returFromTukar = data.returFromTukar
-      if (returFromTukar && Array.isArray(returFromTukar.items) && returFromTukar.items.length > 0) {
-        const validReturItems = returFromTukar.items.filter((it) => it.rokok_id && Number(it.qty) > 0)
-        if (validReturItems.length > 0) {
-          const retur = await tx.retur.create({
-            data: {
-              tanggal:        new Date(data.tanggal),
-              tipe_penjualan: returFromTukar.tipe_penjualan || null,
-              sales_id:       data.sales_id,
-              sesi_id:        id,
-              alasan:         returFromTukar.alasan || "Retur dari sesi (tukar barang tanpa pengganti)",
-              items: {
-                create: validReturItems.map((it) => ({ rokok_id: it.rokok_id, qty: Number(it.qty) })),
-              },
-            },
-          })
-          if (!is_historical) {
-            for (const it of validReturItems) {
-              mutQueue.push({
-                rokok_id: it.rokok_id, tanggal: data.tanggal, jenis: 'in', qty: Number(it.qty),
-                source: MUTATION_SOURCE.RETUR, reference_id: retur.id, user_id: session?.user?.id,
-              })
-            }
-          }
-        }
-      }
-
       // Penyelesaian Tukar Barang yang masih aktif
       const penyelesaianTukar = data.penyelesaianTukar || []
       for (const tukar_id of penyelesaianTukar) {
@@ -798,34 +771,6 @@ export async function editLaporanSore(id, data, alasan) {
       }
       for (const tukar_id of (data.penyelesaianTukar || [])) {
         await selesaikanTukarBarangInSesi(tx, sesiObjEdit, tukar_id, session, mutQueue)
-      }
-
-      // 6b. Retur dari Tab Tukar Barang (kalau hanya isi barang return tanpa pengganti)
-      const returFromTukarEdit = data.returFromTukar
-      if (returFromTukarEdit && Array.isArray(returFromTukarEdit.items) && returFromTukarEdit.items.length > 0) {
-        const validReturItems = returFromTukarEdit.items.filter((it) => it.rokok_id && Number(it.qty) > 0)
-        if (validReturItems.length > 0) {
-          const retur = await tx.retur.create({
-            data: {
-              tanggal:        new Date(data.tanggal),
-              tipe_penjualan: returFromTukarEdit.tipe_penjualan || null,
-              sales_id:       data.sales_id,
-              sesi_id:        id,
-              alasan:         returFromTukarEdit.alasan || "Retur dari sesi (tukar barang tanpa pengganti)",
-              items: {
-                create: validReturItems.map((it) => ({ rokok_id: it.rokok_id, qty: Number(it.qty) })),
-              },
-            },
-          })
-          if (!is_historical) {
-            for (const it of validReturItems) {
-              mutQueue.push({
-                rokok_id: it.rokok_id, tanggal: data.tanggal, jenis: 'in', qty: Number(it.qty),
-                source: MUTATION_SOURCE.RETUR, reference_id: retur.id, user_id: session?.user?.id,
-              })
-            }
-          }
-        }
       }
 
       const penyelesaianKonsinyasi = data.penyelesaianKonsinyasi || []
