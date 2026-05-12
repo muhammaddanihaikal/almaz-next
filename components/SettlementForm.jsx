@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { AlertCircle, CheckCircle, Trash2 } from "lucide-react"
+import { AlertCircle, CheckCircle, Trash2, RefreshCw } from "lucide-react"
 import { fmtIDR, fmtTanggal } from "@/lib/utils"
 import { SelectInput, inputCls, IconButton, MoneyInput, Field, Button } from "@/components/ui"
 
@@ -21,9 +21,11 @@ function Badge({ label, colorClass }) {
 export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, onCancel }) {
   const todayStr = new Date().toISOString().split("T")[0]
   const [tanggal,     setTanggal]     = useState(konsinyasi.tanggal_selesai || todayStr)
+  const [perpanjangTanggal, setPerpanjangTanggal] = useState("")
   const [items,       setItems]       = useState(
     konsinyasi.items.map((it) => ({
       ...it,
+      action: "bayar", // "bayar" | "perpanjang"
       qty_terjual: String(it.qty_terjual || ""),
       qty_kembali: String(it.qty_kembali || ""),
     }))
@@ -36,6 +38,11 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
   const [setoranAuto, setSetoranAuto] = useState(false)
   const [loading,     setLoading]     = useState(false)
 
+  const itemsBayar      = items.filter((it) => it.action === "bayar")
+  const itemsPerpanjang = items.filter((it) => it.action === "perpanjang")
+  const hasPerpanjang   = itemsPerpanjang.length > 0
+  const hasAllPerpanjang = itemsPerpanjang.length === items.length
+
   const updateItem = (idx, field, val) =>
     setItems(items.map((it, i) => {
       if (i !== idx) return it
@@ -44,15 +51,24 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
         const terjual = Number(val) || 0
         updated.qty_kembali = String(Math.max(0, it.qty_keluar - terjual))
       }
+      if (field === "action" && val === "perpanjang") {
+        updated.qty_terjual = ""
+        updated.qty_kembali = ""
+      }
       return updated
     }))
 
-  const nilaiTerjual = items.reduce((s, it) => s + (Number(it.qty_terjual) || 0) * it.harga, 0)
+  const nilaiTerjual = itemsBayar.reduce((s, it) => s + (Number(it.qty_terjual) || 0) * it.harga, 0)
   const totalSetoran = setoran.reduce((s, it) => s + (Number(it.jumlah) || 0), 0)
   const flagSelisih  = nilaiTerjual > 0 && totalSetoran !== nilaiTerjual
-  const hasError     = items.some((it) => (Number(it.qty_terjual) || 0) > it.qty_keluar)
-  const hasTerjual   = items.some((it) => Number(it.qty_terjual) > 0)
+  const hasError     = itemsBayar.some((it) => (Number(it.qty_terjual) || 0) > it.qty_keluar)
+  const hasTerjual   = itemsBayar.some((it) => Number(it.qty_terjual) > 0)
   const hasSetoran   = totalSetoran > 0
+
+  const canSubmit = !hasError &&
+    !hasAllPerpanjang &&
+    (hasTerjual && hasSetoran) &&
+    (!hasPerpanjang || !!perpanjangTanggal)
 
   const handleSetoranAuto = (checked) => {
     setSetoranAuto(checked)
@@ -62,16 +78,18 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
   }
 
   const handleSubmit = async () => {
-    if (hasError) return
+    if (!canSubmit) return
     setLoading(true)
     try {
       await onSubmit({
         tanggal,
+        perpanjang_tanggal: perpanjangTanggal || null,
         items: items.map((it) => ({
           id:          it.id,
           rokok_id:    it.rokok_id,
-          qty_terjual: Number(it.qty_terjual) || 0,
-          qty_kembali: Number(it.qty_kembali) || 0,
+          action:      it.action,
+          qty_terjual: it.action === "bayar" ? (Number(it.qty_terjual) || 0) : 0,
+          qty_kembali: it.action === "bayar" ? (Number(it.qty_kembali) || 0) : 0,
         })),
         setoran: setoran.map((s) => ({ metode: s.metode, jumlah: Number(s.jumlah) || 0 })),
       })
@@ -88,7 +106,7 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
           <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Informasi Transaksi</h3>
           <Badge label={konsinyasi.kategori} colorClass={KATEGORI_COLOR[konsinyasi.kategori] || "bg-neutral-100 text-neutral-600"} />
         </div>
-        
+
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="space-y-1">
             <p className="text-[10px] uppercase font-bold text-neutral-400">Sales</p>
@@ -110,11 +128,11 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
       {/* SECTION: Tanggal Selesai */}
       <div className="rounded-xl border border-blue-100 bg-blue-50/30 p-4">
         <Field label="Tanggal Selesai Penagihan" className="w-full">
-          <input 
-            type="date" 
-            value={tanggal} 
-            onChange={(e) => setTanggal(e.target.value)} 
-            className={inputCls + " w-full bg-white shadow-sm font-semibold text-blue-700 focus:border-blue-500 focus:ring-blue-500"} 
+          <input
+            type="date"
+            value={tanggal}
+            onChange={(e) => setTanggal(e.target.value)}
+            className={inputCls + " w-full bg-white shadow-sm font-semibold text-blue-700 focus:border-blue-500 focus:ring-blue-500"}
           />
         </Field>
       </div>
@@ -122,7 +140,7 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
       {/* SECTION 2: Barang & Penjualan */}
       <div className="rounded-xl border border-neutral-200 bg-white p-4 space-y-3">
         <div className="flex items-center justify-between border-b border-neutral-200 pb-2">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Daftar Barang Terjual</h3>
+          <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Daftar Barang</h3>
           <span className="text-xs text-neutral-400 font-medium">{items.length} jenis rokok</span>
         </div>
 
@@ -132,6 +150,7 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
               <tr className="bg-neutral-50 text-neutral-500 border-b border-neutral-100">
                 <th className="px-3 py-2 text-left font-semibold">Rokok</th>
                 <th className="px-3 py-2 text-center font-semibold">Keluar</th>
+                <th className="px-3 py-2 text-center font-semibold w-28">Aksi</th>
                 <th className="px-3 py-2 text-center font-semibold">Terjual</th>
                 <th className="px-3 py-2 text-center font-semibold">Kembali</th>
                 <th className="px-3 py-2 text-right font-semibold">Nilai</th>
@@ -140,46 +159,122 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
             <tbody className="divide-y divide-neutral-50">
               {items.map((it, idx) => {
                 const terjual  = Number(it.qty_terjual) || 0
-                const overflow = terjual > it.qty_keluar
+                const overflow = it.action === "bayar" && terjual > it.qty_keluar
+                const isPerpanjang = it.action === "perpanjang"
                 return (
-                  <tr key={idx} className="hover:bg-neutral-50/50 transition-colors">
+                  <tr key={idx} className={`transition-colors ${isPerpanjang ? "bg-amber-50/50" : "hover:bg-neutral-50/50"}`}>
                     <td className="px-3 py-2.5 font-medium text-neutral-700">{it.rokok}</td>
                     <td className="px-3 py-2.5 text-center tabular-nums text-neutral-600">{it.qty_keluar}</td>
                     <td className="px-3 py-2.5 text-center">
-                      <div className="flex justify-center">
-                        <input
-                          type="number" min="0" max={it.qty_keluar}
-                          value={it.qty_terjual}
-                          onChange={(e) => updateItem(idx, "qty_terjual", e.target.value)}
-                          className={inputCls + " w-16 h-8 text-center text-xs" + (overflow ? " border-red-400 bg-red-50" : "")}
-                          placeholder="0"
-                        />
+                      <div className="flex gap-1 justify-center">
+                        <button
+                          type="button"
+                          onClick={() => updateItem(idx, "action", "bayar")}
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors ${
+                            !isPerpanjang
+                              ? "bg-green-600 text-white"
+                              : "bg-neutral-100 text-neutral-500 hover:bg-green-50"
+                          }`}
+                        >
+                          Bayar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateItem(idx, "action", "perpanjang")}
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold transition-colors ${
+                            isPerpanjang
+                              ? "bg-amber-500 text-white"
+                              : "bg-neutral-100 text-neutral-500 hover:bg-amber-50"
+                          }`}
+                        >
+                          Perpanjang
+                        </button>
                       </div>
                     </td>
-                    <td className="px-3 py-2.5 text-center tabular-nums text-neutral-400">
-                      {Math.max(0, it.qty_keluar - terjual)}
+                    <td className="px-3 py-2.5 text-center">
+                      {isPerpanjang ? (
+                        <span className="text-amber-500 font-semibold text-[10px] uppercase tracking-wide">—</span>
+                      ) : (
+                        <div className="flex justify-center">
+                          <input
+                            type="number" min="0" max={it.qty_keluar}
+                            value={it.qty_terjual}
+                            onChange={(e) => updateItem(idx, "qty_terjual", e.target.value)}
+                            className={inputCls + " w-16 h-8 text-center text-xs" + (overflow ? " border-red-400 bg-red-50" : "")}
+                            placeholder="0"
+                          />
+                        </div>
+                      )}
                     </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums font-bold text-neutral-900">{fmtIDR(terjual * it.harga)}</td>
+                    <td className="px-3 py-2.5 text-center tabular-nums text-neutral-400">
+                      {isPerpanjang ? (
+                        <span className="text-amber-500 font-semibold text-[10px]">—</span>
+                      ) : (
+                        Math.max(0, it.qty_keluar - terjual)
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums font-bold text-neutral-900">
+                      {isPerpanjang ? (
+                        <span className="text-amber-500 text-[10px] font-semibold">Perpanjang</span>
+                      ) : (
+                        fmtIDR(terjual * it.harga)
+                      )}
+                    </td>
                   </tr>
                 )
               })}
             </tbody>
             <tfoot>
               <tr className="bg-neutral-900 text-white font-bold">
-                <td colSpan={4} className="px-3 py-2 text-right uppercase tracking-wider text-[10px]">Total Nilai Terjual</td>
+                <td colSpan={5} className="px-3 py-2 text-right uppercase tracking-wider text-[10px]">Total Nilai Terjual</td>
                 <td className="px-3 py-2 text-right tabular-nums text-sm">{fmtIDR(nilaiTerjual)}</td>
               </tr>
             </tfoot>
           </table>
         </div>
-        
+
         {hasError && (
           <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-2.5 text-xs text-red-700 animate-pulse">
             <AlertCircle className="h-4 w-4 shrink-0" />
             Jumlah terjual tidak boleh melebihi jumlah keluar. Mohon koreksi inputan Anda.
           </div>
         )}
+
+        {hasAllPerpanjang && (
+          <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-700">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            Semua barang diperpanjang. Minimal satu barang harus dibayar untuk menyelesaikan titip jual.
+          </div>
+        )}
       </div>
+
+      {/* SECTION: Tanggal Perpanjang (muncul kalau ada yg perpanjang) */}
+      {hasPerpanjang && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-4 space-y-3">
+          <div className="flex items-center gap-2 border-b border-amber-200 pb-2">
+            <RefreshCw className="h-4 w-4 text-amber-600" />
+            <h3 className="text-xs font-bold uppercase tracking-wider text-amber-700">
+              Perpanjang {itemsPerpanjang.length} Item
+            </h3>
+          </div>
+          <p className="text-xs text-amber-700">
+            Item yang diperpanjang ({itemsPerpanjang.map(it => it.rokok).join(", ")}) akan dibuatkan titip jual baru dengan jatuh tempo baru.
+          </p>
+          <Field label="Jatuh Tempo Baru (wajib diisi)" className="w-full">
+            <input
+              type="date"
+              value={perpanjangTanggal}
+              onChange={(e) => setPerpanjangTanggal(e.target.value)}
+              min={todayStr}
+              className={inputCls + " w-full bg-white " + (!perpanjangTanggal ? "border-amber-400 focus:border-amber-500 focus:ring-amber-500" : "")}
+              required
+            />
+          </Field>
+          {hasPerpanjang && !perpanjangTanggal && (
+            <p className="text-xs text-amber-600 font-medium">Masukkan tanggal jatuh tempo baru untuk item perpanjang.</p>
+          )}
+        </div>
+      )}
 
       {/* SECTION 3: Setoran & Pembayaran */}
       <div className={`rounded-xl border transition-all duration-300 p-4 space-y-4 ${!hasTerjual ? "bg-neutral-50/80 border-dashed opacity-75" : "bg-white border-neutral-200"}`}>
@@ -192,7 +287,7 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
               </span>
             )}
           </div>
-          
+
           <label className={`flex items-center gap-2 text-xs font-medium transition-colors ${!hasTerjual ? "text-neutral-300 pointer-events-none" : "text-neutral-600 cursor-pointer"}`}>
             <input
               type="checkbox"
@@ -232,7 +327,7 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
               )}
             </div>
           ))}
-          
+
           {!setoranAuto && hasTerjual && (
             <Button
               variant="ghost"
@@ -271,11 +366,13 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
         </Button>
         <Button
           onClick={handleSubmit}
-          disabled={hasError || !hasTerjual || !hasSetoran}
+          disabled={!canSubmit}
           loading={loading}
           className="px-8 shadow-md"
         >
-          Konfirmasi Selesaikan Titip Jual
+          {hasPerpanjang
+            ? `Selesaikan & Perpanjang ${itemsPerpanjang.length} Item`
+            : "Konfirmasi Selesaikan Titip Jual"}
         </Button>
       </div>
     </div>

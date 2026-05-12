@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AlertCircle, Clock, Search, CheckCircle, ChevronDown } from "lucide-react"
 import { fmtIDR, fmtTanggal, defaultDateRange } from "@/lib/utils"
-import { settleTitipJual, editSettlement, revertSettlement, editTitipJualDetail, deleteTitipJual } from "@/actions/titip_jual"
+import { settleTitipJual, partialSettleTitipJual, editSettlement, revertSettlement, editTitipJualDetail, deleteTitipJual } from "@/actions/titip_jual"
 import { Card, PageHeader, SelectInput, Field, FormActions, inputCls, useConfirm, useConfirmWithReason, DateFilter, Button, IconButton } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
@@ -413,7 +413,9 @@ export default function KonsinyasiPage({ role, titipJualList, salesList }) {
               const captured = settling
               upsertLocal({ ...captured, _pending: true })
               setSettling(null)
-              settleTitipJual(captured.id, data)
+              const hasPerpanjang = data.items.some((it) => it.action === "perpanjang")
+              const action = hasPerpanjang ? partialSettleTitipJual : settleTitipJual
+              action(captured.id, data)
                 .then(() => router.refresh())
                 .catch(async (error) => {
                   upsertLocal({ ...captured, _pending: false })

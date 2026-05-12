@@ -345,6 +345,14 @@ export async function editSettlement(id, data, alasan) {
       include: { items: { include: { rokok: true } }, setoran: true },
     })
 
+    // Blokir edit jika ada rollover — item di rollover duplikat item di sini, bisa double-count stok
+    const rolloverCount = await tx.titipJual.count({
+      where: { catatan: { contains: `[Rollover dari ${id}]` } },
+    })
+    if (rolloverCount > 0) {
+      throw new Error("Tidak bisa diedit — ada titip jual perpanjang yang masih aktif. Selesaikan atau hapus titip jual perpanjang terlebih dahulu.")
+    }
+
     const oldSettlementDateStr = old.tanggal_selesai ? old.tanggal_selesai.toISOString().split("T")[0] : null
     const wasOldSettlementHistorical = cutoffDate && oldSettlementDateStr && oldSettlementDateStr < cutoffDate
 
@@ -441,6 +449,21 @@ export async function revertSettlement(id, alasan) {
 
     const old = await tx.titipJual.findUnique({ where: { id }, include: { items: { include: { rokok: true } }, setoran: true } })
 
+    // Cek rollover — jika ada rollover yang sudah selesai, revert diblokir
+    const rollovers = await tx.titipJual.findMany({
+      where: { catatan: { contains: `[Rollover dari ${id}]` } },
+      include: { items: true },
+    })
+    const rolloverSelesai = rollovers.filter((r) => r.status === "selesai")
+    if (rolloverSelesai.length > 0) {
+      throw new Error("Tidak bisa dibatalkan — ada titip jual perpanjang yang sudah diselesaikan. Batalkan penyelesaian perpanjang terlebih dahulu.")
+    }
+    // Hapus rollover aktif (barang masih di pelanggan, tidak ada mutasi stok yang perlu di-revert)
+    for (const r of rollovers) {
+      await tx.titipJualItem.deleteMany({ where: { titip_jual_id: r.id } })
+      await tx.titipJual.delete({ where: { id: r.id } })
+    }
+
     const oldSettlementDateStr = old.tanggal_selesai ? old.tanggal_selesai.toISOString().split("T")[0] : null
     const wasOldSettlementHistorical = cutoffDate && oldSettlementDateStr && oldSettlementDateStr < cutoffDate
 
@@ -478,7 +501,12 @@ export async function revertSettlement(id, alasan) {
         items:  old.items.map(it => ({ rokok: it.rokok?.nama, qty_terjual: it.qty_terjual, qty_kembali: it.qty_kembali })),
         setoran: old.setoran.map(s => ({ metode: s.metode, jumlah: s.jumlah })),
       },
-      new_values:  { status: "aktif", items: "direset ke 0", setoran: "dihapus" },
+      new_values:  {
+        status:           "aktif",
+        items:            "direset ke 0",
+        setoran:          "dihapus",
+        rollover_dihapus: rollovers.map((r) => r.id),
+      },
       alasan,
       user_id:   session?.user?.id,
       user_name: session?.user?.name,
@@ -488,6 +516,134 @@ export async function revertSettlement(id, alasan) {
   revalidatePath("/titip-jual")
   revalidatePath("/distribusi")
   revalidatePath("/")
+}
+
+export async function partialSettleTitipJual(id, data) {
+  const settlementDateStr = data.tanggal || new Date().toISOString().split("T")[0]
+  const today = new Date(settlementDateStr)
+  const session = await auth()
+
+  const itemsBayar      = data.items.filter((it) => it.action === "bayar")
+  const itemsPerpanjang = data.items.filter((it) => it.action === "perpanjang")
+
+  if (itemsBayar.length === 0) throw new Error("Minimal satu item harus diselesaikan (bayar).")
+  if (itemsPerpanjang.length > 0 && !data.perpanjang_tanggal) throw new Error("Tanggal perpanjang wajib diisi.")
+
+  const rolloverResult = await prisma.$transaction(async (tx) => {
+    const setting = await tx.appSetting.findUnique({ where: { key: "stock_cutoff_date" } })
+    const cutoffDate = setting?.value || null
+    const isSettlementHistorical = cutoffDate && settlementDateStr < cutoffDate
+
+    const old = await tx.titipJual.findUnique({ where: { id }, include: { items: { include: { rokok: true } } } })
+    if (!old) throw new Error("Titip jual tidak ditemukan")
+    if (old.status !== "aktif") throw new Error("Hanya titip jual aktif yang bisa diselesaikan")
+
+    // Update qty_terjual/qty_kembali untuk item yang dibayar
+    for (const it of itemsBayar) {
+      await tx.titipJualItem.update({
+        where: { id: it.id },
+        data:  { qty_terjual: it.qty_terjual, qty_kembali: it.qty_kembali },
+      })
+      if (it.qty_kembali > 0 && !isSettlementHistorical) {
+        await mutateStock({
+          tx,
+          rokok_id:     it.rokok_id,
+          tanggal:      settlementDateStr,
+          jenis:        'in',
+          qty:          it.qty_kembali,
+          source:       MUTATION_SOURCE.KONSINYASI_KEMBALI,
+          reference_id: id,
+          user_id:      session?.user?.id,
+        })
+      }
+    }
+
+    // Buat setoran
+    const validSetoran = (data.setoran || []).filter((s) => s.jumlah > 0)
+    if (validSetoran.length > 0) {
+      await tx.titipJualSetoran.createMany({
+        data: validSetoran.map((s) => ({
+          titip_jual_id: id,
+          metode:        s.metode,
+          jumlah:        s.jumlah,
+          tanggal:       today,
+        })),
+      })
+    }
+
+    const nilaiTerjual = itemsBayar.reduce((s, it) => {
+      const harga = old.items.find((o) => o.id === it.id)?.harga || 0
+      return s + it.qty_terjual * harga
+    }, 0)
+    const totalSetoran         = validSetoran.reduce((s, st) => s + st.jumlah, 0)
+    const flag_selisih_setoran = nilaiTerjual > 0 && totalSetoran !== nilaiTerjual
+
+    // Tutup record lama sebagai selesai
+    const perpanjangNama = itemsPerpanjang.map((it) => {
+      const orig = old.items.find((o) => o.id === it.id)
+      return orig?.rokok?.nama || it.rokok_id
+    }).join(", ")
+    const catatanUpdate = itemsPerpanjang.length > 0
+      ? (old.catatan ? `${old.catatan} | ${itemsPerpanjang.length} item diperpanjang: ${perpanjangNama}` : `${itemsPerpanjang.length} item diperpanjang: ${perpanjangNama}`)
+      : old.catatan
+    await tx.titipJual.update({
+      where: { id },
+      data:  { status: "selesai", tanggal_selesai: today, flag_selisih_setoran, catatan: catatanUpdate },
+    })
+
+    // Buat record baru untuk item yang diperpanjang (tanpa mutasi stok — barang masih di pelanggan)
+    let rollover = null
+    if (itemsPerpanjang.length > 0) {
+      rollover = await tx.titipJual.create({
+        data: {
+          sesi_id:             old.sesi_id,
+          sales_id:            old.sales_id,
+          toko_id:             old.toko_id,
+          kategori:            old.kategori,
+          tanggal_jatuh_tempo: new Date(data.perpanjang_tanggal),
+          catatan:             `[Rollover dari ${id}]${old.catatan ? ' ' + old.catatan : ''}`,
+          is_historical:       old.is_historical,
+          items: {
+            create: itemsPerpanjang.map((it) => {
+              const orig = old.items.find((o) => o.id === it.id)
+              return {
+                rokok_id:   it.rokok_id,
+                qty_keluar: orig?.qty_keluar || 0,
+                harga:      orig?.harga || 0,
+              }
+            }),
+          },
+        },
+        include,
+      })
+    }
+
+    await logAudit({
+      tx,
+      entity_type: AUDIT_ENTITY.TITIP_JUAL,
+      change_type: "Penyelesaian Parsial + Perpanjang",
+      entity_id:   id,
+      action:      AUDIT_ACTION.UPDATE,
+      old_values:  { status: old.status },
+      new_values:  {
+        status:           "selesai",
+        items_bayar:      itemsBayar.map((it) => ({ id: it.id, qty_terjual: it.qty_terjual, qty_kembali: it.qty_kembali })),
+        items_perpanjang: itemsPerpanjang.map((it) => ({ id: it.id, rollover_id: rollover?.id })),
+        setoran:          validSetoran.map((s) => ({ metode: s.metode, jumlah: s.jumlah })),
+        perpanjang_tanggal: data.perpanjang_tanggal || null,
+      },
+      alasan:    `${itemsBayar.length} item diselesaikan, ${itemsPerpanjang.length} item diperpanjang ke ${data.perpanjang_tanggal}`,
+      user_id:   session?.user?.id,
+      user_name: session?.user?.name,
+    })
+
+    return rollover
+  })
+
+  revalidatePath("/titip-jual")
+  revalidatePath("/distribusi")
+  revalidatePath("/")
+  return rolloverResult ? serialize(rolloverResult) : null
 }
 
 export async function getTitipJualNotificationCounts() {

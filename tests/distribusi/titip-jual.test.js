@@ -23,6 +23,7 @@ const { createSesi } = await import("@/actions/distribusi")
 const {
   createTitipJual,
   settleTitipJual,
+  partialSettleTitipJual,
   editTitipJualDetail,
   deleteTitipJual,
   editSettlement,
@@ -342,6 +343,492 @@ describe("editSettlement", () => {
       include: { setoran: true },
     })
     expect(updated.setoran).toHaveLength(1)
+    expect(updated.setoran[0].metode).toBe("transfer")
+  })
+})
+
+describe("partialSettleTitipJual", () => {
+  it("semua item bayar — sama seperti settlement normal, tidak ada rollover", async () => {
+    const sesi = await buatSesi()
+    const titipJual = await buatTitipJual(sesi.id, { items: [{ rokok_id: testRokok.id, qty: 5 }] })
+    const item = titipJual.items[0]
+    const stokSaatAktif = (await prisma.rokok.findUnique({ where: { id: testRokok.id } })).stok
+
+    const rollover = await partialSettleTitipJual(titipJual.id, {
+      tanggal: TEST_DATE,
+      perpanjang_tanggal: null,
+      items:   [{ id: item.id, rokok_id: testRokok.id, action: "bayar", qty_terjual: 4, qty_kembali: 1 }],
+      setoran: [{ metode: "cash", jumlah: item.harga * 4 }],
+    })
+
+    expect(rollover).toBeNull()
+
+    const settled = await prisma.titipJual.findUnique({ where: { id: titipJual.id } })
+    expect(settled.status).toBe("selesai")
+
+    const stokSesudah = (await prisma.rokok.findUnique({ where: { id: testRokok.id } })).stok
+    expect(stokSesudah).toBe(stokSaatAktif + 1)
+  })
+
+  it("sebagian item perpanjang — rollover dibuat, original selesai, stok tidak berubah untuk perpanjang", async () => {
+    const sesi = await buatSesi()
+    // Buat titip jual dengan 2 item dari rokok yang sama
+    const titipJual = await buatTitipJual(sesi.id, {
+      items: [
+        { rokok_id: testRokok.id, qty: 3 },
+        { rokok_id: testRokok.id, qty: 2 },
+      ],
+    })
+    const items = titipJual.items
+    const stokSaatAktif = (await prisma.rokok.findUnique({ where: { id: testRokok.id } })).stok
+
+    const PERPANJANG_DATE = "2099-12-10"
+    const rollover = await partialSettleTitipJual(titipJual.id, {
+      tanggal:            TEST_DATE,
+      perpanjang_tanggal: PERPANJANG_DATE,
+      items: [
+        { id: items[0].id, rokok_id: testRokok.id, action: "bayar",      qty_terjual: 3, qty_kembali: 0 },
+        { id: items[1].id, rokok_id: testRokok.id, action: "perpanjang", qty_terjual: 0, qty_kembali: 0 },
+      ],
+      setoran: [{ metode: "cash", jumlah: items[0].harga * 3 }],
+    })
+
+    // Original ditutup
+    const original = await prisma.titipJual.findUnique({
+      where: { id: titipJual.id },
+      include: { setoran: true },
+    })
+    expect(original.status).toBe("selesai")
+    expect(original.setoran).toHaveLength(1)
+
+    // Rollover dibuat
+    expect(rollover).not.toBeNull()
+    expect(rollover.status).toBe("aktif")
+    expect(rollover.tanggal_jatuh_tempo).toBe(PERPANJANG_DATE)
+    expect(rollover.items).toHaveLength(1)
+    expect(rollover.items[0].qty_keluar).toBe(2)
+
+    // Stok: item bayar semua terjual (qty_kembali=0) → tidak ada perubahan stok
+    // item perpanjang tidak memutasi stok
+    const stokSesudah = (await prisma.rokok.findUnique({ where: { id: testRokok.id } })).stok
+    expect(stokSesudah).toBe(stokSaatAktif)
+  })
+
+  it("gagal jika semua item perpanjang", async () => {
+    const sesi = await buatSesi()
+    const titipJual = await buatTitipJual(sesi.id, { items: [{ rokok_id: testRokok.id, qty: 5 }] })
+    const item = titipJual.items[0]
+
+    await expect(
+      partialSettleTitipJual(titipJual.id, {
+        tanggal:            TEST_DATE,
+        perpanjang_tanggal: "2099-12-10",
+        items:   [{ id: item.id, rokok_id: testRokok.id, action: "perpanjang", qty_terjual: 0, qty_kembali: 0 }],
+        setoran: [],
+      })
+    ).rejects.toThrow(/minimal satu item/i)
+  })
+
+  it("gagal jika perpanjang_tanggal kosong padahal ada item perpanjang", async () => {
+    const sesi = await buatSesi()
+    const titipJual = await buatTitipJual(sesi.id, {
+      items: [
+        { rokok_id: testRokok.id, qty: 3 },
+        { rokok_id: testRokok.id, qty: 2 },
+      ],
+    })
+    const items = titipJual.items
+
+    await expect(
+      partialSettleTitipJual(titipJual.id, {
+        tanggal:            TEST_DATE,
+        perpanjang_tanggal: null,
+        items: [
+          { id: items[0].id, rokok_id: testRokok.id, action: "bayar",      qty_terjual: 3, qty_kembali: 0 },
+          { id: items[1].id, rokok_id: testRokok.id, action: "perpanjang", qty_terjual: 0, qty_kembali: 0 },
+        ],
+        setoran: [{ metode: "cash", jumlah: 100 }],
+      })
+    ).rejects.toThrow(/tanggal perpanjang/i)
+  })
+
+  it("item bayar dengan qty_kembali > 0 — stok naik sesuai kembali, perpanjang tidak mutasi stok", async () => {
+    const sesi = await buatSesi()
+    const titipJual = await buatTitipJual(sesi.id, {
+      items: [
+        { rokok_id: testRokok.id, qty: 4 },
+        { rokok_id: testRokok.id, qty: 3 },
+      ],
+    })
+    const items = titipJual.items
+    const stokSaatAktif = (await prisma.rokok.findUnique({ where: { id: testRokok.id } })).stok
+
+    await partialSettleTitipJual(titipJual.id, {
+      tanggal:            TEST_DATE,
+      perpanjang_tanggal: "2099-12-20",
+      items: [
+        { id: items[0].id, rokok_id: testRokok.id, action: "bayar",      qty_terjual: 2, qty_kembali: 2 },
+        { id: items[1].id, rokok_id: testRokok.id, action: "perpanjang", qty_terjual: 0, qty_kembali: 0 },
+      ],
+      setoran: [{ metode: "cash", jumlah: items[0].harga * 2 }],
+    })
+
+    // Kembali 2 dari item bayar → stok naik 2
+    // Perpanjang 3 → tidak mutasi stok
+    const stokSesudah = (await prisma.rokok.findUnique({ where: { id: testRokok.id } })).stok
+    expect(stokSesudah).toBe(stokSaatAktif + 2)
+  })
+
+  it("data rollover mewarisi sales, toko, kategori, sesi dari original", async () => {
+    const sesi = await buatSesi()
+    const titipJual = await buatTitipJual(sesi.id, {
+      items: [
+        { rokok_id: testRokok.id, qty: 5 },
+        { rokok_id: testRokok.id, qty: 2 },
+      ],
+    })
+    const items = titipJual.items
+
+    const PERPANJANG_DATE = "2099-12-15"
+    const rollover = await partialSettleTitipJual(titipJual.id, {
+      tanggal:            TEST_DATE,
+      perpanjang_tanggal: PERPANJANG_DATE,
+      items: [
+        { id: items[0].id, rokok_id: testRokok.id, action: "bayar",      qty_terjual: 5, qty_kembali: 0 },
+        { id: items[1].id, rokok_id: testRokok.id, action: "perpanjang", qty_terjual: 0, qty_kembali: 0 },
+      ],
+      setoran: [{ metode: "cash", jumlah: items[0].harga * 5 }],
+    })
+
+    const rolloverDb = await prisma.titipJual.findUnique({
+      where:   { id: rollover.id },
+      include: { items: true },
+    })
+    expect(rolloverDb.sesi_id).toBe(sesi.id)
+    expect(rolloverDb.sales_id).toBe(testSales.id)
+    expect(rolloverDb.toko_id).toBe(testToko.id)
+    expect(rolloverDb.kategori).toBe("toko")
+    expect(rolloverDb.tanggal_jatuh_tempo.toISOString().split("T")[0]).toBe(PERPANJANG_DATE)
+    expect(rolloverDb.items).toHaveLength(1)
+    expect(rolloverDb.items[0].qty_keluar).toBe(2)
+    expect(rolloverDb.items[0].qty_terjual).toBe(0)
+    expect(rolloverDb.items[0].qty_kembali).toBe(0)
+    expect(rolloverDb.items[0].harga).toBe(items[1].harga)
+  })
+
+  it("flag_selisih_setoran dihitung hanya dari item bayar, bukan item perpanjang", async () => {
+    const sesi = await buatSesi()
+    const titipJual = await buatTitipJual(sesi.id, {
+      items: [
+        { rokok_id: testRokok.id, qty: 3 },
+        { rokok_id: testRokok.id, qty: 4 },
+      ],
+    })
+    const items = titipJual.items
+
+    // Setoran sesuai nilai item bayar saja (3 × harga)
+    await partialSettleTitipJual(titipJual.id, {
+      tanggal:            TEST_DATE,
+      perpanjang_tanggal: "2099-12-25",
+      items: [
+        { id: items[0].id, rokok_id: testRokok.id, action: "bayar",      qty_terjual: 3, qty_kembali: 0 },
+        { id: items[1].id, rokok_id: testRokok.id, action: "perpanjang", qty_terjual: 0, qty_kembali: 0 },
+      ],
+      setoran: [{ metode: "cash", jumlah: items[0].harga * 3 }],
+    })
+
+    const original = await prisma.titipJual.findUnique({ where: { id: titipJual.id } })
+    expect(original.flag_selisih_setoran).toBe(false)
+  })
+
+  it("flag_selisih_setoran = true jika setoran tidak sesuai nilai item bayar", async () => {
+    const sesi = await buatSesi()
+    const titipJual = await buatTitipJual(sesi.id, {
+      items: [
+        { rokok_id: testRokok.id, qty: 3 },
+        { rokok_id: testRokok.id, qty: 4 },
+      ],
+    })
+    const items = titipJual.items
+
+    // Setoran sengaja kurang
+    await partialSettleTitipJual(titipJual.id, {
+      tanggal:            TEST_DATE,
+      perpanjang_tanggal: "2099-12-25",
+      items: [
+        { id: items[0].id, rokok_id: testRokok.id, action: "bayar",      qty_terjual: 3, qty_kembali: 0 },
+        { id: items[1].id, rokok_id: testRokok.id, action: "perpanjang", qty_terjual: 0, qty_kembali: 0 },
+      ],
+      setoran: [{ metode: "cash", jumlah: 1 }],
+    })
+
+    const original = await prisma.titipJual.findUnique({ where: { id: titipJual.id } })
+    expect(original.flag_selisih_setoran).toBe(true)
+  })
+
+  it("catatan otomatis di original mencatat item yang diperpanjang", async () => {
+    const sesi = await buatSesi()
+    const titipJual = await buatTitipJual(sesi.id, {
+      items: [
+        { rokok_id: testRokok.id, qty: 3 },
+        { rokok_id: testRokok.id, qty: 2 },
+      ],
+    })
+    const items = titipJual.items
+
+    await partialSettleTitipJual(titipJual.id, {
+      tanggal:            TEST_DATE,
+      perpanjang_tanggal: "2099-12-20",
+      items: [
+        { id: items[0].id, rokok_id: testRokok.id, action: "bayar",      qty_terjual: 3, qty_kembali: 0 },
+        { id: items[1].id, rokok_id: testRokok.id, action: "perpanjang", qty_terjual: 0, qty_kembali: 0 },
+      ],
+      setoran: [{ metode: "cash", jumlah: items[0].harga * 3 }],
+    })
+
+    const original = await prisma.titipJual.findUnique({ where: { id: titipJual.id } })
+    expect(original.catatan).toMatch(/diperpanjang/i)
+    expect(original.catatan).toMatch(testRokok.nama)
+  })
+
+  it("rollover dapat diselesaikan dengan settleTitipJual normal", async () => {
+    const sesi = await buatSesi()
+    const titipJual = await buatTitipJual(sesi.id, {
+      items: [
+        { rokok_id: testRokok.id, qty: 3 },
+        { rokok_id: testRokok.id, qty: 4 },
+      ],
+    })
+    const items = titipJual.items
+
+    const rollover = await partialSettleTitipJual(titipJual.id, {
+      tanggal:            TEST_DATE,
+      perpanjang_tanggal: "2099-12-20",
+      items: [
+        { id: items[0].id, rokok_id: testRokok.id, action: "bayar",      qty_terjual: 3, qty_kembali: 0 },
+        { id: items[1].id, rokok_id: testRokok.id, action: "perpanjang", qty_terjual: 0, qty_kembali: 0 },
+      ],
+      setoran: [{ metode: "cash", jumlah: items[0].harga * 3 }],
+    })
+
+    const rolloverItem = rollover.items[0]
+    const stokSebelumSettle = (await prisma.rokok.findUnique({ where: { id: testRokok.id } })).stok
+
+    // Settle rollover: semua terjual
+    await settleTitipJual(rollover.id, {
+      tanggal: TEST_DATE,
+      items:   [{ id: rolloverItem.id, rokok_id: testRokok.id, qty_terjual: 4, qty_kembali: 0 }],
+      setoran: [{ metode: "transfer", jumlah: rolloverItem.harga * 4 }],
+    })
+
+    const rolloverDb = await prisma.titipJual.findUnique({
+      where: { id: rollover.id },
+      include: { setoran: true },
+    })
+    expect(rolloverDb.status).toBe("selesai")
+    expect(rolloverDb.setoran).toHaveLength(1)
+    expect(rolloverDb.setoran[0].metode).toBe("transfer")
+
+    // Semua terjual dari rollover → stok tidak berubah
+    const stokSesudahSettle = (await prisma.rokok.findUnique({ where: { id: testRokok.id } })).stok
+    expect(stokSesudahSettle).toBe(stokSebelumSettle)
+  })
+
+  it("rollover dapat dihapus — stok kembali sesuai qty_keluar rollover", async () => {
+    const sesi = await buatSesi()
+    const titipJual = await buatTitipJual(sesi.id, {
+      items: [
+        { rokok_id: testRokok.id, qty: 3 },
+        { rokok_id: testRokok.id, qty: 2 },
+      ],
+    })
+    const items = titipJual.items
+
+    const rollover = await partialSettleTitipJual(titipJual.id, {
+      tanggal:            TEST_DATE,
+      perpanjang_tanggal: "2099-12-20",
+      items: [
+        { id: items[0].id, rokok_id: testRokok.id, action: "bayar",      qty_terjual: 3, qty_kembali: 0 },
+        { id: items[1].id, rokok_id: testRokok.id, action: "perpanjang", qty_terjual: 0, qty_kembali: 0 },
+      ],
+      setoran: [{ metode: "cash", jumlah: items[0].harga * 3 }],
+    })
+
+    const stokSebelumHapus = (await prisma.rokok.findUnique({ where: { id: testRokok.id } })).stok
+
+    // Hapus rollover → 2 item "dikembalikan" ke gudang
+    await deleteTitipJual(rollover.id, "test: hapus rollover")
+
+    const stokSesudahHapus = (await prisma.rokok.findUnique({ where: { id: testRokok.id } })).stok
+    expect(stokSesudahHapus).toBe(stokSebelumHapus + 2)
+
+    const rolloverDb = await prisma.titipJual.findUnique({ where: { id: rollover.id } })
+    expect(rolloverDb).toBeNull()
+  })
+
+  it("gagal settle titip jual yang sudah selesai (double settle)", async () => {
+    const sesi = await buatSesi()
+    const titipJual = await buatTitipJual(sesi.id, {
+      items: [
+        { rokok_id: testRokok.id, qty: 3 },
+        { rokok_id: testRokok.id, qty: 2 },
+      ],
+    })
+    const items = titipJual.items
+
+    await partialSettleTitipJual(titipJual.id, {
+      tanggal:            TEST_DATE,
+      perpanjang_tanggal: "2099-12-20",
+      items: [
+        { id: items[0].id, rokok_id: testRokok.id, action: "bayar",      qty_terjual: 3, qty_kembali: 0 },
+        { id: items[1].id, rokok_id: testRokok.id, action: "perpanjang", qty_terjual: 0, qty_kembali: 0 },
+      ],
+      setoran: [{ metode: "cash", jumlah: items[0].harga * 3 }],
+    })
+
+    // Coba settle lagi → harus gagal (sudah selesai)
+    await expect(
+      partialSettleTitipJual(titipJual.id, {
+        tanggal:            TEST_DATE,
+        perpanjang_tanggal: null,
+        items: [
+          { id: items[0].id, rokok_id: testRokok.id, action: "bayar", qty_terjual: 3, qty_kembali: 0 },
+        ],
+        setoran: [{ metode: "cash", jumlah: 100 }],
+      })
+    ).rejects.toThrow(/aktif/i)
+  })
+
+  it("revert settlement — rollover aktif ikut dihapus otomatis", async () => {
+    const sesi = await buatSesi()
+    const titipJual = await buatTitipJual(sesi.id, {
+      items: [
+        { rokok_id: testRokok.id, qty: 3 },
+        { rokok_id: testRokok.id, qty: 2 },
+      ],
+    })
+    const items = titipJual.items
+
+    const rollover = await partialSettleTitipJual(titipJual.id, {
+      tanggal:            TEST_DATE,
+      perpanjang_tanggal: "2099-12-20",
+      items: [
+        { id: items[0].id, rokok_id: testRokok.id, action: "bayar",      qty_terjual: 3, qty_kembali: 0 },
+        { id: items[1].id, rokok_id: testRokok.id, action: "perpanjang", qty_terjual: 0, qty_kembali: 0 },
+      ],
+      setoran: [{ metode: "cash", jumlah: items[0].harga * 3 }],
+    })
+
+    // Revert settlement original → rollover aktif harus ikut dihapus
+    await revertSettlement(titipJual.id, "test: revert setelah partial settle")
+
+    const originalDb = await prisma.titipJual.findUnique({ where: { id: titipJual.id } })
+    expect(originalDb.status).toBe("aktif")
+
+    const rolloverDb = await prisma.titipJual.findUnique({ where: { id: rollover.id } })
+    expect(rolloverDb).toBeNull()
+  })
+
+  it("revert settlement diblokir jika rollover sudah selesai", async () => {
+    const sesi = await buatSesi()
+    const titipJual = await buatTitipJual(sesi.id, {
+      items: [
+        { rokok_id: testRokok.id, qty: 3 },
+        { rokok_id: testRokok.id, qty: 2 },
+      ],
+    })
+    const items = titipJual.items
+
+    const rollover = await partialSettleTitipJual(titipJual.id, {
+      tanggal:            TEST_DATE,
+      perpanjang_tanggal: "2099-12-20",
+      items: [
+        { id: items[0].id, rokok_id: testRokok.id, action: "bayar",      qty_terjual: 3, qty_kembali: 0 },
+        { id: items[1].id, rokok_id: testRokok.id, action: "perpanjang", qty_terjual: 0, qty_kembali: 0 },
+      ],
+      setoran: [{ metode: "cash", jumlah: items[0].harga * 3 }],
+    })
+
+    // Settle rollover terlebih dahulu
+    const rolloverItem = rollover.items[0]
+    await settleTitipJual(rollover.id, {
+      tanggal: TEST_DATE,
+      items:   [{ id: rolloverItem.id, rokok_id: testRokok.id, qty_terjual: 2, qty_kembali: 0 }],
+      setoran: [{ metode: "cash", jumlah: rolloverItem.harga * 2 }],
+    })
+
+    // Revert original → harus diblokir karena rollover sudah selesai
+    await expect(
+      revertSettlement(titipJual.id, "test: revert setelah rollover selesai")
+    ).rejects.toThrow(/rollover.*selesai|perpanjang.*diselesaikan/i)
+  })
+
+  it("edit settlement diblokir jika rollover masih ada", async () => {
+    const sesi = await buatSesi()
+    const titipJual = await buatTitipJual(sesi.id, {
+      items: [
+        { rokok_id: testRokok.id, qty: 3 },
+        { rokok_id: testRokok.id, qty: 2 },
+      ],
+    })
+    const items = titipJual.items
+
+    await partialSettleTitipJual(titipJual.id, {
+      tanggal:            TEST_DATE,
+      perpanjang_tanggal: "2099-12-20",
+      items: [
+        { id: items[0].id, rokok_id: testRokok.id, action: "bayar",      qty_terjual: 3, qty_kembali: 0 },
+        { id: items[1].id, rokok_id: testRokok.id, action: "perpanjang", qty_terjual: 0, qty_kembali: 0 },
+      ],
+      setoran: [{ metode: "cash", jumlah: items[0].harga * 3 }],
+    })
+
+    // Edit settlement original → harus diblokir selama rollover masih ada
+    await expect(
+      editSettlement(titipJual.id, {
+        tanggal: TEST_DATE,
+        items:   [{ id: items[0].id, rokok_id: testRokok.id, qty_terjual: 3, qty_kembali: 0 }],
+        setoran: [{ metode: "cash", jumlah: items[0].harga * 3 }],
+      }, "test: edit setelah partial settle")
+    ).rejects.toThrow(/rollover|perpanjang/i)
+  })
+
+  it("edit settlement diizinkan setelah rollover dihapus", async () => {
+    const sesi = await buatSesi()
+    const titipJual = await buatTitipJual(sesi.id, {
+      items: [
+        { rokok_id: testRokok.id, qty: 3 },
+        { rokok_id: testRokok.id, qty: 2 },
+      ],
+    })
+    const items = titipJual.items
+
+    const rollover = await partialSettleTitipJual(titipJual.id, {
+      tanggal:            TEST_DATE,
+      perpanjang_tanggal: "2099-12-20",
+      items: [
+        { id: items[0].id, rokok_id: testRokok.id, action: "bayar",      qty_terjual: 3, qty_kembali: 0 },
+        { id: items[1].id, rokok_id: testRokok.id, action: "perpanjang", qty_terjual: 0, qty_kembali: 0 },
+      ],
+      setoran: [{ metode: "cash", jumlah: items[0].harga * 3 }],
+    })
+
+    // Hapus rollover → edit seharusnya bisa
+    await deleteTitipJual(rollover.id, "test: hapus rollover sebelum edit")
+
+    await expect(
+      editSettlement(titipJual.id, {
+        tanggal: TEST_DATE,
+        items:   [{ id: items[0].id, rokok_id: testRokok.id, qty_terjual: 2, qty_kembali: 1 }],
+        setoran: [{ metode: "transfer", jumlah: items[0].harga * 2 }],
+      }, "test: edit setelah rollover dihapus")
+    ).resolves.not.toThrow()
+
+    const updated = await prisma.titipJual.findUnique({
+      where:   { id: titipJual.id },
+      include: { items: true, setoran: true },
+    })
+    expect(updated.items.find(it => it.id === items[0].id).qty_kembali).toBe(1)
     expect(updated.setoran[0].metode).toBe("transfer")
   })
 })

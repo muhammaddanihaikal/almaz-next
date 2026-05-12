@@ -1923,6 +1923,16 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
     try {
       const validPenjualan  = penjualan.filter((it) => it.rokok_id && Number(it.qty) > 0)
       const validSetoran    = setoran.filter((it) => Number(it.jumlah) > 0)
+      // Titip jual yang setengah isi (toko dipilih tapi data lain kurang) — lempar error, jangan diskip diam-diam
+      const konsinyasiSetengahIsi = konsinyasiBaru.filter((k) => {
+        if (!k.toko_id) return false // kosong semua = boleh diskip
+        const hasRokok = k.items.some((it) => it.rokok_id && Number(it.qty) > 0)
+        return !k.tanggal_jatuh_tempo || !hasRokok
+      })
+      if (konsinyasiSetengahIsi.length > 0) {
+        const nama = konsinyasiSetengahIsi.map((k) => tokoList.find((t) => t.id === k.toko_id)?.nama || "Toko").join(", ")
+        throw new Error(`Titip Jual untuk ${nama}: lengkapi jatuh tempo dan pilih rokok sebelum menyimpan.`)
+      }
       const validKonsinyasi = konsinyasiBaru.filter((k) => k.toko_id && k.kategori && k.tanggal_jatuh_tempo && k.items.some((it) => it.rokok_id && Number(it.qty) > 0))
       const validTukarBaru = []
 
@@ -2741,6 +2751,10 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
   const selectedToko  = tokoList.find((t) => t.id === data.toko_id)
   const usedTokoIds   = [...konsinyasiBaru.filter((_, i) => i !== currentIdx).map((k) => k.toko_id).filter(Boolean), ...extraUsedTokoIds]
 
+  const hasTokoSelected  = !!data.toko_id
+  const missingJatuhTempo = hasTokoSelected && !data.tanggal_jatuh_tempo
+  const missingRokok     = hasTokoSelected && !data.items.some((it) => it.rokok_id && Number(it.qty) > 0)
+
 
   // Qty tersedia per rokok: dibawa - terjual langsung - item di konsinyasi lain (bukan ini)
   const getAvailableQty = (rokok_id, excludeItemIdx = -1) => {
@@ -2795,6 +2809,11 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
           <span className="group-hover:text-blue-600 transition-colors">
             {`${currentIdx + 1}. ${selectedToko?.nama || "Titip Jual Baru"}`}
           </span>
+          {!open && (missingJatuhTempo || missingRokok) && (
+            <span className="flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-600">
+              <AlertCircle className="h-3 w-3" /> Data belum lengkap
+            </span>
+          )}
         </div>
         <IconButton 
           icon={Trash2} 
@@ -2834,7 +2853,16 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
               />
             </div>
             <Field label="Jatuh Tempo">
-              <input type="date" value={data.tanggal_jatuh_tempo} min={tanggalSesi} onChange={(e) => onChange({ ...data, tanggal_jatuh_tempo: e.target.value })} className={inputCls} />
+              <input
+                type="date"
+                value={data.tanggal_jatuh_tempo}
+                min={tanggalSesi}
+                onChange={(e) => onChange({ ...data, tanggal_jatuh_tempo: e.target.value })}
+                className={inputCls}
+              />
+              {missingJatuhTempo && (
+                <p className="mt-1 text-xs text-amber-600 font-medium">Isi jatuh tempo sebelum menyimpan</p>
+              )}
             </Field>
             <Field label="Catatan (opsional)" className="sm:col-span-2">
               <input type="text" value={data.catatan} onChange={(e) => onChange({ ...data, catatan: e.target.value })} className={inputCls} placeholder="Opsional" />
@@ -2935,6 +2963,12 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
             + Tambah rokok
           </Button>
 
+          {missingRokok && (
+            <div className="flex items-center gap-1.5 rounded-md border border-orange-200 bg-orange-50 px-2.5 py-1.5 text-xs text-orange-700">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+              Pilih minimal satu rokok dengan qty &gt; 0
+            </div>
+          )}
 
         </div>
       )}
