@@ -1938,10 +1938,17 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
 
       const inItems  = tukarSelesai.itemsMasuk.filter(i => i.rokok_id && Number(i.qty) > 0)
       const outItems = tukarSelesai.itemsKeluar.filter(i => i.rokok_id && Number(i.qty) > 0)
+      let returFromTukar = null
       if (inItems.length > 0 && outItems.length > 0) {
         validTukarBaru.push({ ...tukarSelesai, langsungSelesai: true })
-      } else if (inItems.length > 0 || outItems.length > 0) {
-        throw new Error(`Tukar Barang: Harus isi barang return DAN barang pengganti.`)
+      } else if (inItems.length > 0 && outItems.length === 0) {
+        returFromTukar = {
+          tipe_penjualan: tukarSelesai.kategori || "grosir",
+          alasan:         tukarSelesai.catatan || null,
+          items:          inItems.map((it) => ({ rokok_id: it.rokok_id, qty: Number(it.qty) || 0 })),
+        }
+      } else if (inItems.length === 0 && outItems.length > 0) {
+        throw new Error(`Tukar Barang: Barang pengganti tidak bisa diisi tanpa barang return.`)
       }
 
 
@@ -2018,6 +2025,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
           langsungSelesai: !!t.langsungSelesai,
         })),
         penyelesaianTukar: Array.from(penyelesaianTukar),
+        returFromTukar,
       }
 
       // Final validation to prevent NaN in production
@@ -3143,7 +3151,8 @@ function TukarInputBlock({ data, onChange, rokokDibawa, rokokList, type, kategor
   const totalMasuk    = (data.itemsMasuk || []).reduce((s, it)  => s + Number(it.qty || 0) * Number(it.harga_satuan || 0), 0)
   const totalKeluar   = (data.itemsKeluar || []).reduce((s, it) => s + Number(it.qty || 0) * Number(it.harga_satuan || 0), 0)
   const selisih       = totalKeluar - totalMasuk
-  const invalid       = type === "selesai" && selisih < 0
+  const isReturnOnly  = type === "selesai" && !(data.itemsKeluar || []).some(it => it.rokok_id && Number(it.qty) > 0)
+  const invalid       = type === "selesai" && !isReturnOnly && selisih < 0
 
   const labelKat = label || (kategori === "grosir" ? "Grosir" : "Toko")
   const KATEGORI_DOT = {
@@ -3170,6 +3179,17 @@ function TukarInputBlock({ data, onChange, rokokDibawa, rokokList, type, kategor
             </p>
           )}
 
+          {isReturnOnly ? (
+            <div className="rounded border border-teal-200 bg-teal-50 p-3 flex items-start gap-2 text-sm">
+              <Info className="h-4 w-4 text-teal-600 mt-0.5 shrink-0" />
+              <div>
+                <span className="font-semibold text-teal-800">Akan diproses sebagai Retur</span>
+                <p className="text-teal-700 text-xs mt-0.5">
+                  Tidak ada barang pengganti — barang yang dikembalikan toko akan dicatat sebagai retur masuk ke stok.
+                </p>
+              </div>
+            </div>
+          ) : (
           <div className="rounded border border-neutral-300 bg-neutral-50 p-3 text-sm">
               <div className="flex items-center justify-between">
                 <span className="text-neutral-600 text-xs">Nilai pengganti − Nilai kembalian</span>
@@ -3189,6 +3209,7 @@ function TukarInputBlock({ data, onChange, rokokDibawa, rokokList, type, kategor
                 </p>
               )}
             </div>
+          )}
         </>
       )}
 
