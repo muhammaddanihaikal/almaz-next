@@ -1888,12 +1888,9 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
   const totalTukarMasuk = tukarSelesai.itemsMasuk.reduce((sum, it) => sum + (Number(it.qty) * Number(it.harga_satuan || 0)), 0)
   const totalTukarKeluar = tukarSelesai.itemsKeluar.reduce((sum, it) => sum + (Number(it.qty) * Number(it.harga_satuan || 0)), 0)
   // Return-only mode: hanya barang masuk tanpa pengganti -> tidak ada selisih uang (akan disimpan sbg Retur biasa)
-  const tukarInValid  = tukarSelesai.itemsMasuk.some((i) => i.rokok_id && Number(i.qty) > 0)
-  const tukarOutValid = tukarSelesai.itemsKeluar.some((i) => i.rokok_id && Number(i.qty) > 0)
-  const isReturnOnly  = tukarInValid && !tukarOutValid
-  const selisihTukar  = isReturnOnly ? 0 : (totalTukarMasuk - totalTukarKeluar)
+  const selisihTukar  = totalTukarKeluar - totalTukarMasuk
 
-  const nilaiPenjualan = nilaiPenjualanLangsung + totalTitipJual + selisihTukar
+  const nilaiPenjualan = nilaiPenjualanLangsung + selisihTukar
   const totalSetoran = setoran.reduce((s, it) => s + (Number(it.jumlah) || 0), 0)
   const flagSetoran  = nilaiPenjualan > 0 && totalSetoran !== nilaiPenjualan
   const setoranEmpty = nilaiPenjualan > 0 && totalSetoran === 0

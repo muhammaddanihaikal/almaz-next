@@ -88,9 +88,9 @@ function serialize(s) {
   const nilaiTukar = [...tukarMap.values()].reduce((sum, t) => {
     const totalMasuk = t.itemsMasuk.reduce((ss, it) => ss + it.qty * it.harga_satuan, 0)
     const totalKeluar = t.itemsKeluar.reduce((ss, it) => ss + it.qty * it.harga_satuan, 0)
-    return sum + (totalMasuk - totalKeluar)
+    return sum + (totalKeluar - totalMasuk)
   }, 0)
-  const nilaiPenjualan = nilaiPenjualanLangsung + nilaiTitipJual + nilaiTukar
+  const nilaiPenjualan = nilaiPenjualanLangsung + nilaiTukar
   const totalSetoran   = s.setoran.reduce((sum, it) => sum + it.jumlah, 0)
   const qtyKeluar      = s.barangKeluar.reduce((sum, it) => sum + it.qty, 0)
   const qtyTerjual     = s.penjualan.reduce((sum, it) => sum + it.qty, 0)
