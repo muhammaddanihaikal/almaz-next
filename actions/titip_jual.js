@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import { mutateStock, MUTATION_SOURCE } from "@/lib/stock"
 import { auth } from "@/lib/auth"
 import { logAudit, AUDIT_ACTION, AUDIT_ENTITY } from "@/lib/audit"
+import { nowJakarta, getJakartaToday } from "@/lib/utils"
 
 const include = {
   sales:   true,
@@ -19,8 +20,8 @@ function serialize(k) {
   const nilaiTerjual  = k.items.reduce((s, it) => s + it.qty_terjual * it.harga, 0)
   const totalSetoran  = k.setoran.reduce((s, it) => s + it.jumlah, 0)
   const flagSetoran   = k.status === "selesai" && totalSetoran !== nilaiTerjual
-  const today         = new Date().toISOString().split("T")[0]
-  const jatuhTempo    = k.tanggal_jatuh_tempo.toISOString().split("T")[0]
+  const today         = getJakartaToday()
+  const jatuhTempo    = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(k.tanggal_jatuh_tempo)
   const selisihHari   = Math.ceil((new Date(jatuhTempo) - new Date(today)) / 86400000)
   const flagJatuhTempo = k.status === "aktif" && selisihHari <= 3
 
@@ -32,9 +33,9 @@ function serialize(k) {
     toko_id:             k.toko_id,
     nama_toko:           k.toko.nama,
     kategori:            k.kategori,
-    tanggal_distribusi:  k.sesi?.tanggal ? k.sesi.tanggal.toISOString().split("T")[0] : null,
+    tanggal_distribusi:  k.sesi?.tanggal ? new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(k.sesi.tanggal) : null,
     tanggal_jatuh_tempo: jatuhTempo,
-    tanggal_selesai:     k.tanggal_selesai ? k.tanggal_selesai.toISOString().split("T")[0] : null,
+    tanggal_selesai:     k.tanggal_selesai ? new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(k.tanggal_selesai) : null,
     status:              k.status,
     flag_selisih_setoran: k.flag_selisih_setoran,
     catatan:             k.catatan,
@@ -60,7 +61,7 @@ function serialize(k) {
       id:     it.id,
       metode: it.metode,
       jumlah: it.jumlah,
-      tanggal: it.tanggal.toISOString().split("T")[0],
+      tanggal: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(it.tanggal),
     })),
   }
 }
@@ -71,7 +72,7 @@ function serialize(k) {
 export async function getTitipJualList(daysBack = 30) {
   const where = {}
   if (daysBack && Number.isFinite(daysBack)) {
-    const since = new Date()
+    const since = nowJakarta()
     since.setHours(0, 0, 0, 0)
     since.setDate(since.getDate() - daysBack)
     where.OR = [
@@ -88,7 +89,7 @@ export async function getTitipJualList(daysBack = 30) {
 }
 
 export async function getTitipJualJatuhTempo() {
-  const tiga_hari = new Date()
+  const tiga_hari = nowJakarta()
   tiga_hari.setDate(tiga_hari.getDate() + 3)
   const rows = await prisma.titipJual.findMany({
     where: {
@@ -102,7 +103,7 @@ export async function getTitipJualJatuhTempo() {
 }
 
 export async function settleTitipJual(id, data) {
-  const settlementDateStr = data.tanggal || new Date().toISOString().split("T")[0]
+  const settlementDateStr = data.tanggal || getJakartaToday()
   const today = new Date(settlementDateStr)
   const session = await auth()
 
@@ -196,7 +197,7 @@ export async function editTitipJualDetail(id, data, alasan) {
       change_type: "Perpanjang Jatuh Tempo",
       entity_id:   id,
       action:      AUDIT_ACTION.UPDATE,
-      old_values:  { tanggal_jatuh_tempo: old.tanggal_jatuh_tempo.toISOString().split("T")[0], catatan: old.catatan },
+      old_values:  { tanggal_jatuh_tempo: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(old.tanggal_jatuh_tempo), catatan: old.catatan },
       new_values:  { tanggal_jatuh_tempo: data.tanggal_jatuh_tempo, catatan: data.catatan || null },
       alasan,
       user_id:     session?.user?.id,
@@ -225,10 +226,9 @@ export async function deleteTitipJual(id, alasan) {
       entity_id:   id,
       action:      AUDIT_ACTION.DELETE,
       old_values:  {
-        sales:               k.sales.nama,
-        toko:                k.toko.nama,
+        nama_toko:           k.toko.nama,
         kategori:            k.kategori,
-        tanggal_jatuh_tempo: k.tanggal_jatuh_tempo.toISOString().split("T")[0],
+        tanggal_jatuh_tempo: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(k.tanggal_jatuh_tempo),
         items: k.items.map(it => ({ rokok: it.rokok?.nama, qty_keluar: it.qty_keluar, harga: it.harga })),
       },
       alasan,
@@ -269,7 +269,7 @@ export async function createTitipJual(sesiId, salesId, k) {
   const session = await auth()
   const result = await prisma.$transaction(async (tx) => {
     const sesi    = await tx.sesiHarian.findUnique({ where: { id: sesiId }, select: { tanggal: true, is_historical: true } })
-    const tanggal = sesi?.tanggal || new Date()
+    const tanggal = sesi?.tanggal || nowJakarta()
 
     const created = await tx.titipJual.create({
       data: {
@@ -333,7 +333,7 @@ export async function createTitipJual(sesiId, salesId, k) {
 }
 
 export async function editSettlement(id, data, alasan) {
-  const settlementDateStr = data.tanggal || new Date().toISOString().split("T")[0]
+  const settlementDateStr = data.tanggal || getJakartaToday()
   const today = new Date(settlementDateStr)
   const session = await auth()
 
@@ -355,7 +355,7 @@ export async function editSettlement(id, data, alasan) {
       throw new Error("Tidak bisa diedit — ada titip jual perpanjang yang masih aktif. Selesaikan atau hapus titip jual perpanjang terlebih dahulu.")
     }
 
-    const oldSettlementDateStr = old.tanggal_selesai ? old.tanggal_selesai.toISOString().split("T")[0] : null
+    const oldSettlementDateStr = old.tanggal_selesai ? new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(old.tanggal_selesai) : null
     const wasOldSettlementHistorical = cutoffDate && oldSettlementDateStr && oldSettlementDateStr < cutoffDate
 
     for (const it of old.items) {
@@ -363,7 +363,7 @@ export async function editSettlement(id, data, alasan) {
         await mutateStock({
           tx,
           rokok_id: it.rokok_id,
-          tanggal: data.tanggal || new Date().toISOString().split("T")[0],
+          tanggal: data.tanggal || getJakartaToday(),
           jenis: 'out',
           qty: it.qty_kembali,
           source: MUTATION_SOURCE.REVERT,
@@ -383,7 +383,7 @@ export async function editSettlement(id, data, alasan) {
         await mutateStock({
           tx,
           rokok_id: it.rokok_id,
-          tanggal: data.tanggal || new Date().toISOString().split("T")[0],
+          tanggal: data.tanggal || getJakartaToday(),
           jenis: 'in',
           qty: it.qty_kembali,
           source: MUTATION_SOURCE.KONSINYASI_KEMBALI,
@@ -466,7 +466,7 @@ export async function revertSettlement(id, alasan) {
       await tx.titipJual.delete({ where: { id: r.id } })
     }
 
-    const oldSettlementDateStr = old.tanggal_selesai ? old.tanggal_selesai.toISOString().split("T")[0] : null
+    const oldSettlementDateStr = old.tanggal_selesai ? new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(old.tanggal_selesai) : null
     const wasOldSettlementHistorical = cutoffDate && oldSettlementDateStr && oldSettlementDateStr < cutoffDate
 
     for (const it of old.items) {
@@ -474,7 +474,7 @@ export async function revertSettlement(id, alasan) {
         await mutateStock({
           tx,
           rokok_id: it.rokok_id,
-          tanggal: new Date().toISOString().split("T")[0],
+          tanggal: getJakartaToday(),
           jenis: 'out',
           qty: it.qty_kembali,
           source: MUTATION_SOURCE.REVERT,
@@ -521,7 +521,7 @@ export async function revertSettlement(id, alasan) {
 }
 
 export async function partialSettleTitipJual(id, data) {
-  const settlementDateStr = data.tanggal || new Date().toISOString().split("T")[0]
+  const settlementDateStr = data.tanggal || getJakartaToday()
   const today = new Date(settlementDateStr)
   const session = await auth()
 
@@ -649,8 +649,7 @@ export async function partialSettleTitipJual(id, data) {
 }
 
 export async function getTitipJualNotificationCounts() {
-  // Gunakan UTC date string agar konsisten dengan @db.Date yang disimpan sebagai UTC midnight
-  const todayStr     = new Date().toISOString().split("T")[0]
+  const todayStr     = getJakartaToday()
   const today        = new Date(todayStr + "T00:00:00.000Z")
   const tomorrow     = new Date(todayStr + "T00:00:00.000Z")
   tomorrow.setUTCDate(tomorrow.getUTCDate() + 1)

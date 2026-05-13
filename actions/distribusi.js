@@ -13,6 +13,7 @@ import {
 } from "@/actions/tukar-barang"
 import { getAppSetting } from "@/actions/settings"
 import { saveSesiSampleKeluar, revertSesiSampleKeluar, saveSesiSampleKembali } from "@/actions/sample"
+import { nowJakarta, getJakartaToday } from "@/lib/utils"
 
 const include = {
   sales: true,
@@ -31,7 +32,16 @@ const DISTRIBUSI_TX_OPTIONS = { maxWait: 10000, timeout: 30000 }
 const distribusiTransaction = (fn) => prisma.$transaction(fn, DISTRIBUSI_TX_OPTIONS)
 
 function dateOnly(value) {
-  return new Date(value).toISOString().split("T")[0]
+  // If it's already a string in YYYY-MM-DD, just return it
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+  
+  const d = new Date(value)
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d)
 }
 
 function shouldMutateKonsinyasiKembali(titipJual, tanggalSelesai, cutoffStr) {
@@ -182,7 +192,7 @@ function serialize(s) {
 export async function getSesiList(daysBack = 30) {
   const where = {}
   if (daysBack && Number.isFinite(daysBack)) {
-    const since = new Date()
+    const since = nowJakarta()
     since.setHours(0, 0, 0, 0)
     since.setDate(since.getDate() - daysBack)
     where.tanggal = { gte: since }

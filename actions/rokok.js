@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import { mutateStock, MUTATION_SOURCE } from "@/lib/stock"
 import { auth } from "@/lib/auth"
 import { logAudit, AUDIT_ACTION, AUDIT_ENTITY } from "@/lib/audit"
+import { nowJakarta, getJakartaToday } from "@/lib/utils"
 
 export async function getRokokList() {
   try {
@@ -73,14 +74,14 @@ export async function addRokok(data) {
         data: {
           rokok_id: r.id,
           qty:      initialStok,
-          tanggal:  new Date(),
+          tanggal:  nowJakarta(),
           keterangan: "Stok Awal",
         },
       })
       await mutateStock({
         tx,
         rokok_id: r.id,
-        tanggal: new Date(),
+        tanggal: nowJakarta(),
         jenis: 'in',
         qty: initialStok,
         source: MUTATION_SOURCE.STOK_AWAL,
@@ -136,7 +137,7 @@ export async function updateRokok(id, data, alasan) {
       await mutateStock({
         tx,
         rokok_id:     id,
-        tanggal:      new Date(),
+        tanggal:      nowJakarta(),
         jenis,
         qty,
         source:       MUTATION_SOURCE.KOREKSI,
@@ -435,7 +436,7 @@ export async function getMutasiStok(startDate, endDate, stockType = "utama") {
 }
 
 export async function getMutasiHariIni() {
-  const now   = new Date()
+  const now   = nowJakarta()
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0)
   const end   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
 
@@ -498,7 +499,7 @@ export async function koreksiStok(id, qty, jenis, keterangan) {
     await mutateStock({
       tx,
       rokok_id: id,
-      tanggal: new Date(),
+      tanggal: nowJakarta(),
       jenis,
       qty,
       source: MUTATION_SOURCE.KOREKSI,
@@ -589,7 +590,7 @@ export async function pindahStokSampleCukai(rokok_id, qty, direction, catatan, d
 
   const qtyNum = Number(qty)
   if (!qtyNum || qtyNum <= 0) throw new Error("Qty harus lebih dari 0.")
-  const targetDate = date ? new Date(date).toISOString().split("T")[0] : new Date().toISOString().split("T")[0]
+  const targetDate = date ? date : getJakartaToday()
 
   const fromPool = direction === "to_sample" ? "stok" : "stok_sample_cukai"
   const toPool = direction === "to_sample" ? "stok_sample_cukai" : "stok"

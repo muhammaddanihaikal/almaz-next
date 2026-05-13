@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { mutateStock, MUTATION_SOURCE } from "@/lib/stock"
+import { nowJakarta } from "@/lib/utils"
 
 /**
  * Simpan/update sample keluar saat sesi pagi dibuat/diedit.
@@ -31,7 +32,7 @@ export async function saveSesiSampleKeluar(sesi_id, samples, tx = prisma) {
     await mutateStock({
       tx,
       rokok_id: s.rokok_id,
-      tanggal: sesi?.tanggal || new Date(),
+      tanggal: sesi?.tanggal || nowJakarta(),
       jenis: "out",
       qty,
       source: MUTATION_SOURCE.DISTRIBUSI,
@@ -75,7 +76,7 @@ export async function saveSesiSampleKembali(sesi_id, samples, tx = prisma) {
       await mutateStock({
         tx,
         rokok_id: s.rokok_id,
-        tanggal: sesi?.tanggal || new Date(),
+        tanggal: sesi?.tanggal || nowJakarta(),
         jenis: delta > 0 ? "in" : "out",
         qty: Math.abs(delta),
         source: delta > 0 ? "retur_sales" : MUTATION_SOURCE.DISTRIBUSI,
@@ -119,7 +120,7 @@ export async function revertSesiSampleKeluar(sesi_id, tx = prisma) {
       await mutateStock({
         tx,
         rokok_id: s.rokok_id,
-        tanggal: sesi?.tanggal || new Date(),
+        tanggal: sesi?.tanggal || nowJakarta(),
         jenis: "in",
         qty: net,
         source: MUTATION_SOURCE.REVERT,

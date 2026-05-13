@@ -46,7 +46,16 @@ export async function getAuditLogs({ startDate, endDate, entity_type, user_id } 
   // Format waktu ke WIB (UTC+7)
   return rows.map((r) => ({
     ...r,
-    createdAt: new Date(r.createdAt.getTime() + 7 * 60 * 60 * 1000).toISOString().replace("T", " ").slice(0, 19),
+    createdAt: new Intl.DateTimeFormat("id-ID", {
+      timeZone: "Asia/Jakarta",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false
+    }).format(r.createdAt).replace(/\//g, "-"),
   }))
 }
 

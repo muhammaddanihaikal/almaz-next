@@ -13,9 +13,10 @@ function pushOrMutate(mutQueue, tx, mutation) {
 }
 import { auth } from "@/lib/auth"
 import { logAudit, AUDIT_ACTION, AUDIT_ENTITY } from "@/lib/audit"
+import { nowJakarta } from "@/lib/utils"
 
 function mutationDateKey(tanggal) {
-  return new Date(tanggal).toISOString().split("T")[0]
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date(tanggal))
 }
 
 function addMutationNet(map, mutation) {
@@ -84,8 +85,8 @@ function serialize(t) {
   const totalKeluar = t.itemsKeluar.reduce((s, it) => s + it.qty * it.harga_satuan, 0)
   return {
     id:              t.id,
-    tanggal:         t.tanggal.toISOString().split("T")[0],
-    tanggal_selesai: t.tanggal_selesai ? t.tanggal_selesai.toISOString().split("T")[0] : null,
+    tanggal:         new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(t.tanggal),
+    tanggal_selesai: t.tanggal_selesai ? new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(t.tanggal_selesai) : null,
     sesi_id:         t.sesi_id,
     sesi_selesai_id: t.sesi_selesai_id,
     sales_id:        t.sesi?.sales_id ?? null,
@@ -148,8 +149,8 @@ export async function deleteTukarBarang(id, alasan) {
       entity_id:   id,
       action:      AUDIT_ACTION.DELETE,
       old_values: {
-        tanggal:         old.tanggal.toISOString().split("T")[0],
-        tanggal_selesai: old.tanggal_selesai ? old.tanggal_selesai.toISOString().split("T")[0] : null,
+        tanggal:         new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(old.tanggal),
+        tanggal_selesai: old.tanggal_selesai ? new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(old.tanggal_selesai) : null,
         status:          old.status,
         sales:           old.sesi?.sales?.nama,
         itemsMasuk:      old.itemsMasuk.map((it) => ({ rokok: it.rokok?.nama, qty: it.qty, harga_satuan: it.harga_satuan })),
@@ -241,7 +242,7 @@ export async function createTukarBarangInSesi(tx, sesi, data, session, langsungS
     entity_id:   tukar.id,
     action:      AUDIT_ACTION.CREATE,
     new_values: {
-      tanggal:      tukar.tanggal.toISOString().split("T")[0],
+      tanggal:      new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(tukar.tanggal),
       status:       tukar.status,
       itemsMasuk:   itemsMasuk.map((it) => ({ rokok_id: it.rokok_id, qty: Number(it.qty), harga_satuan: Number(it.harga_satuan) })),
       itemsKeluar:  itemsKeluar.map((it) => ({ rokok_id: it.rokok_id, qty: Number(it.qty), harga_satuan: Number(it.harga_satuan) })),
@@ -286,7 +287,7 @@ export async function selesaikanTukarBarangInSesi(tx, sesi, tukar_id, session, _
     action:      AUDIT_ACTION.UPDATE,
     new_values: {
       status:          "selesai",
-      tanggal_selesai: new Date(sesi.tanggal).toISOString().split("T")[0],
+      tanggal_selesai: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date(sesi.tanggal)),
       sesi_selesai_id: sesi.id,
     },
     user_id:   session?.user?.id,
@@ -347,7 +348,7 @@ export async function selesaikanTukarBarang(tukar_id, itemsKeluarData) {
       where: { id: tukar_id },
       data: {
         status: "selesai",
-        tanggal_selesai: new Date(),
+        tanggal_selesai: nowJakarta(),
         itemsKeluar: {
           create: itemsKeluar.map((it) => ({
             rokok_id: it.rokok_id,
@@ -363,7 +364,7 @@ export async function selesaikanTukarBarang(tukar_id, itemsKeluarData) {
       await mutateStock({
         tx,
         rokok_id: it.rokok_id,
-        tanggal: new Date(),
+        tanggal: nowJakarta(),
         jenis: 'out',
         qty: Number(it.qty),
         source: MUTATION_SOURCE.TUKAR_KELUAR,
@@ -380,7 +381,7 @@ export async function selesaikanTukarBarang(tukar_id, itemsKeluarData) {
       action: AUDIT_ACTION.UPDATE,
       new_values: {
         status: "selesai",
-        tanggal_selesai: new Date().toISOString().split("T")[0],
+        tanggal_selesai: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(nowJakarta()),
         itemsKeluar: itemsKeluar,
       },
       user_id: session?.user?.id,

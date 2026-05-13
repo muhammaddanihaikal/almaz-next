@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { auth } from "@/lib/auth"
 import { logAudit, AUDIT_ACTION, AUDIT_ENTITY } from "@/lib/audit"
+import { nowJakarta } from "@/lib/utils"
 
 async function getPosisiUang(tx, tanggalDate, excludeId = null) {
   const tgl = new Date(tanggalDate)
@@ -56,7 +57,7 @@ export async function getPengeluaran() {
   const rows = await prisma.pengeluaran.findMany({ orderBy: { tanggal: "desc" } })
   return rows.map((r) => ({
     id: r.id,
-    tanggal: r.tanggal.toISOString().split("T")[0],
+    tanggal: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(r.tanggal),
     jumlah: r.jumlah,
     keterangan: r.keterangan,
     sumber: r.sumber ?? "penjualan",

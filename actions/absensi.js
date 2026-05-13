@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { nowJakarta } from "@/lib/utils"
 
 // Default: hanya muat absensi 30 hari terakhir untuk performa.
 // Halaman pakai filter tanggal di client; data lebih lama bisa diakses
@@ -10,7 +11,7 @@ import { revalidatePath } from "next/cache"
 export async function getAbsensi(daysBack = 30) {
   const where = {}
   if (daysBack && Number.isFinite(daysBack)) {
-    const since = new Date()
+    const since = nowJakarta()
     since.setHours(0, 0, 0, 0)
     since.setDate(since.getDate() - daysBack)
     where.tanggal = { gte: since }

@@ -8,7 +8,7 @@ import { auth } from "@/lib/auth"
 function serialize(r) {
   return {
     id: r.id,
-    tanggal: r.tanggal.toISOString().split("T")[0],
+    tanggal: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(r.tanggal),
     tipe_penjualan: r.tipe_penjualan,
     sales: r.sales.nama,
     sales_id: r.sales_id,
