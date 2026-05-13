@@ -38,9 +38,19 @@ const SOURCE_LABEL = {
   supplier:           { label: "Masuk Supplier",      cls: "bg-emerald-100 text-emerald-700" },
   distribusi_sales:   { label: "Keluar Distribusi",  cls: "bg-red-100 text-red-700"         },
   retur_sales:        { label: "Kembali dari Sales", cls: "bg-amber-100 text-amber-700"     },
-  retur:              { label: "Retur",               cls: "bg-amber-100 text-amber-700"     },
-  konsinyasi_kembali: { label: "Kembali Titip Jual", cls: "bg-amber-100 text-amber-700"     },
-  koreksi:            { label: "Koreksi",             cls: "bg-purple-100 text-purple-700"   },
+  retur:              { label: "Retur",               cls: "bg-purple-100 text-purple-700"   },
+  konsinyasi_keluar:  { label: "Keluar Titip Jual",  cls: "bg-indigo-100 text-indigo-700"    },
+  konsinyasi_kembali: { label: "Kembali Titip Jual", cls: "bg-teal-100 text-teal-700"        },
+  penjualan:          { label: "Penjualan",           cls: "bg-emerald-100 text-emerald-700" },
+  penjualan_sample:   { label: "Jual Sample",        cls: "bg-emerald-100 text-emerald-700" },
+  tukar_masuk:        { label: "Tukar (Masuk)",      cls: "bg-sky-100 text-sky-700"         },
+  tukar_keluar:       { label: "Tukar (Keluar)",     cls: "bg-rose-100 text-rose-700"        },
+  koreksi:            { label: "Koreksi",             cls: "bg-yellow-100 text-yellow-700"   },
+  adjustment:         { label: "Adjustment",          cls: "bg-yellow-100 text-yellow-700"   },
+  revert:             { label: "Revert",               cls: "bg-red-100 text-red-700"         },
+  sample_cukai_konversi: { label: "Konversi Sample", cls: "bg-orange-100 text-orange-700"   },
+  sample_biasa_masuk:    { label: "Sample Masuk",    cls: "bg-blue-100 text-blue-700"       },
+  sample_biasa_keluar:   { label: "Sample Keluar",   cls: "bg-rose-100 text-rose-700"       },
 }
 
 function SkeletonText({ w = "w-24" }) {
@@ -1113,6 +1123,29 @@ function RokokForm({ initial, rokokList, onSubmit, onCancel }) {
   )
 }
 
+const getDefaultKeterangan = (source) => {
+  switch (source) {
+    case 'stok_awal':             return 'Inisialisasi stok awal'
+    case 'supplier':              return 'Penambahan stok dari supplier'
+    case 'koreksi':               return 'Koreksi stok manual'
+    case 'adjustment':            return 'Penyesuaian stok'
+    case 'distribusi_sales':      return 'Distribusi barang ke sales'
+    case 'retur_sales':           return 'Barang kembali dari sales'
+    case 'konsinyasi_keluar':     return 'Barang keluar titip jual'
+    case 'konsinyasi_kembali':    return 'Barang kembali titip jual'
+    case 'penjualan':             return 'Transaksi penjualan'
+    case 'penjualan_sample':      return 'Transaksi penjualan sample'
+    case 'retur':                 return 'Retur barang dari toko/pelanggan'
+    case 'tukar_masuk':           return 'Tukar barang (Masuk)'
+    case 'tukar_keluar':          return 'Tukar barang (Keluar)'
+    case 'sample_cukai_konversi': return 'Konversi stok reguler & sample cukai'
+    case 'revert':                return 'Pembatalan transaksi (revert)'
+    case 'sample_biasa_masuk':    return 'Penerimaan sample biasa'
+    case 'sample_biasa_keluar':   return 'Pengurangan sample biasa'
+    default:                      return 'Mutasi stok'
+  }
+}
+
 // ─── Mutasi Hari Ini (accordion) ──────────────────────────────────────────────
 
 function MutasiHariIni({ mutations }) {
@@ -1147,7 +1180,7 @@ function MutasiHariIni({ mutations }) {
                         {src.label}
                       </span>
                     </td>
-                    <td className="px-3 py-2.5 text-neutral-600 italic">{m.keterangan || "—"}</td>
+                    <td className="px-3 py-2.5 text-neutral-600 italic">{m.keterangan || getDefaultKeterangan(m.source)}</td>
                     <td className={`px-3 py-2.5 text-right font-bold tabular-nums ${m.jenis === "in" ? "text-emerald-600" : "text-red-600"}`}>
                       {m.jenis === "in" ? "+" : "-"}{m.qty}
                     </td>

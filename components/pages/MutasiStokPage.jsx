@@ -2,7 +2,7 @@
 
 import { useState, Fragment } from "react"
 import { usePathname } from "next/navigation"
-import { Calendar, ChevronDown, ChevronUp, Box, ArrowLeft, ArrowUpRight, ArrowDownLeft, RotateCcw } from "lucide-react"
+import { Calendar, ChevronDown, ChevronUp, Box, ArrowLeft, ArrowUpRight, ArrowDownLeft, RotateCcw, Info } from "lucide-react"
 import { fmtIDR } from "@/lib/utils"
 import { Card, PageHeader, Field, Button, IconButton, DateFilter, inputCls } from "@/components/ui"
 import { useLoading } from "@/components/LoadingProvider"
@@ -18,6 +18,7 @@ export default function MutasiStokPage({ initialData, startDate, endDate, initia
   })
   const [expandedDate, setExpandedDate] = useState(initialData[0]?.tanggal || null)
   const [expandedRokok, setExpandedRokok] = useState([]) // Array of "tanggal-rokok_id"
+  const [showGuide, setShowGuide] = useState(false)
 
   const formatDate = (dateString) => {
     const d = new Date(dateString)
@@ -54,16 +55,24 @@ export default function MutasiStokPage({ initialData, startDate, endDate, initia
 
   const getDefaultKeterangan = (source) => {
     switch (source) {
-      case 'stok_awal': return 'Inisialisasi stok awal'
-      case 'penjualan': return 'Transaksi penjualan'
-      case 'distribusi_sales': return 'Distribusi barang ke sales'
-      case 'retur_sales': return 'Barang kembali dari sales'
-      case 'retur': return 'Retur barang dari toko/pelanggan'
-      case 'koreksi': return 'Koreksi stok manual'
-      case 'konsinyasi_keluar': return 'Barang keluar titip jual'
-      case 'konsinyasi_kembali': return 'Barang kembali titip jual'
-      case 'revert': return 'Pembatalan transaksi'
-      default: return 'Mutasi stok'
+      case 'stok_awal':             return 'Inisialisasi stok awal'
+      case 'supplier':              return 'Penambahan stok dari supplier'
+      case 'koreksi':               return 'Koreksi stok manual'
+      case 'adjustment':            return 'Penyesuaian stok'
+      case 'distribusi_sales':      return 'Distribusi barang ke sales'
+      case 'retur_sales':           return 'Barang kembali dari sales'
+      case 'konsinyasi_keluar':     return 'Barang keluar titip jual'
+      case 'konsinyasi_kembali':    return 'Barang kembali titip jual'
+      case 'penjualan':             return 'Transaksi penjualan'
+      case 'penjualan_sample':      return 'Transaksi penjualan sample'
+      case 'retur':                 return 'Retur barang dari toko/pelanggan'
+      case 'tukar_masuk':           return 'Tukar barang (Masuk)'
+      case 'tukar_keluar':          return 'Tukar barang (Keluar)'
+      case 'sample_cukai_konversi': return 'Konversi stok reguler & sample cukai'
+      case 'revert':                return 'Pembatalan transaksi (revert)'
+      case 'sample_biasa_masuk':    return 'Penerimaan sample biasa'
+      case 'sample_biasa_keluar':   return 'Pengurangan sample biasa'
+      default:                      return 'Mutasi stok'
     }
   }
 
@@ -117,6 +126,80 @@ export default function MutasiStokPage({ initialData, startDate, endDate, initia
           </div>
         }
       />
+
+      {/* Enhanced Info Legend (Collapsible - Same Style as Daily Rows) */}
+      <div className="group">
+        <button 
+          onClick={() => setShowGuide(!showGuide)}
+          className={`w-full flex items-center justify-between px-5 py-3 bg-white border border-neutral-200 rounded-xl shadow-sm transition-all hover:border-blue-200 ${showGuide ? 'ring-2 ring-blue-500/10 border-blue-500' : ''}`}
+        >
+          <div className="flex items-center gap-4">
+            <div className={`h-10 w-10 rounded-lg flex items-center justify-center transition-colors ${showGuide ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-600'}`}>
+              <Info className="h-5 w-5" />
+            </div>
+            <div className="text-left">
+              <p className="font-semibold text-neutral-900">Panduan Mutasi Stok</p>
+              <p className="text-[10px] text-neutral-500">Klik untuk melihat maksud dari Awal, Masuk, Keluar, dan Akhir</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {showGuide ? <ChevronUp className="h-5 w-5 text-neutral-400" /> : <ChevronDown className="h-5 w-5 text-neutral-400" />}
+          </div>
+        </button>
+        
+        {showGuide && (
+          <div className="mt-2 mx-2 p-3 bg-white border border-neutral-200 rounded-xl shadow-sm animate-in fade-in slide-in-from-top-1 duration-200">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-neutral-400" />
+                  <p className="text-[10px] font-bold text-neutral-800 uppercase tracking-tight">Stok Awal</p>
+                </div>
+                <p className="text-[9px] text-neutral-500 leading-tight italic">
+                  Saldo barang di gudang pada <b>pagi hari</b>.
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-emerald-500" />
+                  <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-tight">Total Masuk</p>
+                </div>
+                <p className="text-[9px] text-neutral-500 leading-tight italic">
+                  Barang dari Supplier, Retur Sales, & Koreksi (+).
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-red-500" />
+                  <p className="text-[10px] font-bold text-red-600 uppercase tracking-tight">Total Keluar</p>
+                </div>
+                <p className="text-[9px] text-neutral-500 leading-tight italic">
+                  Distribusi Sales, Penjualan, & Koreksi (-).
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-blue-500" />
+                  <p className="text-[10px] font-bold text-blue-600 uppercase tracking-tight">Stok Akhir</p>
+                </div>
+                <p className="text-[9px] text-neutral-500 leading-tight italic">
+                  Saldo sisa di <b>sore hari</b> (Awal + Masuk - Keluar).
+                </p>
+              </div>
+            </div>
+            
+            <div className="mt-3 pt-2 border-t border-dashed border-neutral-100 flex items-center gap-2">
+              <span className="text-[8px] font-bold text-blue-500 uppercase bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">Audit Log</span>
+              <p className="text-[9px] text-neutral-400 italic">
+                Klik <b>Baris Nama Rokok</b> di bawah untuk melihat detail waktu & user yang melakukan mutasi.
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
 
       <div className="space-y-4">
         {initialData.length === 0 ? (
