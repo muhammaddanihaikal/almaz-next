@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, Fragment } from "react"
 import { Plus, Trash2, AlertCircle, ChevronDown, ChevronUp, Download, X, History, Info } from "lucide-react"
-import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc } from "@/lib/utils"
+import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc, getJakartaToday } from "@/lib/utils"
 import { createSesi, updateSesiPagi, submitLaporanSore, editLaporanSore, deleteSesi } from "@/actions/distribusi"
 import { settleTitipJual, createTitipJual, editSettlement, revertSettlement, editTitipJualDetail, deleteTitipJual } from "@/actions/titip_jual"
 import { addToko } from "@/actions/toko"
@@ -243,7 +243,7 @@ function exportToExcel(rows, rokokList, dateRange, onNoData) {
 
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, "Distribusi")
-  XLSX.writeFile(wb, `laporan_penjualan_${new Date().toISOString().slice(0, 10)}.xlsx`)
+  XLSX.writeFile(wb, `laporan_penjualan_${getJakartaToday()}.xlsx`)
 }
 
 function exportToExcelBySales(rows, rokokList, dateRange, onNoData) {
@@ -391,7 +391,7 @@ function exportToExcelBySales(rows, rokokList, dateRange, onNoData) {
 
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, "Per Motoris")
-  XLSX.writeFile(wb, `laporan_motoris_${new Date().toISOString().slice(0, 10)}.xlsx`)
+  XLSX.writeFile(wb, `laporan_motoris_${getJakartaToday()}.xlsx`)
 }
 
 export default function DistribusiPage({ role, sesiList, rokokList, salesList, tokoList, tukarBarangList = [], stockCutoffSetting }) {
@@ -736,8 +736,8 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
                   status: "aktif",
                   is_historical: false,
                   catatan: data.catatan || null,
-                  createdAt: new Date().toISOString(),
-                  updatedAt: new Date().toISOString(),
+                  createdAt: new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }),
+                  updatedAt: new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }),
                   barangKeluar: (data.barangKeluar || []).map((it) => ({
                     rokok_id: it.rokok_id,
                     rokok: rokokList.find((r) => r.id === it.rokok_id)?.nama || "???",
@@ -1650,7 +1650,7 @@ function SetoranCard({ label, value, tone }) {
 
 // Form Sesi Pagi
 function SesiPagiForm({ initial, rokokList, salesList, sesiList, stockCutoffDate, onSubmit, onCancel }) {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = getJakartaToday()
   const [tanggal,  setTanggal]  = useState(initial?.tanggal || today)
   const [salesId,  setSalesId]  = useState(initial?.sales_id || "")
   const [catatan,  setCatatan]  = useState(initial?.catatan || "")

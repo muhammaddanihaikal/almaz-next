@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Download, Database, CheckCircle, AlertCircle } from "lucide-react"
 import { Card, PageHeader, Button } from "@/components/ui"
+import { getJakartaToday } from "@/lib/utils"
 
 export default function BackupPage() {
   const [loading, setLoading]   = useState(false)
@@ -74,7 +75,7 @@ export default function BackupPage() {
   const triggerDownload = (sqlContent) => {
     const blob     = new Blob([sqlContent], { type: "application/octet-stream" })
     const url      = URL.createObjectURL(blob)
-    const date     = new Date().toISOString().slice(0, 10)
+    const date     = getJakartaToday()
     const a        = document.createElement("a")
     a.href         = url
     a.download     = `backup-almaz-${date}.sql`

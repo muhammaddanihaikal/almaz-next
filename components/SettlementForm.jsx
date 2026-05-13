@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { AlertCircle, CheckCircle, Trash2, RefreshCw } from "lucide-react"
-import { fmtIDR, fmtTanggal } from "@/lib/utils"
+import { fmtIDR, fmtTanggal, getJakartaToday } from "@/lib/utils"
 import { SelectInput, inputCls, IconButton, MoneyInput, Field, Button } from "@/components/ui"
 
 const KATEGORI_COLOR = {
@@ -19,7 +19,7 @@ function Badge({ label, colorClass }) {
 }
 
 export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, onCancel }) {
-  const todayStr = new Date().toISOString().split("T")[0]
+  const todayStr = getJakartaToday()
   const [tanggal,     setTanggal]     = useState(konsinyasi.tanggal_selesai || "")
   const [perpanjangTanggal, setPerpanjangTanggal] = useState("")
   const [items,       setItems]       = useState(

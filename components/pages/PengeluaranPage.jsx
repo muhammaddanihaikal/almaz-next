@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Plus, Eye } from "lucide-react"
-import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc, downloadExcel } from "@/lib/utils"
+import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc, downloadExcel, getJakartaToday } from "@/lib/utils"
 import { addPengeluaran, updatePengeluaran, deletePengeluaran } from "@/actions/pengeluaran"
 import { Card, PageHeader, DateFilter, DownloadButton, PrimaryButton, Field, FormActions, RowActions, inputCls, useConfirmWithReason } from "@/components/ui"
 import DataTable from "@/components/DataTable"
@@ -309,7 +309,7 @@ function PengeluaranDetail({ row, sesiList, titipJualList, pengeluaranList, onCl
 }
 
 function PengeluaranForm({ initial, onSubmit, onCancel }) {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = getJakartaToday()
   const [tanggal,    setTanggal]    = useState(initial?.tanggal || today)
   const [keterangan, setKeterangan] = useState(initial?.keterangan || "")
   const [jumlah,     setJumlah]     = useState(initial?.jumlah || "")

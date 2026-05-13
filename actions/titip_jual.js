@@ -123,7 +123,7 @@ export async function settleTitipJual(id, data) {
         await mutateStock({
           tx,
           rokok_id: it.rokok_id,
-          tanggal: data.tanggal || new Date().toISOString().split("T")[0],
+          tanggal: data.tanggal || getJakartaToday(),
           jenis: 'in',
           qty: it.qty_kembali,
           source: MUTATION_SOURCE.KONSINYASI_KEMBALI,

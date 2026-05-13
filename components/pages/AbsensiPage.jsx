@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Plus } from "lucide-react"
-import { fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc, downloadExcel } from "@/lib/utils"
+import { fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc, downloadExcel, getJakartaToday } from "@/lib/utils"
 import { saveAbsensi, deleteAbsensi } from "@/actions/absensi"
 import { Card, PageHeader, DateFilter, DownloadButton, PrimaryButton, Field, FormActions, SelectInput, RowActions, Button, inputCls, useConfirm } from "@/components/ui"
 import DataTable from "@/components/DataTable"
@@ -289,7 +289,7 @@ export default function AbsensiPage({ role, absensiList, salesList }) {
 
 function AbsensiForm({ tanggal: initialTanggal, absensiList, salesList, onSubmit, onCancel }) {
   const isEdit = !!initialTanggal
-  const today = new Date().toISOString().slice(0, 10)
+  const today = getJakartaToday()
   const [tanggal, setTanggal] = useState(initialTanggal || today)
 
   // Logika Daftar Sales:

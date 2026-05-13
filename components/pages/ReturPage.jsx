@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Plus, Trash2 } from "lucide-react"
-import { fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc, downloadExcel } from "@/lib/utils"
+import { fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc, downloadExcel, getJakartaToday } from "@/lib/utils"
 import { addRetur, updateRetur, deleteRetur } from "@/actions/retur"
 import { Card, PageHeader, DateFilter, DownloadButton, PrimaryButton, Field, FormActions, SelectInput, SearchableSelect, inputCls, RowActions, IconButton, useConfirm, Button } from "@/components/ui"
 import DataTable from "@/components/DataTable"
@@ -193,7 +193,7 @@ function ReturDetail({ record }) {
 }
 
 function ReturForm({ initial, rokokList, salesList, onSubmit, onCancel }) {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = getJakartaToday()
   const [tanggal,        setTanggal]        = useState(initial?.tanggal || today)
   const [tipePenjualan,  setTipePenjualan]  = useState(initial?.tipe_penjualan || "")
   const [salesId,        setSalesId]        = useState(initial?.sales_id || "")

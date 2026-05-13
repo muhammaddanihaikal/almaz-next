@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react"
 import { getAuditLogs, getAuditLogValues } from "@/actions/audit"
 import { Card, PageHeader, DateFilter, Field, SelectInput, Button } from "@/components/ui"
-import { defaultDateRange, fmtIDR } from "@/lib/utils"
+import { defaultDateRange, fmtIDR, getJakartaToday } from "@/lib/utils"
 import DataTable from "@/components/DataTable"
 
 function SkeletonText({ w = "w-24" }) {
@@ -25,7 +25,7 @@ const ACTION_LABELS = {
 }
 
 export default function RiwayatPage({ initialLogs, users }) {
-  const today = new Date().toISOString().split("T")[0]
+  const today = getJakartaToday()
   const [dateRange,   setDateRange]   = useState({ preset: "hari_ini", start: today, end: today })
   const [entityType,  setEntityType]  = useState("")
   const [userId,      setUserId]      = useState("")

@@ -7,7 +7,7 @@ import {
   ChevronRight, Info, Package, TrendingUp, ShoppingCart, Store, Users,
   CheckCircle, AlertCircle, Eye, Tag, Banknote
 } from "lucide-react"
-import { fmtIDR } from "@/lib/utils"
+import { fmtIDR, getJakartaToday } from "@/lib/utils"
 import { addRokok, updateRokok, deleteRokok, toggleAktifRokok, tambahStok, updateRokokOrder, tambahStokSampleBiasa, pindahStokSampleCukai } from "@/actions/rokok"
 import { Card, PageHeader, PrimaryButton, IconButton, RowActions, Field, FormActions, Toggle, inputCls, useConfirm, useConfirmWithReason, Button, MoneyInput } from "@/components/ui"
 import DataTable from "@/components/DataTable"
@@ -652,7 +652,7 @@ function TambahStokForm({ rokok, isSampleBiasa = false, isSampleCukai = false, o
   const [mode, setMode]       = useState(initialMode) // "in" or "out"
   const [slop, setSlop]       = useState("")
   const [bungkus, setBungkus] = useState("")
-  const [tanggal, setTanggal] = useState(new Date().toISOString().split("T")[0])
+  const [tanggal, setTanggal] = useState(getJakartaToday())
   const [keterangan, setKeterangan] = useState("")
 
   const baseQty = (Number(slop) || 0) * 10 + (Number(bungkus) || 0)

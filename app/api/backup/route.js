@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth"
 import { NextResponse } from "next/server"
 import { generateSQLBackup } from "@/lib/backup"
+import { getJakartaToday } from "@/lib/utils"
 
 export async function GET(req) {
   const session = await auth()
@@ -14,7 +15,7 @@ export async function GET(req) {
   if (!stream) {
     try {
       const sqlContent = await generateSQLBackup()
-      const date     = new Date().toISOString().slice(0, 10)
+      const date     = getJakartaToday()
       const filename = `backup-almaz-${date}.sql`
 
       return new NextResponse(sqlContent, {
