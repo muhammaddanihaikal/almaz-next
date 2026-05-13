@@ -463,9 +463,9 @@ function QtyBreakdownCard({ data }) {
           <EmptyChart />
         </div>
       ) : (
-        <div className="mt-5 flex flex-1 flex-col gap-4 lg:flex-row lg:items-center">
-          <div className="relative mx-auto h-[170px] w-[170px] shrink-0">
-            <ResponsiveContainer width="100%" height="100%">
+        <div className="mt-5 flex min-w-0 flex-1 flex-col gap-4 lg:flex-row lg:items-center">
+          <div className="relative mx-auto h-[170px] w-[170px] shrink-0 overflow-hidden">
+            <ResponsiveContainer width="100%" height={170}>
               <PieChart>
                 <Pie
                   data={chartData}
@@ -603,11 +603,11 @@ function BarangKeluarChart({ data, rangeLabel }) {
         <span className={CHIP_CLS}>{rangeLabel}</span>
       </div>
 
-      <div className="mt-4 flex-1">
+      <div className="mt-4 flex-1 min-w-0">
         {chartData.length === 0 ? (
           <EmptyChart />
         ) : (
-          <ResponsiveContainer width="100%" height="100%" minHeight={260}>
+          <ResponsiveContainer width="100%" height={300}>
             <BarChart data={chartData} margin={{ top: 24, right: 8, left: -18, bottom: 8 }}>
               <CartesianGrid stroke="#f1f1f1" strokeDasharray="3 4" vertical={false} />
               <XAxis
@@ -654,7 +654,7 @@ function CompositionCard({ data }) {
       ) : (
         <div className="mt-5 flex flex-1 flex-col gap-4 lg:flex-row lg:items-center">
           <div className="relative mx-auto h-[190px] w-[190px] shrink-0">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height={190}>
               <PieChart>
                 <Pie
                   data={composition}
@@ -792,11 +792,11 @@ function DailyLine({ data, rangeLabel }) {
         <span className={CHIP_CLS}>{rangeLabel}</span>
       </div>
 
-      <div className="mt-4 flex-1 min-h-[280px]">
+      <div className="mt-4 flex-1 min-h-[280px] min-w-0">
         {chartData.length === 0 ? (
           <EmptyChart />
         ) : (
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height={280}>
             <LineChart data={chartData} margin={{ top: 20, right: 12, left: 0, bottom: 0 }}>
               <CartesianGrid stroke="#f1f1f1" strokeDasharray="3 4" vertical={false} />
               <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#737373" }} tickLine={false} axisLine={false} />
