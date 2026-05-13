@@ -717,7 +717,7 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
       )}
 
       {mode && (
-        <Modal title={mode === "add" ? "Buat Sesi Pagi" : "Edit Sesi Pagi"} onClose={close} width="max-w-2xl">
+        <Modal title={mode === "add" ? "Buat Sesi Pagi" : "Edit Sesi Pagi"} onClose={close} width="max-w-5xl">
           <SesiPagiForm
             initial={editing}
             rokokList={localRokokList}
@@ -1155,14 +1155,42 @@ function SesiDetailRedesign({ record, onClose }) {
         {barangKeluar.length > 0 ? (
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {barangKeluar.map((it) => (
-              <div key={it.id || it.rokok_id} className="flex items-center justify-between gap-3 rounded-lg border border-neutral-100 bg-neutral-50 px-3 py-2.5">
-                <span className="truncate text-sm text-neutral-700">{it.rokok}</span>
-                <span className="shrink-0 text-sm font-semibold tabular-nums text-neutral-900">{it.qty}</span>
+              <div key={it.id || it.rokok_id} className="flex items-center justify-between gap-3 rounded-lg border border-neutral-100 bg-neutral-50 px-3 py-2.5 shadow-sm">
+                <span className="truncate text-sm font-medium text-neutral-700">{it.rokok}</span>
+                <span className="shrink-0 text-sm font-bold tabular-nums text-neutral-900">{it.qty}</span>
               </div>
             ))}
           </div>
         ) : (
           <DetailEmpty text="Belum ada barang keluar." />
+        )}
+
+        {/* Section Sample Keluar */}
+        {(record.sample || []).length > 0 && (
+          <div className="mt-6">
+            <div className="mb-3 flex items-center gap-2">
+              <span className="rounded bg-neutral-100 px-2 py-0.5 font-mono text-[11px] uppercase tracking-wider text-neutral-500">Sample</span>
+              <h3 className="text-sm font-semibold text-neutral-800">Barang Sample</h3>
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {record.sample.map((sm) => {
+                const isCukai = sm.type === "cukai"
+                return (
+                  <div key={sm.id} className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5 shadow-sm transition-colors ${isCukai ? "border-orange-100 bg-orange-50/50" : "border-blue-100 bg-blue-50/50"}`}>
+                    <div className="flex min-w-0 flex-col">
+                      <span className={`text-[10px] font-bold uppercase tracking-wider ${isCukai ? "text-orange-600" : "text-blue-600"}`}>
+                        Sample {sm.type}
+                      </span>
+                      <span className="truncate text-sm font-medium text-neutral-800">{sm.rokok}</span>
+                    </div>
+                    <span className={`shrink-0 text-sm font-bold tabular-nums ${isCukai ? "text-orange-700" : "text-blue-700"}`}>
+                      {sm.qty_keluar}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
         )}
       </div>
 
@@ -1730,88 +1758,107 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, stockCutoffDate
         <p className="text-xs text-neutral-400">
           {salesId ? "Isi qty untuk rokok yang dibawa, kosongkan jika tidak dibawa." : "Silakan pilih sales terlebih dahulu untuk mengisi data barang dibawa."}
         </p>
-        <table className="w-full text-sm">
+        <table className="w-full text-sm border-collapse">
           <thead>
-            <tr className="border-b border-neutral-200 text-xs text-neutral-500">
-              <th className="pb-1.5 text-left">Rokok</th>
-              {!is_historical_computed && <th className="pb-1.5 text-right pr-2">Stok</th>}
-              <th className="pb-1.5 text-right">Qty Dibawa</th>
+            <tr className="border-b border-neutral-200 text-[10px] uppercase tracking-wider text-neutral-400">
+              <th className="pb-2 text-left font-semibold">Produk</th>
+              {!is_historical_computed && <th className="pb-2 text-center px-2 font-semibold">Stok Rokok</th>}
+              <th className="pb-2 text-center px-2 font-semibold">Qty Bawa</th>
               {!is_historical_computed && (
                 <>
-                  <th className="pb-1.5 text-right pl-2">
-                    <span className="text-orange-500" title="Sample Cukai">↧C</span>
-                  </th>
-                  <th className="pb-1.5 text-right pl-1">
-                    <span className="text-blue-500" title="Sample Biasa">↧B</span>
-                  </th>
+                  <th className="pb-2 text-center px-2 font-semibold text-orange-600">Stok SC</th>
+                  <th className="pb-2 text-center px-2 font-semibold text-orange-600">Qty SC</th>
+                  <th className="pb-2 text-center px-2 font-semibold text-blue-600">Stok SB</th>
+                  <th className="pb-2 text-center px-2 font-semibold text-blue-600">Qty SB</th>
                 </>
               )}
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-neutral-100">
             {items.map((item, idx) => {
               const qty        = Number(item.qty)
               const qtySC      = Number(item.qty_sample_cukai)
               const qtySB      = Number(item.qty_sample_biasa)
+              
               const sisaStok   = item.stok - (qty > 0 ? qty : 0)
+              const sisaSC     = item.stok_sample_cukai - (qtySC > 0 ? qtySC : 0)
+              const sisaSB     = item.stok_sample_biasa - (qtySB > 0 ? qtySB : 0)
+
               const melebihi   = !is_historical_computed && qty > 0 && qty > item.stok
               const melebihiSC = !is_historical_computed && qtySC > 0 && qtySC > item.stok_sample_cukai
               const melebihiSB = !is_historical_computed && qtySB > 0 && qtySB > item.stok_sample_biasa
               const hasError   = melebihi || melebihiSC || melebihiSB
+              
               return (
                 <Fragment key={item.rokok_id}>
-                  <tr className="border-b border-neutral-100">
-                    <td className="py-1.5 font-medium">{item.nama}</td>
+                  <tr className="hover:bg-neutral-50/50 transition-colors">
+                    <td className="py-2.5 font-medium text-neutral-900">{item.nama}</td>
                     {!is_historical_computed && (
-                      <td className={`py-1.5 text-right pr-2 text-xs tabular-nums font-medium transition-colors ${melebihi ? "text-red-500" : qty > 0 ? "text-blue-600" : "text-neutral-400"}`}>
+                      <td className={`py-2.5 text-center px-2 text-xs tabular-nums font-medium ${melebihi ? "text-red-500" : qty > 0 ? "text-blue-600" : "text-neutral-400"}`}>
                         {qty > 0 ? sisaStok : item.stok}
                       </td>
                     )}
-                    <td className="py-1.5 text-right">
-                      <input
-                        type="number" min="0"
-                        value={item.qty}
-                        onChange={(e) => updateQty(idx, e.target.value)}
-                        placeholder="—"
-                        disabled={!salesId}
-                        className={inputCls + " w-20 text-right" + (melebihi ? " border-red-400 focus:border-red-500" : "") + (!salesId ? " opacity-40 cursor-not-allowed bg-neutral-50" : "")}
-                      />
+                    <td className="py-2.5 text-center px-2">
+                      <div className="flex justify-center">
+                        <input
+                          type="number" min="0"
+                          value={item.qty}
+                          onChange={(e) => updateQty(idx, e.target.value)}
+                          placeholder="—"
+                          disabled={!salesId}
+                          style={{ width: '80px' }}
+                          className={inputCls + " text-center px-1" + (melebihi ? " border-red-400 focus:ring-red-500" : "") + (!salesId ? " opacity-40 cursor-not-allowed bg-neutral-50" : "")}
+                        />
+                      </div>
                     </td>
                     {!is_historical_computed && (
                       <>
-                        <td className="py-1.5 pl-2 text-right">
-                          <input
-                            type="number" min="0"
-                            value={item.qty_sample_cukai}
-                            onChange={(e) => updateSampleCukai(idx, e.target.value)}
-                            placeholder="—"
-                            disabled={!salesId}
-                            title={`Stok sample cukai: ${item.stok_sample_cukai}`}
-                            className={inputCls + " w-16 text-right text-orange-700" + (melebihiSC ? " border-red-400" : "") + (!salesId ? " opacity-40 cursor-not-allowed bg-neutral-50" : "")}
-                          />
+                        {/* Sample Cukai Column Group */}
+                        <td className={`py-2.5 text-center px-2 text-xs tabular-nums font-medium ${melebihiSC ? "text-red-500" : qtySC > 0 ? "text-orange-600" : "text-neutral-400"}`}>
+                          {qtySC > 0 ? sisaSC : item.stok_sample_cukai}
                         </td>
-                        <td className="py-1.5 pl-1 text-right">
-                          <input
-                            type="number" min="0"
-                            value={item.qty_sample_biasa}
-                            onChange={(e) => updateSampleBiasa(idx, e.target.value)}
-                            placeholder="—"
-                            disabled={!salesId}
-                            title={`Stok sample biasa: ${item.stok_sample_biasa}`}
-                            className={inputCls + " w-16 text-right text-blue-700" + (melebihiSB ? " border-red-400" : "") + (!salesId ? " opacity-40 cursor-not-allowed bg-neutral-50" : "")}
-                          />
+                        <td className="py-2.5 text-center px-2">
+                          <div className="flex justify-center">
+                            <input
+                              type="number" min="0"
+                              value={item.qty_sample_cukai}
+                              onChange={(e) => updateSampleCukai(idx, e.target.value)}
+                              placeholder="—"
+                              disabled={!salesId}
+                              style={{ width: '80px' }}
+                              className={inputCls + " text-center px-1 text-orange-700 font-medium" + (melebihiSC ? " border-red-400 focus:ring-red-500" : "") + (!salesId ? " opacity-40 cursor-not-allowed bg-neutral-50" : "")}
+                            />
+                          </div>
+                        </td>
+                        
+                        {/* Sample Biasa Column Group */}
+                        <td className={`py-2.5 text-center px-2 text-xs tabular-nums font-medium ${melebihiSB ? "text-red-500" : qtySB > 0 ? "text-blue-600" : "text-neutral-400"}`}>
+                          {qtySB > 0 ? sisaSB : item.stok_sample_biasa}
+                        </td>
+                        <td className="py-2.5 text-center px-2">
+                          <div className="flex justify-center">
+                            <input
+                              type="number" min="0"
+                              value={item.qty_sample_biasa}
+                              onChange={(e) => updateSampleBiasa(idx, e.target.value)}
+                              placeholder="—"
+                              disabled={!salesId}
+                              style={{ width: '80px' }}
+                              className={inputCls + " text-center px-1 text-blue-700 font-medium" + (melebihiSB ? " border-red-400 focus:ring-red-500" : "") + (!salesId ? " opacity-40 cursor-not-allowed bg-neutral-50" : "")}
+                            />
+                          </div>
                         </td>
                       </>
                     )}
                   </tr>
                   {hasError && (
                     <tr>
-                      <td colSpan={5} className="pb-1.5 pt-0">
-                        <div className="flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs text-red-700">
-                          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                          {melebihi && `Qty dibawa melebihi stok (${item.stok}). `}
-                          {melebihiSC && `Sample cukai melebihi stok (${item.stok_sample_cukai}). `}
-                          {melebihiSB && `Sample biasa melebihi stok (${item.stok_sample_biasa}).`}
+                      <td colSpan={7} className="pb-2 pt-0">
+                        <div className="flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] text-red-700">
+                          <AlertCircle className="h-3 w-3 shrink-0" />
+                          {melebihi && `Stok Utama habis (tersedia ${item.stok}). `}
+                          {melebihiSC && `Stok Sample Cukai habis (tersedia ${item.stok_sample_cukai}). `}
+                          {melebihiSB && `Stok Sample Biasa habis (tersedia ${item.stok_sample_biasa}).`}
                         </div>
                       </td>
                     </tr>
@@ -2354,37 +2401,48 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs">
                       <thead>
-                        <tr className="border-b border-neutral-200 text-left text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
-                          <th className="pb-2 pr-4">Rokok</th>
-                          <th className="pb-2 pr-4">Tipe</th>
-                          <th className="pb-2 pr-4 text-right">Keluar</th>
-                          <th className="pb-2 text-right">Kembali</th>
+                        <tr className="border-b border-neutral-200 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
+                          <th className="pb-2 text-left pr-4">Rokok</th>
+                          <th className="pb-2 text-center px-4">Tipe</th>
+                          <th className="pb-2 text-center px-4">Keluar</th>
+                          <th className="pb-2 text-center">Kembali</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {sampleKembali.map((sm, idx) => (
-                          <tr key={idx} className="border-b border-neutral-100 last:border-0">
-                            <td className="py-2 pr-4 font-medium text-neutral-800">{sm.rokok}</td>
-                            <td className="py-2 pr-4">
-                              <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${sm.type === "cukai" ? "bg-orange-100 text-orange-700" : "bg-blue-100 text-blue-700"}`}>
-                                {sm.type === "cukai" ? "Cukai" : "Biasa"}
-                              </span>
-                            </td>
-                            <td className="py-2 pr-4 text-right tabular-nums text-neutral-600">{sm.qty_keluar}</td>
-                            <td className="py-2 text-right">
-                              <input
-                                type="number"
-                                min="0"
-                                max={sm.qty_keluar}
-                                value={sm.qty_kembali}
-                                onChange={(e) => setSampleKembali((prev) =>
-                                  prev.map((x, i) => i === idx ? { ...x, qty_kembali: e.target.value } : x)
-                                )}
-                                className="w-16 rounded border border-neutral-300 px-2 py-1 text-right text-xs focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-300"
-                              />
-                            </td>
-                          </tr>
-                        ))}
+                        {sampleKembali.map((sm, idx) => {
+                          const isExceeding = Number(sm.qty_kembali) > sm.qty_keluar
+                          return (
+                            <tr key={idx} className="border-b border-neutral-100 last:border-0">
+                              <td className="py-2 pr-4 font-medium text-neutral-800">{sm.rokok}</td>
+                              <td className="py-2 px-4 text-center">
+                                <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${sm.type === "cukai" ? "bg-orange-100 text-orange-700" : "bg-blue-100 text-blue-700"}`}>
+                                  {sm.type === "cukai" ? "Cukai" : "Biasa"}
+                                </span>
+                              </td>
+                              <td className="py-2 px-4 text-center tabular-nums text-neutral-600">{sm.qty_keluar}</td>
+                              <td className="py-2 text-center">
+                                <div className="flex flex-col items-center justify-center gap-1">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={sm.qty_kembali}
+                                    onChange={(e) => setSampleKembali((prev) =>
+                                      prev.map((x, i) => i === idx ? { ...x, qty_kembali: e.target.value } : x)
+                                    )}
+                                    className={`w-16 rounded border px-2 py-1 text-center text-xs focus:outline-none focus:ring-1 transition-colors ${
+                                      isExceeding 
+                                        ? "border-red-400 bg-red-50 text-red-900 focus:border-red-500 focus:ring-red-400" 
+                                        : "border-neutral-300 focus:border-orange-400 focus:ring-orange-300"
+                                    }`}
+                                  />
+                                  {isExceeding && (
+                                    <span className="text-[10px] font-medium text-red-600">Melebihi bawa</span>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        })}
                       </tbody>
                     </table>
                   </div>
