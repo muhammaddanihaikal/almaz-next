@@ -26,6 +26,7 @@ import {
   YAxis,
 } from "recharts"
 import {
+  buildProductQtyBreakdown,
   calculateStats,
   getSesiNetKeluar,
   getSesiPenjualanBreakdown,
@@ -442,9 +443,10 @@ function QtyBreakdownCard({ data }) {
     { name: "Langsung", value: data.langsung, color: "#171717" },
     { name: "Titip Jual", value: data.titipJual, color: "#C97B2A" },
     { name: "Tukar Barang", value: data.tukarBarang, color: "#5C7A8C" },
+    { name: "Sisa/Proses", value: data.sisa, color: "#ea580c" },
   ].filter(d => d.value > 0)
 
-  const total = data.langsung + data.titipJual + data.tukarBarang
+  const total = data.total || (data.langsung + data.titipJual + data.tukarBarang + data.sisa)
 
   return (
     <section className={`${CARD_CLS} flex h-full flex-col p-5`}>
@@ -633,6 +635,65 @@ function CompositionCard({ data }) {
   )
 }
 
+function ProductOutgoingTable({ data }) {
+  return (
+    <section className={`${CARD_CLS} flex h-full flex-col p-5`}>
+      <div className="mb-4">
+        <h2 className="text-sm font-semibold text-neutral-950">Rincian Keluar per Produk</h2>
+        <p className="mt-0.5 text-xs text-neutral-500">Breakdown volume per saluran distribusi</p>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-xs">
+          <thead>
+            <tr className="border-b border-neutral-100 text-neutral-400 uppercase tracking-wider font-semibold">
+              <th className="py-3 pl-1">Produk</th>
+              <th className="py-3 text-right">Langsung</th>
+              <th className="py-3 text-right">Titip Jual</th>
+              <th className="py-3 text-right">Tukar Brg</th>
+              <th className="py-3 text-right text-orange-600">Sisa/Proses</th>
+              <th className="py-3 pr-1 text-right text-neutral-950 font-bold">Total</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-neutral-50">
+            {data.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="py-10 text-center text-neutral-400">Tidak ada data pergerakan barang.</td>
+              </tr>
+            ) : (
+              data.map((row) => (
+                <tr key={row.id} className="hover:bg-neutral-50 transition-colors">
+                  <td className="py-3 pl-1 font-medium text-neutral-900">{row.nama}</td>
+                  <td className="py-3 text-right tabular-nums text-neutral-600">{row.langsung || "-"}</td>
+                  <td className="py-3 text-right tabular-nums text-neutral-600">{row.titipJual || "-"}</td>
+                  <td className="py-3 text-right tabular-nums text-neutral-600">{row.tukarBarang || "-"}</td>
+                  <td className="py-3 text-right tabular-nums font-medium text-orange-600 bg-orange-50/30">{row.sisa || "-"}</td>
+                  <td className="py-3 pr-1 text-right tabular-nums font-bold text-neutral-950 bg-neutral-50/50">{row.total}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+          {data.length > 0 && (
+            <tfoot className="border-t-2 border-neutral-100 bg-neutral-50/30">
+              <tr className="font-bold text-neutral-950">
+                <td className="py-3 pl-1">TOTAL KESELURUHAN</td>
+                <td className="py-3 text-right tabular-nums">{data.reduce((sum, r) => sum + r.langsung, 0)}</td>
+                <td className="py-3 text-right tabular-nums">{data.reduce((sum, r) => sum + r.titipJual, 0)}</td>
+                <td className="py-3 text-right tabular-nums">{data.reduce((sum, r) => sum + r.tukarBarang, 0)}</td>
+                <td className="py-3 text-right tabular-nums text-orange-700 bg-orange-100/20">{data.reduce((sum, r) => sum + r.sisa, 0)}</td>
+                <td className="py-3 pr-1 text-right tabular-nums bg-neutral-100/50">
+                  {data.reduce((sum, r) => sum + r.total, 0)}
+                </td>
+              </tr>
+            </tfoot>
+          )}
+        </table>
+      </div>
+    </section>
+  )
+}
+
+
 function DailyLine({ data, rangeLabel }) {
   const visibleData = data.filter((item) => item.setoran > 0)
   const chartData = visibleData.length > 0 ? data : []
@@ -706,6 +767,11 @@ export default function DashboardPage({ sesiList, titipJualList, rokokList, peng
   const rangeLabel = dateRange?.start && dateRange?.end ? `${fmtTanggal(dateRange.start)} s/d ${fmtTanggal(dateRange.end)}` : "Semua Waktu"
   const compareLabel = getCompareLabel(dateRange?.preset)
 
+  const productQtyBreakdown = useMemo(
+    () => buildProductQtyBreakdown(sesiF, titipJualF, rokokList || []),
+    [sesiF, titipJualF, rokokList]
+  )
+
   const sparkPenjualan = dailySummary.map((item) => item.penjualan)
   const sparkSetoran = dailySummary.map((item) => item.setoran)
   const sparkProfit = dailySummary.map((item) => item.profit)
@@ -778,8 +844,14 @@ export default function DashboardPage({ sesiList, titipJualList, rokokList, peng
       </section>
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-        <div className="xl:col-span-8">
+        <div className="xl:col-span-12">
           <DailyLine data={dailySummary} rangeLabel={rangeLabel} />
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+        <div className="xl:col-span-8">
+          <ProductOutgoingTable data={productQtyBreakdown} />
         </div>
         <div className="xl:col-span-4">
           <QtyBreakdownCard data={stats.qtyBreakdown} />
