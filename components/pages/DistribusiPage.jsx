@@ -248,39 +248,9 @@ function exportToExcel(rows, rokokList, dateRange, onNoData) {
 
 function exportToExcelBySales(rows, rokokList, dateRange, onNoData) {
   const XLSX = require("xlsx-js-style")
-  
-  const hargaBeliMap = Object.fromEntries(rokokList.map(r => [r.id, r.harga_beli || 0]))
-  const rokokIdToName = Object.fromEntries(rokokList.map(r => [r.id, r.nama]))
+  const { buildRincianPerSalesData } = require("@/lib/export-rincian-sales")
 
-  // 1. Identifikasi semua Sales & Produk yang terlibat dalam data yang terfilter
-  const activeSales = [...new Set(rows.map(r => r.sales))].sort((a, b) => a.localeCompare(b, "id"))
-  
-  // Agregasi data: { [rokokId]: { [salesName]: qty } }
-  const dataMap = {}
-  const allRokokIds = new Set()
-
-  for (const sesi of rows) {
-    // Penjualan Langsung
-    for (const it of (sesi.penjualan || [])) {
-      allRokokIds.add(it.rokok_id)
-      if (!dataMap[it.rokok_id]) dataMap[it.rokok_id] = {}
-      dataMap[it.rokok_id][sesi.sales] = (dataMap[it.rokok_id][sesi.sales] || 0) + it.qty
-    }
-    // Titip Jual Selesai
-    for (const k of (sesi.konsinyasi || [])) {
-      if (k.status !== "selesai") continue
-      for (const it of k.items) {
-        if (it.qty_terjual > 0) {
-          allRokokIds.add(it.rokok_id)
-          if (!dataMap[it.rokok_id]) dataMap[it.rokok_id] = {}
-          dataMap[it.rokok_id][sesi.sales] = (dataMap[it.rokok_id][sesi.sales] || 0) + it.qty_terjual
-        }
-      }
-    }
-  }
-
-  const rokokIdOrderMap = Object.fromEntries(rokokList.map(r => [r.id, r.urutan ?? 0]))
-  const sortedRokokIds = [...allRokokIds].sort((a, b) => (rokokIdOrderMap[a] ?? 0) - (rokokIdOrderMap[b] ?? 0))
+  const { dataMap, activeSales, sortedRokokIds, rokokMeta } = buildRincianPerSalesData(rows, rokokList)
   if (!sortedRokokIds.length) { onNoData?.(); return }
 
   // 2. Persiapkan Worksheet
@@ -289,103 +259,124 @@ function exportToExcelBySales(rows, rokokList, dateRange, onNoData) {
   const end   = dateRange?.end   ? fmtD(dateRange.end)   : "-"
   const title = `LAPORAN PENJUALAN PER MOTORIS (${start} - ${end})`
 
-  const totalCols = 3 + activeSales.length + 2 // No, Produk, Harga + Sales... + Total Qty, Total Uang
+  // No, Produk, Harga Beli, Harga Grosir, Harga Toko, Sales..., Total Qty, Total Uang
+  const salesStartCol = 5
+  const totalCols = salesStartCol + activeSales.length + 2
 
   const bThin = { style: "thin", color: { rgb: "9CA3AF" } }
   const border = { top: bThin, bottom: bThin, left: bThin, right: bThin }
-  const sH     = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, alignment: { horizontal: "center", vertical: "center" }, border }
-  const sData  = { border, alignment: { vertical: "center", horizontal: "center" } }
-  const sCenter = { ...sData, alignment: { horizontal: "center", vertical: "center" } }
-  const sNum    = { ...sData, alignment: { horizontal: "center", vertical: "center" }, z: "#,##0" }
-  const sNumLeft = { ...sData, alignment: { horizontal: "center", vertical: "center" }, z: "#,##0" }
-  const sMoney  = { ...sData, alignment: { horizontal: "center", vertical: "center" } }
-  const sTotal  = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, border, alignment: { horizontal: "center", vertical: "center" } }
-  const sTotalNum = { ...sTotal, alignment: { horizontal: "center", vertical: "center" }, z: "#,##0" }
+  const sH          = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, alignment: { horizontal: "center", vertical: "center" }, border }
+  const sHAmber     = { font: { bold: true, color: { rgb: "1F2937" } }, fill: { fgColor: { rgb: "FDE68A" } }, alignment: { horizontal: "center", vertical: "center" }, border }
+  const sData       = { border, alignment: { vertical: "center", horizontal: "center" } }
+  const sCenter     = { ...sData, alignment: { horizontal: "center", vertical: "center" } }
+  const sNum        = { ...sData, alignment: { horizontal: "center", vertical: "center" }, z: "#,##0" }
+  const sMoney      = { ...sData, alignment: { horizontal: "center", vertical: "center" } }
+  const sMoneyGrosir= { ...sData, fill: { fgColor: { rgb: "F0FDF4" } }, alignment: { horizontal: "center", vertical: "center" } }
+  const sMoneyToko  = { ...sData, fill: { fgColor: { rgb: "EFF6FF" } }, alignment: { horizontal: "center", vertical: "center" } }
+  const sTotal      = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, border, alignment: { horizontal: "center", vertical: "center" } }
   const sTotalNumCenter = { ...sTotal, alignment: { horizontal: "center", vertical: "center" }, z: "#,##0" }
-  const sTotalNumLeft = { ...sTotal, alignment: { horizontal: "center", vertical: "center" }, z: "#,##0" }
   const sTotalMoney = { ...sTotal, alignment: { horizontal: "center", vertical: "center" } }
 
   const fmtExcelMoney = (v) => "Rp. " + (v || 0).toLocaleString("id-ID")
 
   const wsData = [
-    [{ v: title, s: { font: { bold: true, sz: 12 }, alignment: { horizontal: "center", vertical: "center" } } }, ...Array(totalCols-1).fill("")],
+    // Row 1: Judul
+    [{ v: title, s: { font: { bold: true, sz: 12 }, alignment: { horizontal: "center", vertical: "center" } } }, ...Array(totalCols - 1).fill("")],
+    // Row 2: Kosong
     Array(totalCols).fill(""),
+    // Row 3: Header utama
     [
-      { v: "NO",             s: sH },
-      { v: "PRODUK",         s: sH },
-      { v: "HARGA (BELI)",   s: sH },
-      { v: "MOTORIS",        s: sH },
+      { v: "NO",            s: sH },
+      { v: "PRODUK",        s: sH },
+      { v: "HARGA",         s: sH },
+      { v: "",              s: sH },
+      { v: "",              s: sH },
+      { v: "MOTORIS",       s: sH },
       ...Array(activeSales.length - 1).fill({ v: "", s: sH }),
-      { v: "TOTAL TERJUAL",  s: sH },
-      { v: "TOTAL UANG",     s: sH },
+      { v: "TOTAL TERJUAL", s: sH },
+      { v: "TOTAL UANG",    s: sH },
     ],
+    // Row 4: Sub-header harga + nama sales
     [
       { v: "", s: sH },
       { v: "", s: sH },
-      { v: "", s: sH },
+      { v: "BELI",   s: sH },
+      { v: "GROSIR", s: sHAmber },
+      { v: "TOKO",   s: sHAmber },
       ...activeSales.map(name => ({ v: name.toUpperCase(), s: sH })),
       { v: "", s: sH },
       { v: "", s: sH },
     ],
+    // Baris data
     ...sortedRokokIds.map((rid, i) => {
-      const rowData = dataMap[rid] || {}
-      const harga = hargaBeliMap[rid] || 0
+      const rowData  = dataMap[rid] || {}
+      const meta     = rokokMeta[rid] || {}
+      const hBeli    = meta.harga_beli   || 0
+      const hGrosir  = meta.harga_grosir || 0
+      const hToko    = meta.harga_toko   || 0
       const totalQty = activeSales.reduce((sum, sname) => sum + (rowData[sname] || 0), 0)
       return [
-        { v: i + 1,           s: sCenter },
-        { v: rokokIdToName[rid], s: sData },
-        { v: fmtExcelMoney(harga), t: "s", s: sMoney },
+        { v: i + 1,                      s: sCenter },
+        { v: meta.nama || rid,           s: sData   },
+        { v: fmtExcelMoney(hBeli),   t: "s", s: sMoney       },
+        { v: fmtExcelMoney(hGrosir), t: "s", s: sMoneyGrosir },
+        { v: fmtExcelMoney(hToko),   t: "s", s: sMoneyToko   },
         ...activeSales.map(sname => ({ v: rowData[sname] || 0, s: sNum })),
-        { v: totalQty,        s: sNum },
-        { v: fmtExcelMoney(totalQty * harga), t: "s", s: sMoney },
+        { v: totalQty,                   s: sNum    },
+        { v: fmtExcelMoney(totalQty * hBeli), t: "s", s: sMoney },
       ]
     }),
+    // Baris total
     [
-      { v: "", s: sTotal },
+      { v: "",                  s: sTotal },
       { v: "TOTAL KESELURUHAN", s: sTotal },
       { v: "", s: sTotal },
-      ...activeSales.map(sname => ({ 
-        v: sortedRokokIds.reduce((sum, rid) => sum + (dataMap[rid]?.[sname] || 0), 0), 
-        s: sTotalNumCenter 
+      { v: "", s: sTotal },
+      { v: "", s: sTotal },
+      ...activeSales.map(sname => ({
+        v: sortedRokokIds.reduce((sum, rid) => sum + (dataMap[rid]?.[sname] || 0), 0),
+        s: sTotalNumCenter,
       })),
-      { v: sortedRokokIds.reduce((sum, rid) => {
+      {
+        v: sortedRokokIds.reduce((sum, rid) => {
           const rowData = dataMap[rid] || {}
           return sum + activeSales.reduce((s, sn) => s + (rowData[sn] || 0), 0)
-        }, 0), 
-        s: sTotalNumCenter 
+        }, 0),
+        s: sTotalNumCenter,
       },
-      { v: fmtExcelMoney(sortedRokokIds.reduce((sum, rid) => {
+      {
+        v: fmtExcelMoney(sortedRokokIds.reduce((sum, rid) => {
           const rowData = dataMap[rid] || {}
-          const harga = hargaBeliMap[rid] || 0
+          const hBeli   = rokokMeta[rid]?.harga_beli || 0
           const totalQty = activeSales.reduce((s, sn) => s + (rowData[sn] || 0), 0)
-          return sum + (totalQty * harga)
-        }, 0)), 
+          return sum + (totalQty * hBeli)
+        }, 0)),
         t: "s",
-        s: sTotalMoney 
+        s: sTotalMoney,
       },
-    ]
+    ],
   ]
 
   const ws = XLSX.utils.aoa_to_sheet(wsData)
   ws["!merges"] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: totalCols - 1 } }, // Title
-    // Vertikal merge untuk No, Produk, Harga, Total Qty, Total Uang
-    { s: { r: 2, c: 0 }, e: { r: 3, c: 0 } }, // NO
-    { s: { r: 2, c: 1 }, e: { r: 3, c: 1 } }, // PRODUK
-    { s: { r: 2, c: 2 }, e: { r: 3, c: 2 } }, // HARGA
-    { s: { r: 2, c: 3 }, e: { r: 2, c: 2 + activeSales.length } }, // MOTORIS (Horizontal merge)
-    { s: { r: 2, c: 3 + activeSales.length }, e: { r: 3, c: 3 + activeSales.length } }, // TOTAL TERJUAL
-    { s: { r: 2, c: 4 + activeSales.length }, e: { r: 3, c: 4 + activeSales.length } }, // TOTAL UANG
-    // Bottom Total label merge
-    { s: { r: wsData.length - 1, c: 1 }, e: { r: wsData.length - 1, c: 2 } }, 
+    { s: { r: 0, c: 0 }, e: { r: 0, c: totalCols - 1 } },                                              // Title
+    { s: { r: 2, c: 0 }, e: { r: 3, c: 0 } },                                                          // NO
+    { s: { r: 2, c: 1 }, e: { r: 3, c: 1 } },                                                          // PRODUK
+    { s: { r: 2, c: 2 }, e: { r: 2, c: 4 } },                                                          // HARGA (Beli+Grosir+Toko)
+    { s: { r: 2, c: salesStartCol }, e: { r: 2, c: salesStartCol + activeSales.length - 1 } },          // MOTORIS
+    { s: { r: 2, c: salesStartCol + activeSales.length },     e: { r: 3, c: salesStartCol + activeSales.length }     }, // TOTAL TERJUAL
+    { s: { r: 2, c: salesStartCol + activeSales.length + 1 }, e: { r: 3, c: salesStartCol + activeSales.length + 1 } }, // TOTAL UANG
+    { s: { r: wsData.length - 1, c: 1 }, e: { r: wsData.length - 1, c: 4 } },                          // Footer label
   ]
 
   const autoW = (values) => ({ wch: Math.min(Math.max(...values.map((v) => String(v ?? "").length)) + 5, 50) })
   ws["!cols"] = [
-    { wch: 6 }, // NO
-    autoW(["PRODUK", ...sortedRokokIds.map(rid => rokokIdToName[rid]), "TOTAL KESELURUHAN"]), // PRODUK
-    { wch: 15 }, // HARGA
-    ...activeSales.map(name => ({ wch: Math.max(12, name.length + 4) })), // SALES...
+    { wch: 6 },                                                                                               // NO
+    autoW(["PRODUK", ...sortedRokokIds.map(rid => rokokMeta[rid]?.nama || rid), "TOTAL KESELURUHAN"]),        // PRODUK
+    { wch: 15 }, // HARGA BELI
+    { wch: 15 }, // HARGA GROSIR
+    { wch: 15 }, // HARGA TOKO
+    ...activeSales.map(name => ({ wch: Math.max(12, name.length + 4) })),                                     // SALES
     { wch: 16 }, // TOTAL QTY
     { wch: 18 }, // TOTAL UANG
   ]
