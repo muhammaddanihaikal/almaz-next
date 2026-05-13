@@ -21,6 +21,7 @@ import {
   Pie,
   PieChart,
   ResponsiveContainer,
+  Sector,
   Tooltip,
   XAxis,
   YAxis,
@@ -439,6 +440,8 @@ function ChartTooltip({ active, payload, label, formatter }) {
 }
 
 function QtyBreakdownCard({ data }) {
+  const [activeIndex, setActiveIndex] = useState(null)
+
   const chartData = [
     { name: "Langsung", value: data.langsung, color: "#171717" },
     { name: "Titip Jual", value: data.titipJual, color: "#C97B2A" },
@@ -474,9 +477,61 @@ function QtyBreakdownCard({ data }) {
                   outerRadius={70}
                   paddingAngle={4}
                   stroke="none"
+                  activeIndex={activeIndex}
+                  activeShape={(props) => {
+                    const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props
+                    return (
+                      <g>
+                        <path
+                          d={`M ${cx},${cy} L ${cx},${cy} Z`}
+                          fill={fill}
+                        />
+                        <path
+                          d={props.activeShape}
+                          fill={fill}
+                        />
+                        <path
+                          fill={fill}
+                          d={props.activeShape}
+                          style={{ filter: "drop-shadow(0px 0px 4px rgba(0,0,0,0.1))" }}
+                        />
+                        {/* Simple custom shape to highlight */}
+                        <circle cx={cx} cy={cy} innerRadius={innerRadius} outerRadius={outerRadius + 4} fill={fill} />
+                        <path
+                          fill={fill}
+                          stroke="none"
+                          d={(() => {
+                            // Helper to draw a slightly larger arc
+                            const RADIAN = Math.PI / 180;
+                            const sx = cx + (outerRadius + 6) * Math.cos(-startAngle * RADIAN);
+                            const sy = cy + (outerRadius + 6) * Math.sin(-startAngle * RADIAN);
+                            const ex = cx + (outerRadius + 6) * Math.cos(-endAngle * RADIAN);
+                            const ey = cy + (outerRadius + 6) * Math.sin(-endAngle * RADIAN);
+                            return `M ${sx} ${sy} A ${outerRadius + 6} ${outerRadius + 6} 0 0 1 ${ex} ${ey}`;
+                          })()}
+                        />
+                        <Sector
+                          cx={cx}
+                          cy={cy}
+                          innerRadius={innerRadius}
+                          outerRadius={outerRadius + 6}
+                          startAngle={startAngle}
+                          endAngle={endAngle}
+                          fill={fill}
+                        />
+                      </g>
+                    )
+                  }}
                 >
                   {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={entry.color} 
+                      style={{ 
+                        opacity: activeIndex === null || activeIndex === index ? 1 : 0.3,
+                        transition: "opacity 300ms ease"
+                      }}
+                    />
                   ))}
                 </Pie>
                 <Tooltip content={<ChartTooltip formatter={(v) => `${v} pcs`} />} />
@@ -490,16 +545,35 @@ function QtyBreakdownCard({ data }) {
           </div>
 
           <div className="min-w-0 flex-1 space-y-2">
-            {chartData.map((item) => {
+            {chartData.map((item, index) => {
               const pct = total > 0 ? (item.value / total) * 100 : 0
+              const isActive = activeIndex === index
+
               return (
-                <div key={item.name} className="flex items-center justify-between rounded-lg border border-neutral-100 bg-neutral-50/50 px-3 py-2">
+                <div 
+                  key={item.name} 
+                  onMouseEnter={() => setActiveIndex(index)}
+                  onMouseLeave={() => setActiveIndex(null)}
+                  className={`flex cursor-default items-center justify-between rounded-lg border transition-all duration-200 px-3 py-2 ${
+                    isActive 
+                      ? "border-neutral-200 bg-white shadow-sm ring-1 ring-neutral-100" 
+                      : "border-neutral-100 bg-neutral-50/50"
+                  }`}
+                >
                   <div className="flex min-w-0 items-center gap-2">
                     <div className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
-                    <span className="truncate text-[11px] font-medium text-neutral-700">{item.name}</span>
+                    <span className={`truncate text-[11px] font-medium transition-colors ${
+                      isActive ? "text-neutral-950" : "text-neutral-700"
+                    }`}>
+                      {item.name}
+                    </span>
                   </div>
                   <div className="flex items-center gap-2 font-mono text-[11px]">
-                    <span className="font-bold text-neutral-950">{item.value}</span>
+                    <span className={`font-bold transition-colors ${
+                      isActive ? "text-neutral-950 font-black" : "text-neutral-950"
+                    }`}>
+                      {item.value}
+                    </span>
                     <span className="text-neutral-400">({pct.toFixed(0)}%)</span>
                   </div>
                 </div>
