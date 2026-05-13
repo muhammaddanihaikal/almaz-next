@@ -363,6 +363,31 @@ export async function getMutasiStok(startDate, endDate, stockType = "utama") {
     orderBy: { createdAt: "desc" }
   })
 
+  // --- Fetch Related Sales Info ---
+  const refIds = inRangeMutations.filter(m => m.reference_id).map(m => m.reference_id)
+  const salesMap = new Map()
+
+  if (refIds.length > 0) {
+    const [sesis, titips, tukars] = await Promise.all([
+      prisma.sesiHarian.findMany({
+        where: { id: { in: refIds } },
+        select: { id: true, sales: { select: { nama: true } } }
+      }),
+      prisma.titipJual.findMany({
+        where: { id: { in: refIds } },
+        select: { id: true, sales: { select: { nama: true } } }
+      }),
+      prisma.tukarBarang.findMany({
+        where: { id: { in: refIds } },
+        select: { id: true, sesi: { select: { sales: { select: { nama: true } } } } }
+      })
+    ])
+
+    sesis.forEach(s => salesMap.set(s.id, s.sales?.nama))
+    titips.forEach(t => salesMap.set(t.id, t.sales?.nama))
+    tukars.forEach(tk => salesMap.set(tk.id, tk.sesi?.sales?.nama))
+  }
+
   const report = []
   let currentDate = new Date(start)
   const currentBalances = { ...initialBalances }
@@ -392,7 +417,8 @@ export async function getMutasiStok(startDate, endDate, stockType = "utama") {
           detail_kembali: todayMuts.filter(m => m.jenis === 'in' && m.source === MUTATION_SOURCE.RETUR_SALES).reduce((s, m) => s + m.qty, 0),
           details: todayMuts.map(m => ({
             ...m,
-            user_name: m.user?.name || m.user?.username || "Sistem"
+            user_name: m.user?.name || m.user?.username || "Sistem",
+            sales_name: salesMap.get(m.reference_id) || null
           }))
         })
       }
@@ -419,6 +445,31 @@ export async function getMutasiHariIni() {
     orderBy: { createdAt: "desc" },
   })
 
+  // --- Fetch Related Sales Info ---
+  const refIds = rows.filter(m => m.reference_id).map(m => m.reference_id)
+  const salesMap = new Map()
+
+  if (refIds.length > 0) {
+    const [sesis, titips, tukars] = await Promise.all([
+      prisma.sesiHarian.findMany({
+        where: { id: { in: refIds } },
+        select: { id: true, sales: { select: { nama: true } } }
+      }),
+      prisma.titipJual.findMany({
+        where: { id: { in: refIds } },
+        select: { id: true, sales: { select: { nama: true } } }
+      }),
+      prisma.tukarBarang.findMany({
+        where: { id: { in: refIds } },
+        select: { id: true, sesi: { select: { sales: { select: { nama: true } } } } }
+      })
+    ])
+
+    sesis.forEach(s => salesMap.set(s.id, s.sales?.nama))
+    titips.forEach(t => salesMap.set(t.id, t.sales?.nama))
+    tukars.forEach(tk => salesMap.set(tk.id, tk.sesi?.sales?.nama))
+  }
+
   return rows.map((m) => ({
     id:           m.id,
     rokok_id:     m.rokok_id,
@@ -427,6 +478,7 @@ export async function getMutasiHariIni() {
     source:       m.source,
     keterangan:   m.keterangan,
     user_name:    m.user?.name || m.user?.username || "Sistem",
+    sales_name:   salesMap.get(m.reference_id) || null,
     createdAt:    new Date(m.createdAt.getTime() + 7 * 60 * 60 * 1000)
                     .toISOString().replace("T", " ").slice(0, 16),
   }))

@@ -276,7 +276,7 @@ export default function MutasiStokPage({ initialData, startDate, endDate, initia
                           {/* DETAIL AUDIT LOG */}
                           {expandedRokok.includes(`${day.tanggal}-${row.rokok_id}`) && (
                             <tr>
-                              <td colSpan={5} className="p-0 bg-neutral-50/50 border-b border-neutral-200">
+                              <td colSpan={6} className="p-0 bg-neutral-50/50 border-b border-neutral-200">
                                 <div className="px-8 py-4 animate-in slide-in-from-top-2 duration-200">
                                   <h4 className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-3">Detail Mutasi (Audit Log)</h4>
                                   {row.details && row.details.length > 0 ? (
@@ -286,6 +286,7 @@ export default function MutasiStokPage({ initialData, startDate, endDate, initia
                                           <tr>
                                             <th className="px-3 py-2 text-left font-medium">Waktu</th>
                                             <th className="px-3 py-2 text-left font-medium">User</th>
+                                            <th className="px-3 py-2 text-left font-medium">Sales</th>
                                             <th className="px-3 py-2 text-left font-medium">Source</th>
                                             <th className="px-3 py-2 text-left font-medium">Keterangan</th>
                                             <th className="px-3 py-2 text-right font-medium">Qty</th>
@@ -296,7 +297,10 @@ export default function MutasiStokPage({ initialData, startDate, endDate, initia
                                             <tr key={mut.id} className="hover:bg-neutral-50">
                                               <td className="px-3 py-2 text-neutral-600 whitespace-nowrap">{formatDate(mut.createdAt)}</td>
                                               <td className="px-3 py-2 text-neutral-900 font-medium">
-                                                {mut.user?.name || mut.user?.username || 'Sistem'}
+                                                {mut.user_name || mut.user?.name || mut.user?.username || 'Sistem'}
+                                              </td>
+                                              <td className="px-3 py-2 text-blue-600 font-bold">
+                                                {mut.sales_name || '-'}
                                               </td>
                                               <td className="px-3 py-2">
                                                 <span className={`inline-flex items-center px-2 py-0.5 rounded border text-[10px] font-semibold tracking-wide ${getSourceBadgeColor(mut.source)}`}>
