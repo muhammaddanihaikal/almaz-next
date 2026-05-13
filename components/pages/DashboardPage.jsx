@@ -991,7 +991,7 @@ function DebugSection({ stats, sesiF, titipJualF, rokokById, range, titipJualLis
               <span className="font-mono font-semibold">{fmtIDR(stats.penjualanBreakdown.langsung)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-neutral-500">Titip Jual (Keluar di Sesi)</span>
+              <span className="text-neutral-500">Titip Jual (Selesai)</span>
               <span className="font-mono font-semibold">{fmtIDR(stats.penjualanBreakdown.titipJual)}</span>
             </div>
             <div className="flex justify-between">

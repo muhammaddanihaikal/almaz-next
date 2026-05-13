@@ -50,9 +50,9 @@ describe("Dashboard Calculation Logic", () => {
     const stats = calculateStats(mockSesi, [], [], [], mockRokokById, mockRange, mockIsDateInRange)
 
     expect(stats.penjualanBreakdown.langsung).toBe(120000)
-    expect(stats.penjualanBreakdown.titipJual).toBe(360000)
-    expect(stats.penjualanBreakdown.tukarBarang).toBe(-36000) // Nilai Tukar (Masuk - Keluar)
-    expect(stats.penjualanBreakdown.total).toBe(120000 + 360000 - 36000)
+    expect(stats.penjualanBreakdown.titipJual).toBe(0) // 0 because second arg (titipProfitRows) is empty
+    expect(stats.penjualanBreakdown.tukarBarang).toBe(36000) // Net Gain (Keluar 60k - Masuk 24k)
+    expect(stats.penjualanBreakdown.total).toBe(120000 + 0 + 36000)
   })
 
   it("calculates Total Setoran correctly", () => {
