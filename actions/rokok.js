@@ -13,6 +13,8 @@ export async function getRokokList() {
       id: r.id,
       nama: r.nama,
       stok: r.stok,
+      stok_sample_cukai: r.stok_sample_cukai,
+      stok_sample_biasa: r.stok_sample_biasa,
       harga_beli: r.harga_beli,
       harga_grosir: r.harga_grosir,
       harga_toko: r.harga_toko,
@@ -27,6 +29,8 @@ export async function getRokokList() {
       id: r.id,
       nama: r.nama,
       stok: r.stok,
+      stok_sample_cukai: r.stok_sample_cukai,
+      stok_sample_biasa: r.stok_sample_biasa,
       harga_beli: r.harga_beli,
       harga_grosir: r.harga_grosir,
       harga_toko: r.harga_toko,
@@ -443,6 +447,97 @@ export async function koreksiStok(id, qty, jenis, keterangan) {
       entity_id:   id,
       action:      AUDIT_ACTION.UPDATE,
       new_values:  { rokok: rokok?.nama, jenis, qty, keterangan: keterangan || "Koreksi manual admin" },
+      user_id:     userId,
+      user_name:   session?.user?.name,
+    })
+  })
+  revalidatePath("/rokok")
+}
+
+// ─── SAMPLE ───────────────────────────────────────────────────────────────────
+
+export async function tambahStokSampleBiasa(rokok_id, qty, date, keterangan) {
+  const session = await auth()
+  let userId = session?.user?.id
+  if (!userId && session?.user?.name) {
+    const u = await prisma.user.findFirst({
+      where: { OR: [{ name: session.user.name }, { username: session.user.name }] }
+    })
+    userId = u?.id
+  }
+
+  const qtyNum = Number(qty)
+  if (!qtyNum || qtyNum <= 0) throw new Error("Qty harus lebih dari 0.")
+
+  await prisma.$transaction(async (tx) => {
+    const rokok = await tx.rokok.findUnique({ where: { id: rokok_id }, select: { nama: true } })
+    await tx.stokMasuk.create({
+      data: { rokok_id, qty: qtyNum, tanggal: new Date(date), jenis: "sample_biasa", keterangan: keterangan || null },
+    })
+    await tx.rokok.update({
+      where: { id: rokok_id },
+      data: { stok_sample_biasa: { increment: qtyNum } },
+    })
+    await logAudit({
+      tx,
+      entity_type: AUDIT_ENTITY.ROKOK,
+      change_type: "Tambah Stok Sample Biasa",
+      entity_id:   rokok_id,
+      action:      AUDIT_ACTION.UPDATE,
+      new_values:  { rokok: rokok?.nama, qty: qtyNum, tanggal: date, keterangan },
+      user_id:     userId,
+      user_name:   session?.user?.name,
+    })
+  })
+  revalidatePath("/rokok")
+}
+
+export async function konversiKeSampleCukai(rokok_id, qty, catatan) {
+  const session = await auth()
+  let userId = session?.user?.id
+  if (!userId && session?.user?.name) {
+    const u = await prisma.user.findFirst({
+      where: { OR: [{ name: session.user.name }, { username: session.user.name }] }
+    })
+    userId = u?.id
+  }
+
+  const qtyNum = Number(qty)
+  if (!qtyNum || qtyNum <= 0) throw new Error("Qty harus lebih dari 0.")
+  const today = new Date().toISOString().split("T")[0]
+
+  await prisma.$transaction(async (tx) => {
+    const rokok = await tx.rokok.findUnique({
+      where: { id: rokok_id },
+      select: { nama: true, stok: true }
+    })
+    if (!rokok) throw new Error("Rokok tidak ditemukan.")
+    if (rokok.stok < qtyNum) throw new Error(`Stok tidak mencukupi. Stok saat ini: ${rokok.stok}.`)
+
+    await mutateStock({
+      tx,
+      rokok_id,
+      tanggal:    today,
+      jenis:      "out",
+      qty:        qtyNum,
+      source:     MUTATION_SOURCE.SAMPLE_CUKAI_KONVERSI,
+      keterangan: catatan || "Konversi ke stok sample cukai",
+      user_id:    userId || null,
+    })
+    await tx.rokok.update({
+      where: { id: rokok_id },
+      data: { stok_sample_cukai: { increment: qtyNum } },
+    })
+    await tx.sampleCukaiKonversi.create({
+      data: { rokok_id, qty: qtyNum, tanggal: new Date(today), catatan: catatan || null },
+    })
+    await logAudit({
+      tx,
+      entity_type: AUDIT_ENTITY.ROKOK,
+      change_type: "Konversi ke Sample Cukai",
+      entity_id:   rokok_id,
+      action:      AUDIT_ACTION.UPDATE,
+      new_values:  { rokok: rokok?.nama, qty: qtyNum, catatan },
       user_id:     userId,
       user_name:   session?.user?.name,
     })

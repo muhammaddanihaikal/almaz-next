@@ -12,6 +12,7 @@ import {
   reverseStockMutationNet,
 } from "@/actions/tukar-barang"
 import { getAppSetting } from "@/actions/settings"
+import { saveSesiSampleKeluar, revertSesiSampleKeluar, saveSesiSampleKembali } from "@/actions/sample"
 
 const include = {
   sales: true,
@@ -23,6 +24,7 @@ const include = {
   tukarBarang:   { include: { itemsMasuk: { include: { rokok: true } }, itemsKeluar: { include: { rokok: true } } } },
   tukarBarangSelesai: { include: { itemsMasuk: { include: { rokok: true } }, itemsKeluar: { include: { rokok: true } } } },
   retur:         { include: { items: { include: { rokok: true } } } },
+  sample:        { include: { rokok: { select: { nama: true } } } },
 }
 
 const DISTRIBUSI_TX_OPTIONS = { maxWait: 10000, timeout: 30000 }
@@ -143,6 +145,14 @@ function serialize(s) {
         .sort((a, b) => (a.rokok?.urutan ?? 0) - (b.rokok?.urutan ?? 0))
         .map((it) => ({ rokok_id: it.rokok_id, rokok: it.rokok?.nama || "???", qty: it.qty })),
     })),
+    sample: (s.sample || []).map((sm) => ({
+      id:          sm.id,
+      rokok_id:    sm.rokok_id,
+      rokok:       sm.rokok?.nama || "???",
+      type:        sm.type,
+      qty_keluar:  sm.qty_keluar,
+      qty_kembali: sm.qty_kembali,
+    })),
     konsinyasi: s.titipJual.map((k) => ({
       id:                  k.id,
       toko_id:             k.toko_id,
@@ -233,6 +243,9 @@ export async function createSesi(data) {
             })),
           })
         }
+        if (data.samples?.length > 0) {
+          await saveSesiSampleKeluar(sesi.id, data.samples, tx)
+        }
       }
 
       await logAudit({
@@ -309,6 +322,13 @@ export async function updateSesiPagi(id, data, alasan) {
         }
       }
       if (mutQueue.length > 0) await mutateStockBatch({ tx, mutations: mutQueue })
+
+      // Revert sample lama lalu apply sample baru
+      if (!oldIsHistorical) await revertSesiSampleKeluar(id, tx)
+      await tx.sesiSample.deleteMany({ where: { sesi_id: id } })
+      if (!is_historical && data.samples?.length > 0) {
+        await saveSesiSampleKeluar(id, data.samples, tx)
+      }
 
       await tx.sesiBarangKeluar.deleteMany({ where: { sesi_id: id } })
       await tx.sesiHarian.update({
@@ -564,6 +584,11 @@ export async function submitLaporanSore(id, data) {
             sesi_penyelesaian_id: id,
           })),
         })
+      }
+
+      // Sample kembali — update qty_kembali per SesiSample
+      if (data.sampleKembali?.length > 0) {
+        await saveSesiSampleKembali(id, data.sampleKembali, tx)
       }
 
       // Flush semua mutasi stok dalam batch
@@ -870,6 +895,11 @@ export async function editLaporanSore(id, data, alasan) {
         })
       }
 
+      // Sample kembali — update qty_kembali per SesiSample
+      if (data.sampleKembali?.length > 0) {
+        await saveSesiSampleKembali(id, data.sampleKembali, tx)
+      }
+
       // Flush semua mutasi stok dalam batch
       await mutateStockBatch({ tx, mutations: mutQueue })
 
@@ -1070,6 +1100,9 @@ export async function deleteSesi(id, alasan) {
         if (t.sesi_id === id) continue
         await revertSelesaiTukarBarangInSesi(tx, t.id, session, mutQueue)
       }
+
+      // Revert sample keluar (restore stok_sample_cukai & stok_sample_biasa)
+      if (!is_historical) await revertSesiSampleKeluar(id, tx)
 
       // Flush semua mutasi stok dalam batch
       await mutateStockBatch({ tx, mutations: mutQueue })

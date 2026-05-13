@@ -1638,22 +1638,35 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, stockCutoffDate
   const [items, setItems] = useState(() => {
     const aktif = rokokList.filter((r) => r.aktif !== false)
     return aktif.map((r) => {
-      const existing = initial?.barangKeluar?.find((it) => it.rokok_id === r.id)
-      // Saat edit, stok efektif = stok saat ini + qty lama (karena stok sudah dikurangi saat create sesi)
+      const existing    = initial?.barangKeluar?.find((it) => it.rokok_id === r.id)
       const existingQty = existing ? existing.qty : 0
-      const effectiveStok = (r.stok ?? 0) + existingQty
-      return { rokok_id: r.id, nama: r.nama, stok: effectiveStok, qty: existing?.qty || "" }
+      const existingSC  = initial?.samples?.find((s) => s.rokok_id === r.id && s.type === "cukai")
+      const existingSB  = initial?.samples?.find((s) => s.rokok_id === r.id && s.type === "biasa")
+      return {
+        rokok_id:          r.id,
+        nama:              r.nama,
+        stok:              (r.stok ?? 0) + existingQty,
+        stok_sample_cukai: (r.stok_sample_cukai ?? 0) + (existingSC?.qty_keluar ?? 0),
+        stok_sample_biasa: (r.stok_sample_biasa ?? 0) + (existingSB?.qty_keluar ?? 0),
+        qty:               existing?.qty || "",
+        qty_sample_cukai:  existingSC?.qty_keluar || "",
+        qty_sample_biasa:  existingSB?.qty_keluar || "",
+      }
     })
   })
   const [error, setError] = useState("")
 
-  const updateQty = (idx, val) => setItems(items.map((it, i) => i === idx ? { ...it, qty: val } : it))
+  const updateQty        = (idx, val) => setItems(items.map((it, i) => i === idx ? { ...it, qty: val } : it))
+  const updateSampleCukai = (idx, val) => setItems(items.map((it, i) => i === idx ? { ...it, qty_sample_cukai: val } : it))
+  const updateSampleBiasa = (idx, val) => setItems(items.map((it, i) => i === idx ? { ...it, qty_sample_biasa: val } : it))
 
   const is_historical_computed = stockCutoffDate ? tanggal < stockCutoffDate : false
 
   const validItems = items.filter((it) => Number(it.qty) > 0)
-  const hasStokError = !is_historical_computed && validItems.some((it) => Number(it.qty) > it.stok)
-  const valid = tanggal && salesId && validItems.length >= 1 && !hasStokError
+  const hasStokError       = !is_historical_computed && validItems.some((it) => Number(it.qty) > it.stok)
+  const hasSampleCukaiError = !is_historical_computed && items.some((it) => Number(it.qty_sample_cukai) > it.stok_sample_cukai)
+  const hasSampleBiasaError = !is_historical_computed && items.some((it) => Number(it.qty_sample_biasa) > it.stok_sample_biasa)
+  const valid = tanggal && salesId && validItems.length >= 1 && !hasStokError && !hasSampleCukaiError && !hasSampleBiasaError
 
   const [loading, setLoading] = useState(false)
   const submit = async (e) => {
@@ -1662,7 +1675,13 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, stockCutoffDate
     setLoading(true)
     try {
       setError("")
-      await onSubmit({ tanggal, sales_id: salesId, catatan, barangKeluar: validItems.map((it) => ({ rokok_id: it.rokok_id, qty: Number(it.qty) })) })
+      const samples = items.flatMap((it) => {
+        const out = []
+        if (Number(it.qty_sample_cukai) > 0) out.push({ rokok_id: it.rokok_id, type: "cukai", qty_keluar: Number(it.qty_sample_cukai) })
+        if (Number(it.qty_sample_biasa) > 0) out.push({ rokok_id: it.rokok_id, type: "biasa", qty_keluar: Number(it.qty_sample_biasa) })
+        return out
+      })
+      await onSubmit({ tanggal, sales_id: salesId, catatan, barangKeluar: validItems.map((it) => ({ rokok_id: it.rokok_id, qty: Number(it.qty) })), samples })
     } catch (err) {
       if (err.message?.includes("Unique constraint failed")) {
         setError(`Sales ini sudah punya sesi pada tanggal ${tanggal}. Edit sesi yang ada atau pilih tanggal/sales lain.`)
@@ -1724,21 +1743,36 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, stockCutoffDate
           <thead>
             <tr className="border-b border-neutral-200 text-xs text-neutral-500">
               <th className="pb-1.5 text-left">Rokok</th>
-              {!is_historical_computed && <th className="pb-1.5 text-right pr-3">Stok</th>}
+              {!is_historical_computed && <th className="pb-1.5 text-right pr-2">Stok</th>}
               <th className="pb-1.5 text-right">Qty Dibawa</th>
+              {!is_historical_computed && (
+                <>
+                  <th className="pb-1.5 text-right pl-2">
+                    <span className="text-orange-500" title="Sample Cukai">↧C</span>
+                  </th>
+                  <th className="pb-1.5 text-right pl-1">
+                    <span className="text-blue-500" title="Sample Biasa">↧B</span>
+                  </th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody>
             {items.map((item, idx) => {
-              const qty = Number(item.qty)
-              const sisaStok = item.stok - (qty > 0 ? qty : 0)
-              const melebihi = !is_historical_computed && qty > 0 && qty > item.stok
+              const qty        = Number(item.qty)
+              const qtySC      = Number(item.qty_sample_cukai)
+              const qtySB      = Number(item.qty_sample_biasa)
+              const sisaStok   = item.stok - (qty > 0 ? qty : 0)
+              const melebihi   = !is_historical_computed && qty > 0 && qty > item.stok
+              const melebihiSC = !is_historical_computed && qtySC > 0 && qtySC > item.stok_sample_cukai
+              const melebihiSB = !is_historical_computed && qtySB > 0 && qtySB > item.stok_sample_biasa
+              const hasError   = melebihi || melebihiSC || melebihiSB
               return (
                 <Fragment key={item.rokok_id}>
                   <tr className="border-b border-neutral-100">
                     <td className="py-1.5 font-medium">{item.nama}</td>
                     {!is_historical_computed && (
-                      <td className={`py-1.5 text-right pr-3 text-xs tabular-nums font-medium transition-colors ${melebihi ? "text-red-500" : qty > 0 ? "text-blue-600" : "text-neutral-400"}`}>
+                      <td className={`py-1.5 text-right pr-2 text-xs tabular-nums font-medium transition-colors ${melebihi ? "text-red-500" : qty > 0 ? "text-blue-600" : "text-neutral-400"}`}>
                         {qty > 0 ? sisaStok : item.stok}
                       </td>
                     )}
@@ -1749,16 +1783,44 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, stockCutoffDate
                         onChange={(e) => updateQty(idx, e.target.value)}
                         placeholder="—"
                         disabled={!salesId}
-                        className={inputCls + " w-24 text-right" + (melebihi ? " border-red-400 focus:border-red-500" : "") + (!salesId ? " opacity-40 cursor-not-allowed bg-neutral-50" : "")}
+                        className={inputCls + " w-20 text-right" + (melebihi ? " border-red-400 focus:border-red-500" : "") + (!salesId ? " opacity-40 cursor-not-allowed bg-neutral-50" : "")}
                       />
                     </td>
+                    {!is_historical_computed && (
+                      <>
+                        <td className="py-1.5 pl-2 text-right">
+                          <input
+                            type="number" min="0"
+                            value={item.qty_sample_cukai}
+                            onChange={(e) => updateSampleCukai(idx, e.target.value)}
+                            placeholder="—"
+                            disabled={!salesId}
+                            title={`Stok sample cukai: ${item.stok_sample_cukai}`}
+                            className={inputCls + " w-16 text-right text-orange-700" + (melebihiSC ? " border-red-400" : "") + (!salesId ? " opacity-40 cursor-not-allowed bg-neutral-50" : "")}
+                          />
+                        </td>
+                        <td className="py-1.5 pl-1 text-right">
+                          <input
+                            type="number" min="0"
+                            value={item.qty_sample_biasa}
+                            onChange={(e) => updateSampleBiasa(idx, e.target.value)}
+                            placeholder="—"
+                            disabled={!salesId}
+                            title={`Stok sample biasa: ${item.stok_sample_biasa}`}
+                            className={inputCls + " w-16 text-right text-blue-700" + (melebihiSB ? " border-red-400" : "") + (!salesId ? " opacity-40 cursor-not-allowed bg-neutral-50" : "")}
+                          />
+                        </td>
+                      </>
+                    )}
                   </tr>
-                  {melebihi && (
+                  {hasError && (
                     <tr>
-                      <td colSpan={3} className="pb-1.5 pt-0">
+                      <td colSpan={5} className="pb-1.5 pt-0">
                         <div className="flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs text-red-700">
                           <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                          Melebihi stok — tersedia {item.stok} bungkus
+                          {melebihi && `Qty dibawa melebihi stok (${item.stok}). `}
+                          {melebihiSC && `Sample cukai melebihi stok (${item.stok_sample_cukai}). `}
+                          {melebihiSB && `Sample biasa melebihi stok (${item.stok_sample_biasa}).`}
                         </div>
                       </td>
                     </tr>
@@ -1872,6 +1934,16 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
     }
     return [{ toko_id: "", kategori: sesi.sales_kategori || "toko", tanggal_jatuh_tempo: "", catatan: "", items: [{ rokok_id: "", qty: "" }] }]
   })
+
+  const [sampleKembali, setSampleKembali] = useState(() =>
+    (sesi.sample || []).map((sm) => ({
+      rokok_id:    sm.rokok_id,
+      rokok:       sm.rokok,
+      type:        sm.type,
+      qty_keluar:  sm.qty_keluar,
+      qty_kembali: String(sm.qty_kembali ?? 0),
+    }))
+  )
 
   const [loading, setLoading] = useState(false)
   const [showPerorangan,    setShowPerorangan]    = useState(false)
@@ -2026,6 +2098,9 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
         })),
         penyelesaianTukar: Array.from(penyelesaianTukar),
         returFromTukar,
+        sampleKembali: sampleKembali
+          .filter((sm) => Number(sm.qty_kembali) >= 0)
+          .map((sm) => ({ rokok_id: sm.rokok_id, type: sm.type, qty_kembali: Number(sm.qty_kembali) || 0 })),
       }
 
       // Final validation to prevent NaN in production
@@ -2130,7 +2205,8 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
     [rokokList, sesi.barangKeluar]
   )
 
-  const SUBTABS = ["penjualan", "konsinyasi", "tukar"]
+  const hasSample = sampleKembali.length > 0
+  const SUBTABS = ["penjualan", "konsinyasi", "tukar", ...(hasSample ? ["sample"] : [])]
   const subIdx = SUBTABS.indexOf(activeTab)
   const isFirstSub = subIdx === 0
   const isLastSub = subIdx === SUBTABS.length - 1
@@ -2194,6 +2270,12 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
                 return n > 0 && <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-xs text-white">{n}</span>
               })()}
             </TabButton>
+            {hasSample && (
+              <TabButton active={activeTab === "sample"} onClick={() => setActiveTab("sample")}>
+                Sample Kembali
+                <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-xs text-white">{sampleKembali.length}</span>
+              </TabButton>
+            )}
           </div>
         </div>
       )}
@@ -2273,6 +2355,49 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
                   qtyTitipBaru={qtyTitipBaru}
                   isHistorical={sesi.is_historical}
                 />
+              )}
+
+              {activeTab === "sample" && hasSample && (
+                <SectionCard title="Sample Kembali">
+                  <p className="mb-3 text-xs text-neutral-500">Isi qty sample yang kembali dari sales. Kosongkan atau isi 0 jika tidak ada yang kembali.</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-neutral-200 text-left text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
+                          <th className="pb-2 pr-4">Rokok</th>
+                          <th className="pb-2 pr-4">Tipe</th>
+                          <th className="pb-2 pr-4 text-right">Keluar</th>
+                          <th className="pb-2 text-right">Kembali</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sampleKembali.map((sm, idx) => (
+                          <tr key={idx} className="border-b border-neutral-100 last:border-0">
+                            <td className="py-2 pr-4 font-medium text-neutral-800">{sm.rokok}</td>
+                            <td className="py-2 pr-4">
+                              <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${sm.type === "cukai" ? "bg-orange-100 text-orange-700" : "bg-blue-100 text-blue-700"}`}>
+                                {sm.type === "cukai" ? "Cukai" : "Biasa"}
+                              </span>
+                            </td>
+                            <td className="py-2 pr-4 text-right tabular-nums text-neutral-600">{sm.qty_keluar}</td>
+                            <td className="py-2 text-right">
+                              <input
+                                type="number"
+                                min="0"
+                                max={sm.qty_keluar}
+                                value={sm.qty_kembali}
+                                onChange={(e) => setSampleKembali((prev) =>
+                                  prev.map((x, i) => i === idx ? { ...x, qty_kembali: e.target.value } : x)
+                                )}
+                                className="w-16 rounded border border-neutral-300 px-2 py-1 text-right text-xs focus:border-orange-400 focus:outline-none focus:ring-1 focus:ring-orange-300"
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </SectionCard>
               )}
           </div>
         )}
@@ -2416,6 +2541,25 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
                 </div>
               </div>
             </div>
+
+            {/* Sample Kembali Summary */}
+            {hasSample && (
+              <div className="rounded-lg border border-neutral-200 bg-white p-4">
+                <div className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
+                  Sample Kembali
+                </div>
+                {sampleKembali.map((sm, idx) => (
+                  <div key={idx} className="flex items-center justify-between border-b border-neutral-100 py-1.5 last:border-0 text-xs">
+                    <span className="text-neutral-700">
+                      {sm.rokok} <span className={`ml-1 rounded px-1 py-0.5 text-[10px] font-semibold ${sm.type === "cukai" ? "bg-orange-100 text-orange-700" : "bg-blue-100 text-blue-700"}`}>{sm.type === "cukai" ? "Cukai" : "Biasa"}</span>
+                    </span>
+                    <span className="tabular-nums text-neutral-600">
+                      {Number(sm.qty_kembali) || 0} <span className="text-neutral-400">/ {sm.qty_keluar}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Setoran */}
             <div className="rounded-lg border border-neutral-200 bg-white p-4">
