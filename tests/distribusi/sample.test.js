@@ -125,7 +125,7 @@ describe("konversiKeSampleCukai", () => {
 
     await konversiKeSampleCukai(testRokok.id, qtyKonversi, "test mutation")
     const afterMut = await prisma.stockMutation.count({ where: { rokok_id: testRokok.id, source: "sample_cukai_konversi" } })
-    expect(afterMut).toBe(beforeMut + 1)
+    expect(afterMut).toBe(beforeMut + 2) // In and Out entries for full audit record
 
     // Revert
     await prisma.$transaction(async (tx) => {
@@ -168,14 +168,17 @@ describe("tambahStokSampleBiasa", () => {
     })
   })
 
-  it("tidak membuat StockMutation (tidak lewat ledger reguler)", async () => {
+  it("mencatat StockMutation (lewat ledger reguler untuk audit)", async () => {
     const before = await prisma.stockMutation.count({ where: { rokok_id: testRokok.id } })
-    await tambahStokSampleBiasa(testRokok.id, 2, TEST_DATE, "test no ledger")
+    await tambahStokSampleBiasa(testRokok.id, 2, TEST_DATE, "test with ledger")
     const after = await prisma.stockMutation.count({ where: { rokok_id: testRokok.id } })
-    expect(after).toBe(before) // tidak ada mutasi ledger baru
+    expect(after).toBe(before + 1) // Sekarang kita ingin semua tercatat di ledger
 
     // Revert
     await prisma.$transaction(async (tx) => {
+      await tx.stockMutation.deleteMany({ 
+        where: { rokok_id: testRokok.id, source: { in: ["sample_biasa_masuk", "sample_biasa_keluar"] } } 
+      })
       await tx.stokMasuk.deleteMany({ where: { rokok_id: testRokok.id, jenis: "sample_biasa" } })
       await tx.rokok.update({ where: { id: testRokok.id }, data: { stok_sample_biasa: { decrement: 2 } } })
     })

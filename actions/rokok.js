@@ -490,6 +490,15 @@ export async function tambahStokSampleBiasa(rokok_id, qty, date, keterangan) {
 
   await prisma.$transaction(async (tx) => {
     const rokok = await tx.rokok.findUnique({ where: { id: rokok_id }, select: { nama: true } })
+    const sm = await tx.stokMasuk.create({
+      data: {
+        rokok_id,
+        qty:        qtyNum,
+        tanggal:    new Date(date),
+        jenis:      "sample_biasa",
+        keterangan: keterangan || defaultKet,
+      },
+    })
     await mutateStock({
       tx,
       rokok_id,
@@ -498,6 +507,7 @@ export async function tambahStokSampleBiasa(rokok_id, qty, date, keterangan) {
       qty:        absQty,
       source:     isOut ? "sample_biasa_keluar" : "sample_biasa_masuk",
       stock_type: "sample_biasa",
+      reference_id: sm.id,
       keterangan: keterangan || defaultKet,
       user_id:    userId || null,
     })

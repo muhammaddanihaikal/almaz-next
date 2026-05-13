@@ -43,7 +43,7 @@ describe("Dashboard Calculation Logic", () => {
     expect(stats.qtyBreakdown.langsung).toBe(10)
     expect(stats.qtyBreakdown.titipJual).toBe(20)
     expect(stats.qtyBreakdown.tukarBarang).toBe(5)
-    expect(stats.qtyBreakdown.total).toBe(35)
+    expect(stats.qtyBreakdown.total).toBe(32) // Physical Net (100-68)
   })
 
   it("calculates Revenue Breakdown correctly", () => {
