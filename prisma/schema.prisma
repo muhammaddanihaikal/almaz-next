@@ -388,6 +388,7 @@ model StockMutation {
   jenis        String // "in" | "out"
   qty          Int
   source       String // "stok_awal", "adjustment", "koreksi", "penjualan", "distribusi_sales", "retur_sales", "retur", "konsinyasi_keluar", "konsinyasi_kembali", "tukar_masuk", "tukar_keluar"
+  stock_type   String   @default("jual") // "jual" | "sample_cukai" | "sample_biasa"
   reference_id String? // Optional: ID transaksi asal
   keterangan   String? // Optional: Catatan tambahan untuk mutasi ini
   user_id      String? // Optional: User yang melakukan mutasi

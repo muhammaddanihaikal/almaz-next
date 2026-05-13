@@ -2,13 +2,11 @@
 
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { mutateStock, MUTATION_SOURCE } from "@/lib/stock"
 
 /**
  * Simpan/update sample keluar saat sesi pagi dibuat/diedit.
  * samples: [{ rokok_id, type: "cukai"|"biasa", qty_keluar }]
- *
- * Fungsi ini dipanggil di dalam transaction pembuatan sesi,
- * sehingga menerima tx sebagai parameter opsional.
  */
 export async function saveSesiSampleKeluar(sesi_id, samples, tx = prisma) {
   if (!samples || samples.length === 0) return
@@ -16,8 +14,11 @@ export async function saveSesiSampleKeluar(sesi_id, samples, tx = prisma) {
   const valid = samples.filter((s) => s.rokok_id && Number(s.qty_keluar) > 0)
   if (valid.length === 0) return
 
+  const sesi = await tx.sesiHarian.findUnique({ where: { id: sesi_id }, select: { tanggal: true } })
+
   for (const s of valid) {
     const qty = Number(s.qty_keluar)
+    const stock_type = s.type === "cukai" ? "sample_cukai" : "sample_biasa"
 
     // Upsert SesiSample
     await tx.sesiSample.upsert({
@@ -26,32 +27,32 @@ export async function saveSesiSampleKeluar(sesi_id, samples, tx = prisma) {
       update: { qty_keluar: qty },
     })
 
-    // Update cache stok sample
-    if (s.type === "cukai") {
-      await tx.rokok.update({
-        where: { id: s.rokok_id },
-        data: { stok_sample_cukai: { decrement: qty } },
-      })
-    } else {
-      await tx.rokok.update({
-        where: { id: s.rokok_id },
-        data: { stok_sample_biasa: { decrement: qty } },
-      })
-    }
+    // Record mutation (OUT)
+    await mutateStock({
+      tx,
+      rokok_id: s.rokok_id,
+      tanggal: sesi?.tanggal || new Date(),
+      jenis: "out",
+      qty,
+      source: MUTATION_SOURCE.DISTRIBUSI,
+      stock_type,
+      reference_id: sesi_id,
+      keterangan: `Sample ${s.type} dibawa sales (pagi)`,
+    })
   }
 }
 
 /**
  * Simpan sample kembali saat laporan sore diselesaikan.
  * samples: [{ rokok_id, type: "cukai"|"biasa", qty_kembali }]
- *
- * Fungsi ini dipanggil di dalam transaction penyelesaian sesi.
  */
 export async function saveSesiSampleKembali(sesi_id, samples, tx = prisma) {
   if (!samples || samples.length === 0) return
 
   const valid = samples.filter((s) => s.rokok_id && Number(s.qty_kembali) >= 0)
   if (valid.length === 0) return
+
+  const sesi = await tx.sesiHarian.findUnique({ where: { id: sesi_id }, select: { tanggal: true } })
 
   for (const s of valid) {
     const qtyKembali = Number(s.qty_kembali)
@@ -62,25 +63,26 @@ export async function saveSesiSampleKembali(sesi_id, samples, tx = prisma) {
 
     const oldKembali = existing.qty_kembali
     const delta = qtyKembali - oldKembali
+    const stock_type = s.type === "cukai" ? "sample_cukai" : "sample_biasa"
 
     await tx.sesiSample.update({
       where: { sesi_id_rokok_id_type: { sesi_id, rokok_id: s.rokok_id, type: s.type } },
       data: { qty_kembali: qtyKembali },
     })
 
-    // Update cache stok sample berdasarkan delta
+    // Record mutation (IN or OUT based on delta)
     if (delta !== 0) {
-      if (s.type === "cukai") {
-        await tx.rokok.update({
-          where: { id: s.rokok_id },
-          data: { stok_sample_cukai: delta > 0 ? { increment: delta } : { decrement: Math.abs(delta) } },
-        })
-      } else {
-        await tx.rokok.update({
-          where: { id: s.rokok_id },
-          data: { stok_sample_biasa: delta > 0 ? { increment: delta } : { decrement: Math.abs(delta) } },
-        })
-      }
+      await mutateStock({
+        tx,
+        rokok_id: s.rokok_id,
+        tanggal: sesi?.tanggal || new Date(),
+        jenis: delta > 0 ? "in" : "out",
+        qty: Math.abs(delta),
+        source: delta > 0 ? "retur_sales" : MUTATION_SOURCE.DISTRIBUSI,
+        stock_type,
+        reference_id: sesi_id,
+        keterangan: delta > 0 ? `Sample ${s.type} kembali dari sales` : `Koreksi sample ${s.type} (dibawa tambahan)`,
+      })
     }
   }
 }
@@ -105,24 +107,27 @@ export async function getSesiSample(sesi_id) {
 
 /**
  * Batalkan semua sample keluar untuk sesi (dipakai saat sesi dihapus).
- * Harus dipanggil di dalam transaction sebelum sesi didelete.
  */
 export async function revertSesiSampleKeluar(sesi_id, tx = prisma) {
   const samples = await tx.sesiSample.findMany({ where: { sesi_id } })
+  const sesi = await tx.sesiHarian.findUnique({ where: { id: sesi_id }, select: { tanggal: true } })
+
   for (const s of samples) {
     const net = s.qty_keluar - s.qty_kembali
     if (net > 0) {
-      if (s.type === "cukai") {
-        await tx.rokok.update({
-          where: { id: s.rokok_id },
-          data: { stok_sample_cukai: { increment: net } },
-        })
-      } else {
-        await tx.rokok.update({
-          where: { id: s.rokok_id },
-          data: { stok_sample_biasa: { increment: net } },
-        })
-      }
+      const stock_type = s.type === "cukai" ? "sample_cukai" : "sample_biasa"
+      await mutateStock({
+        tx,
+        rokok_id: s.rokok_id,
+        tanggal: sesi?.tanggal || new Date(),
+        jenis: "in",
+        qty: net,
+        source: MUTATION_SOURCE.REVERT,
+        stock_type,
+        reference_id: sesi_id,
+        keterangan: `Revert sample ${s.type} (sesi dihapus/diedit)`,
+        allowNegative: true,
+      })
     }
   }
 }

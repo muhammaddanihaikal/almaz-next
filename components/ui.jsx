@@ -237,13 +237,13 @@ export function Field({ label, children, className }) {
   )
 }
 
-export function FormActions({ onCancel, disabled, submitLabel, loading }) {
+export function FormActions({ onCancel, disabled, submitLabel, loading, variant = "primary", className = "" }) {
   return (
-    <div className="flex items-center justify-end gap-2 pt-2">
+    <div className={`flex items-center justify-end gap-2 pt-2 ${className}`}>
       <Button variant="secondary" onClick={onCancel} disabled={loading}>
         Batal
       </Button>
-      <Button type="submit" disabled={disabled} loading={loading}>
+      <Button type="submit" disabled={disabled} loading={loading} variant={variant}>
         {loading ? "Menyimpan..." : submitLabel}
       </Button>
     </div>

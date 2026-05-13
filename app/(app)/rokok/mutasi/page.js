@@ -11,8 +11,17 @@ export default async function Page({ searchParams }) {
   const start = params.start || today
   const end   = params.end || today
   const preset = params.preset || "hari_ini"
+  const stockType = params.stock_type || "utama"
 
-  const data = await getMutasiStok(start, end)
+  const data = await getMutasiStok(start, end, stockType)
 
-  return <MutasiStokPage initialData={data} startDate={start} endDate={end} initialPreset={preset} />
+  return (
+    <MutasiStokPage 
+      initialData={data} 
+      startDate={start} 
+      endDate={end} 
+      initialPreset={preset} 
+      initialStockType={stockType}
+    />
+  )
 }
