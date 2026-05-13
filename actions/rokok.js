@@ -235,34 +235,39 @@ export async function tambahStok(id, qty, date, keterangan) {
     userId = u?.id
   }
 
+  const isOut = qty < 0
+  const absQty = Math.abs(qty)
+  const jenis = isOut ? 'out' : 'in'
+  const defaultKet = isOut ? "Pengurangan Stok" : "Stok Masuk"
+
   await prisma.$transaction(async (tx) => {
     const rokok = await tx.rokok.findUnique({ where: { id }, select: { nama: true } })
     const sm = await tx.stokMasuk.create({
       data: {
         rokok_id: id,
-        qty:      qty,
+        qty:      qty, // simpan sesuai tanda (+/-) di history stok masuk
         tanggal:  new Date(date),
-        keterangan: keterangan || "Stok Masuk",
+        keterangan: keterangan || defaultKet,
       },
     })
     await mutateStock({
       tx,
       rokok_id: id,
       tanggal: new Date(date),
-      jenis: 'in',
-      qty: qty,
+      jenis,
+      qty: absQty,
       source: MUTATION_SOURCE.SUPPLIER,
       reference_id: sm.id,
-      keterangan: keterangan || "Stok Masuk dari Supplier",
+      keterangan: keterangan || (isOut ? "Pengurangan Stok / Retur ke Supplier" : "Stok Masuk dari Supplier"),
       user_id: userId || null,
     })
     await logAudit({
       tx,
       entity_type: AUDIT_ENTITY.ROKOK,
-      change_type: "Tambah Stok",
+      change_type: isOut ? "Kurangi Stok" : "Tambah Stok",
       entity_id:   id,
       action:      AUDIT_ACTION.UPDATE,
-      new_values:  { rokok: rokok?.nama, qty, tanggal: date, keterangan: keterangan || "Stok Masuk" },
+      new_values:  { rokok: rokok?.nama, qty, tanggal: date, keterangan: keterangan || defaultKet },
       user_id:     userId,
       user_name:   session?.user?.name,
     })
@@ -316,15 +321,26 @@ export async function getUsedRokokIds() {
   return rows.map((r) => r.rokok_id)
 }
 
-export async function getMutasiStok(startDate, endDate) {
+export async function getMutasiStok(startDate, endDate, stockType = "utama") {
   const start = new Date(startDate)
   const end   = new Date(endDate)
 
   const rokokList = await prisma.rokok.findMany({ orderBy: { urutan: "asc" } })
 
+  // Define stock_type filter based on selection
+  let typeFilter = {}
+  if (stockType === "jual") typeFilter = { stock_type: "jual" }
+  else if (stockType === "sample_cukai") typeFilter = { stock_type: "sample_cukai" }
+  else if (stockType === "sample_biasa") typeFilter = { stock_type: "sample_biasa" }
+  else if (stockType === "utama") typeFilter = { stock_type: { in: ["jual", "sample_cukai"] } }
+  // "semua" or null -> no filter
+
   const preMutations = await prisma.stockMutation.groupBy({
     by: ["rokok_id", "jenis"],
-    where: { tanggal: { lt: start } },
+    where: { 
+      tanggal: { lt: start },
+      ...typeFilter
+    },
     _sum: { qty: true }
   })
 
@@ -336,7 +352,10 @@ export async function getMutasiStok(startDate, endDate) {
   }
 
   const inRangeMutations = await prisma.stockMutation.findMany({
-    where: { tanggal: { gte: start, lte: end } },
+    where: { 
+      tanggal: { gte: start, lte: end },
+      ...typeFilter
+    },
     include: {
       user: { select: { name: true, username: true } },
       rokok: { select: { nama: true } }
@@ -358,10 +377,6 @@ export async function getMutasiStok(startDate, endDate) {
       const totalMasuk = todayMuts.filter(m => m.jenis === 'in').reduce((s, m) => s + m.qty, 0)
       const totalKeluar = todayMuts.filter(m => m.jenis === 'out').reduce((s, m) => s + m.qty, 0)
 
-      const detail_masuk = todayMuts.filter(m => m.jenis === 'in' && m.source === 'supplier').reduce((s, m) => s + m.qty, 0)
-      const detail_kembali = todayMuts.filter(m => m.jenis === 'in' && m.source === 'retur_sales').reduce((s, m) => s + m.qty, 0)
-      const detail_retur = todayMuts.filter(m => m.jenis === 'in' && m.source === 'retur').reduce((s, m) => s + m.qty, 0)
-
       const awal = currentBalances[r.id]
       const akhir = awal + totalMasuk - totalKeluar
 
@@ -373,9 +388,8 @@ export async function getMutasiStok(startDate, endDate) {
           masuk:    totalMasuk,
           keluar:   totalKeluar,
           akhir,
-          detail_masuk,
-          detail_kembali,
-          detail_retur,
+          detail_masuk: todayMuts.filter(m => m.jenis === 'in' && m.source === MUTATION_SOURCE.SUPPLIER).reduce((s, m) => s + m.qty, 0),
+          detail_kembali: todayMuts.filter(m => m.jenis === 'in' && m.source === MUTATION_SOURCE.RETUR_SALES).reduce((s, m) => s + m.qty, 0),
           details: todayMuts.map(m => ({
             ...m,
             user_name: m.user?.name || m.user?.username || "Sistem"
@@ -467,24 +481,33 @@ export async function tambahStokSampleBiasa(rokok_id, qty, date, keterangan) {
   }
 
   const qtyNum = Number(qty)
-  if (!qtyNum || qtyNum <= 0) throw new Error("Qty harus lebih dari 0.")
+  if (!qtyNum) throw new Error("Qty tidak valid.")
+  
+  const isOut = qtyNum < 0
+  const absQty = Math.abs(qtyNum)
+  const jenis = isOut ? 'out' : 'in'
+  const defaultKet = isOut ? "Pengurangan Sample Biasa" : "Tambah Sample Biasa"
 
   await prisma.$transaction(async (tx) => {
     const rokok = await tx.rokok.findUnique({ where: { id: rokok_id }, select: { nama: true } })
-    await tx.stokMasuk.create({
-      data: { rokok_id, qty: qtyNum, tanggal: new Date(date), jenis: "sample_biasa", keterangan: keterangan || null },
-    })
-    await tx.rokok.update({
-      where: { id: rokok_id },
-      data: { stok_sample_biasa: { increment: qtyNum } },
+    await mutateStock({
+      tx,
+      rokok_id,
+      tanggal:    date,
+      jenis,
+      qty:        absQty,
+      source:     isOut ? "sample_biasa_keluar" : "sample_biasa_masuk",
+      stock_type: "sample_biasa",
+      keterangan: keterangan || defaultKet,
+      user_id:    userId || null,
     })
     await logAudit({
       tx,
       entity_type: AUDIT_ENTITY.ROKOK,
-      change_type: "Tambah Stok Sample Biasa",
+      change_type: isOut ? "Kurangi Sample Biasa" : "Tambah Sample Biasa",
       entity_id:   rokok_id,
       action:      AUDIT_ACTION.UPDATE,
-      new_values:  { rokok: rokok?.nama, qty: qtyNum, tanggal: date, keterangan },
+      new_values:  { rokok: rokok?.nama, qty: qtyNum, tanggal: date, keterangan: keterangan || defaultKet },
       user_id:     userId,
       user_name:   session?.user?.name,
     })
@@ -492,7 +515,7 @@ export async function tambahStokSampleBiasa(rokok_id, qty, date, keterangan) {
   revalidatePath("/rokok")
 }
 
-export async function konversiKeSampleCukai(rokok_id, qty, catatan) {
+export async function pindahStokSampleCukai(rokok_id, qty, direction, catatan, date) {
   const session = await auth()
   let userId = session?.user?.id
   if (!userId && session?.user?.name) {
@@ -504,40 +527,114 @@ export async function konversiKeSampleCukai(rokok_id, qty, catatan) {
 
   const qtyNum = Number(qty)
   if (!qtyNum || qtyNum <= 0) throw new Error("Qty harus lebih dari 0.")
-  const today = new Date().toISOString().split("T")[0]
+  const targetDate = date ? new Date(date).toISOString().split("T")[0] : new Date().toISOString().split("T")[0]
+
+  const fromPool = direction === "to_sample" ? "stok" : "stok_sample_cukai"
+  const toPool = direction === "to_sample" ? "stok_sample_cukai" : "stok"
 
   await prisma.$transaction(async (tx) => {
     const rokok = await tx.rokok.findUnique({
       where: { id: rokok_id },
-      select: { nama: true, stok: true }
+      select: { nama: true, [fromPool]: true }
     })
     if (!rokok) throw new Error("Rokok tidak ditemukan.")
-    if (rokok.stok < qtyNum) throw new Error(`Stok tidak mencukupi. Stok saat ini: ${rokok.stok}.`)
+    if (rokok[fromPool] < qtyNum) {
+      const poolName = direction === "to_sample" ? "Stok Jual" : "Sample Cukai"
+      throw new Error(`Stok ${poolName} tidak mencukupi. Stok saat ini: ${rokok[fromPool]}.`)
+    }
+
+    // 1. Kurangi dari asal
+    await mutateStock({
+      tx,
+      rokok_id,
+      tanggal:    targetDate,
+      jenis:      "out",
+      qty:        qtyNum,
+      source:     MUTATION_SOURCE.SAMPLE_CUKAI_KONVERSI,
+      stock_type: direction === "to_sample" ? "jual" : "sample_cukai",
+      keterangan: catatan || (direction === "to_sample" ? "Pindah ke sample cukai" : "Kembalikan ke stok jual"),
+      user_id:    userId || null,
+    })
+
+    // 2. Tambah ke tujuan
+    await mutateStock({
+      tx,
+      rokok_id,
+      tanggal:    targetDate,
+      jenis:      "in",
+      qty:        qtyNum,
+      source:     MUTATION_SOURCE.SAMPLE_CUKAI_KONVERSI,
+      stock_type: direction === "to_sample" ? "sample_cukai" : "jual",
+      keterangan: catatan || (direction === "to_sample" ? "Terima dari stok jual" : "Kembali dari sample cukai"),
+      user_id:    userId || null,
+    })
+
+    if (direction === "to_sample") {
+      await tx.sampleCukaiKonversi.create({
+        data: { rokok_id, qty: qtyNum, tanggal: new Date(targetDate), catatan: catatan || null },
+      })
+    }
+
+    await logAudit({
+      tx,
+      entity_type: AUDIT_ENTITY.ROKOK,
+      change_type: direction === "to_sample" ? "Pindah ke Sample Cukai" : "Pindah ke Stok Jual",
+      entity_id:   rokok_id,
+      action:      AUDIT_ACTION.UPDATE,
+      new_values:  { rokok: rokok?.nama, qty: qtyNum, direction, catatan },
+      user_id:     userId,
+      user_name:   session?.user?.name,
+    })
+  })
+  revalidatePath("/rokok")
+}
+
+export async function konversiKeSampleCukai(rokok_id, qty, catatan) {
+  return pindahStokSampleCukai(rokok_id, qty, "to_sample", catatan)
+}
+
+export async function tambahStokSampleCukai(rokok_id, qty, date, keterangan) {
+  const session = await auth()
+  let userId = session?.user?.id
+  if (!userId && session?.user?.name) {
+    const u = await prisma.user.findFirst({
+      where: { OR: [{ name: session.user.name }, { username: session.user.name }] }
+    })
+    userId = u?.id
+  }
+
+  const qtyNum = Number(qty)
+  if (!qtyNum) throw new Error("Qty tidak boleh nol.")
+  
+  const isOut = qtyNum < 0
+  const absQty = Math.abs(qtyNum)
+  const defaultKet = isOut ? "Pengurangan Stok Sample Cukai" : "Penerimaan Sample Cukai"
+
+  await prisma.$transaction(async (tx) => {
+    const rokok = await tx.rokok.findUnique({
+      where: { id: rokok_id },
+      select: { nama: true }
+    })
+    if (!rokok) throw new Error("Rokok tidak ditemukan.")
 
     await mutateStock({
       tx,
       rokok_id,
-      tanggal:    today,
-      jenis:      "out",
-      qty:        qtyNum,
-      source:     MUTATION_SOURCE.SAMPLE_CUKAI_KONVERSI,
-      keterangan: catatan || "Konversi ke stok sample cukai",
+      tanggal:    date,
+      jenis:      isOut ? "out" : "in",
+      qty:        absQty,
+      source:     MUTATION_SOURCE.KOREKSI,
+      stock_type: "sample_cukai",
+      keterangan: keterangan || defaultKet,
       user_id:    userId || null,
-    })
-    await tx.rokok.update({
-      where: { id: rokok_id },
-      data: { stok_sample_cukai: { increment: qtyNum } },
-    })
-    await tx.sampleCukaiKonversi.create({
-      data: { rokok_id, qty: qtyNum, tanggal: new Date(today), catatan: catatan || null },
     })
     await logAudit({
       tx,
       entity_type: AUDIT_ENTITY.ROKOK,
-      change_type: "Konversi ke Sample Cukai",
+      change_type: isOut ? "Kurangi Sample Cukai" : "Tambah Sample Cukai",
       entity_id:   rokok_id,
       action:      AUDIT_ACTION.UPDATE,
-      new_values:  { rokok: rokok?.nama, qty: qtyNum, catatan },
+      new_values:  { rokok: rokok?.nama, qty: qtyNum, tanggal: date, keterangan: keterangan || defaultKet },
       user_id:     userId,
       user_name:   session?.user?.name,
     })

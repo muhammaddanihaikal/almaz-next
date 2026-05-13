@@ -7,13 +7,14 @@ import { fmtIDR } from "@/lib/utils"
 import { Card, PageHeader, Field, Button, IconButton, DateFilter, inputCls } from "@/components/ui"
 import { useLoading } from "@/components/LoadingProvider"
 
-export default function MutasiStokPage({ initialData, startDate, endDate, initialPreset }) {
+export default function MutasiStokPage({ initialData, startDate, endDate, initialPreset, initialStockType }) {
   const pathname = usePathname()
   const { isPending, navigate } = useLoading()
   const [filter, setFilter] = useState({
     preset: initialPreset || "hari_ini",
     start: startDate,
-    end: endDate
+    end: endDate,
+    stock_type: initialStockType || "utama"
   })
   const [expandedDate, setExpandedDate] = useState(initialData[0]?.tanggal || null)
   const [expandedRokok, setExpandedRokok] = useState([]) // Array of "tanggal-rokok_id"
@@ -72,6 +73,12 @@ export default function MutasiStokPage({ initialData, startDate, endDate, initia
     )
   }
 
+  const handleFilterChange = (newVal) => {
+    const updated = { ...filter, ...newVal }
+    setFilter(updated)
+    navigate(`/rokok/mutasi?start=${updated.start}&end=${updated.end}&preset=${updated.preset}&stock_type=${updated.stock_type}`)
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2 -mb-2">
@@ -90,12 +97,22 @@ export default function MutasiStokPage({ initialData, startDate, endDate, initia
         subtitle="Riwayat pergerakan barang (In/Out) per hari."
         action={
           <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-neutral-400 uppercase tracking-wider">Tipe:</span>
+              <select 
+                value={filter.stock_type}
+                onChange={(e) => handleFilterChange({ stock_type: e.target.value })}
+                className={inputCls + " !py-1.5 !text-xs min-w-[140px]"}
+              >
+                <option value="utama">Stok Utama</option>
+                <option value="jual">Stok Jual</option>
+                <option value="sample_cukai">Sample Cukai</option>
+                <option value="sample_biasa">Sample Biasa</option>
+              </select>
+            </div>
             <DateFilter 
               value={filter} 
-              onChange={(val) => {
-                setFilter(val)
-                navigate(`/rokok/mutasi?start=${val.start}&end=${val.end}&preset=${val.preset}`)
-              }} 
+              onChange={handleFilterChange} 
             />
           </div>
         }

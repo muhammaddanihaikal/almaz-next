@@ -4,6 +4,8 @@ node_modules/
 .env.local
 .env.local.backup
 .env.local.neon.bak
+.env.staging
+.env.production
 dist/
 build/
 *.log

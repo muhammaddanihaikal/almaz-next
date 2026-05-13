@@ -3,12 +3,12 @@
 import { useMemo, useState, useEffect, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import {
-  Plus, GripVertical, Save, X, MoveVertical, RotateCcw, ChevronDown,
+  Plus, Minus, GripVertical, Save, X, MoveVertical, RotateCcw, RefreshCcw, ChevronDown,
   ChevronRight, Info, Package, TrendingUp, ShoppingCart, Store, Users,
   CheckCircle, AlertCircle, Eye, Tag, Banknote
 } from "lucide-react"
 import { fmtIDR } from "@/lib/utils"
-import { addRokok, updateRokok, deleteRokok, toggleAktifRokok, tambahStok, updateRokokOrder, tambahStokSampleBiasa, konversiKeSampleCukai } from "@/actions/rokok"
+import { addRokok, updateRokok, deleteRokok, toggleAktifRokok, tambahStok, updateRokokOrder, tambahStokSampleBiasa, pindahStokSampleCukai } from "@/actions/rokok"
 import { Card, PageHeader, PrimaryButton, IconButton, RowActions, Field, FormActions, Toggle, inputCls, useConfirm, useConfirmWithReason, Button, MoneyInput } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
@@ -281,7 +281,7 @@ export default function RokokPage({ role, rokokList, usedIds, mutasiHariIni = []
                     {role !== "staff" && r.aktif !== false && (
                       <button
                         onClick={() => setKonversiTarget(r)}
-                        title="Konversi dari stok rokok ke sample cukai"
+                        title="Kelola stok sample cukai"
                         className="inline-flex h-5 w-5 items-center justify-center rounded border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 transition"
                       >
                         <Plus className="h-3 w-3" />
@@ -371,9 +371,11 @@ export default function RokokPage({ role, rokokList, usedIds, mutasiHariIni = []
                     </div>
                   ) : (
                     <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                      <span className={`text-xs font-semibold tabular-nums ${r.aktif === false ? "text-neutral-400" : (r.stok ?? 0) < 50 ? "text-red-600" : (r.stok ?? 0) < 150 ? "text-amber-500" : "text-green-600"}`}>
-                        Stok: {r.stok ?? 0}
+                      <span className={`text-xs font-semibold tabular-nums ${r.aktif === false ? "text-neutral-400" : ((r.stok ?? 0) + (r.stok_sample_cukai ?? 0)) < 50 ? "text-red-600" : ((r.stok ?? 0) + (r.stok_sample_cukai ?? 0)) < 150 ? "text-amber-500" : "text-green-600"}`}>
+                        Total: {(r.stok ?? 0) + (r.stok_sample_cukai ?? 0)}
                       </span>
+                      <div className="h-3 w-px bg-neutral-200" />
+                      <span className="text-[10px] font-medium text-neutral-500 tabular-nums">Jual: {r.stok ?? 0}</span>
                       {role !== "staff" && r.aktif !== false && (
                         <IconButton
                           onClick={() => setStokTarget(r)}
@@ -480,32 +482,26 @@ export default function RokokPage({ role, rokokList, usedIds, mutasiHariIni = []
           />
         </Modal>
       )}
-      {/* Modal Konversi ke Sample Cukai */}
+      {/* Modal Kelola Stok Sample Cukai */}
       {konversiTarget && (
-        <Modal title={`Konversi ke Sample Cukai — ${konversiTarget.nama}`} onClose={() => setKonversiTarget(null)} width="max-w-sm">
-          <KonversiSampleForm
+        <Modal title={`Kelola Stok Sample Cukai — ${konversiTarget.nama}`} onClose={() => setKonversiTarget(null)} width="max-w-sm">
+          <SampleCukaiManagement
             rokok={konversiTarget}
-            onSubmit={async (qty, catatan) => {
-              const captured = konversiTarget
-              upsertLocal({ ...captured, stok: (captured.stok ?? 0) - qty, stok_sample_cukai: (captured.stok_sample_cukai ?? 0) + qty, _pending: true })
-              setKonversiTarget(null)
-              konversiKeSampleCukai(captured.id, qty, catatan)
-                .then(() => router.refresh())
-                .catch(async (error) => {
-                  upsertLocal({ ...captured, _pending: false })
-                  await confirm(error?.message || "Gagal konversi.", { title: "Gagal Konversi", hideCancel: true })
-                })
-            }}
-            onCancel={() => setKonversiTarget(null)}
+            onClose={() => setKonversiTarget(null)}
+            upsertLocal={upsertLocal}
+            confirm={confirm}
+            router={router}
           />
         </Modal>
       )}
+
 
       {/* Modal Tambah Stok Sample Biasa */}
       {sampleBiasaTarget && (
         <Modal title={`Tambah Stok Sample Biasa — ${sampleBiasaTarget.nama}`} onClose={() => setSampleBiasaTarget(null)} width="max-w-sm">
           <TambahStokForm
             rokok={sampleBiasaTarget}
+            isSampleBiasa={true}
             onSubmit={async (qty, date, ket) => {
               const captured = sampleBiasaTarget
               upsertLocal({ ...captured, stok_sample_biasa: (captured.stok_sample_biasa ?? 0) + qty, _pending: true })
@@ -642,14 +638,16 @@ function SortableRow({ r }) {
 
 // ─── Form Tambah Stok ─────────────────────────────────────────────────────────
 
-function TambahStokForm({ rokok, onSubmit, onCancel }) {
-  const [slop, setSlop]     = useState("")
+function TambahStokForm({ rokok, isSampleBiasa = false, isSampleCukai = false, onSubmit, onCancel, initialMode = "in" }) {
+  const [mode, setMode]       = useState(initialMode) // "in" or "out"
+  const [slop, setSlop]       = useState("")
   const [bungkus, setBungkus] = useState("")
   const [tanggal, setTanggal] = useState(new Date().toISOString().split("T")[0])
   const [keterangan, setKeterangan] = useState("")
 
-  const totalBungkus = (Number(slop) || 0) * 10 + (Number(bungkus) || 0)
-  const valid = totalBungkus > 0
+  const baseQty = (Number(slop) || 0) * 10 + (Number(bungkus) || 0)
+  const totalBungkus = mode === "out" ? -baseQty : baseQty
+  const valid = baseQty > 0
 
   const [loading, setLoading] = useState(false)
   const submit = async (e) => {
@@ -663,8 +661,41 @@ function TambahStokForm({ rokok, onSubmit, onCancel }) {
     }
   }
 
+  const isOut = mode === "out"
+  const themeCls = isOut 
+    ? "border-rose-200 bg-rose-50/50 text-rose-600 focus:border-rose-500 focus:ring-rose-500/10" 
+    : "border-emerald-200 bg-emerald-50/50 text-emerald-600 focus:border-emerald-500 focus:ring-emerald-500/10"
+
   return (
-    <form onSubmit={submit} className="space-y-3.5">
+    <form onSubmit={submit} className="space-y-4">
+      {/* TOGGLE MODE */}
+      <div className="flex p-1 bg-neutral-100 rounded-xl">
+        <button
+          type="button"
+          onClick={() => setMode("in")}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${
+            mode === "in" 
+              ? "bg-white text-emerald-600 shadow-sm border border-neutral-200" 
+              : "text-neutral-400 hover:text-neutral-600"
+          }`}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          TAMBAH (+)
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("out")}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold rounded-lg transition-all ${
+            mode === "out" 
+              ? "bg-white text-rose-600 shadow-sm border border-neutral-200" 
+              : "text-neutral-400 hover:text-neutral-600"
+          }`}
+        >
+          <Minus className="h-3.5 w-3.5" />
+          KURANGI (-)
+        </button>
+      </div>
+
       {/* SECTION 1: INFORMASI STOK */}
       <section className="space-y-2">
         <div className="flex items-center gap-2 px-1">
@@ -677,14 +708,23 @@ function TambahStokForm({ rokok, onSubmit, onCancel }) {
               <Package className="h-3 w-3 text-neutral-400" />
               <span className="text-[9px] font-bold uppercase tracking-wider text-neutral-400">Stok Saat Ini</span>
             </div>
-            <p className="text-lg font-bold tabular-nums text-neutral-900">{rokok.stok ?? 0} <span className="text-[10px] font-normal text-neutral-500 uppercase">Bks</span></p>
+            <p className="text-lg font-bold tabular-nums text-neutral-900">
+              {isSampleBiasa ? (rokok.stok_sample_biasa ?? 0) : 
+               isSampleCukai ? (rokok.stok_sample_cukai ?? 0) : 
+               (rokok.stok ?? 0)} 
+              <span className="text-[10px] font-normal text-neutral-500 uppercase ml-1">Bks</span>
+            </p>
           </div>
-          <div className="rounded-xl border border-emerald-100 bg-emerald-50/30 p-2.5">
+          <div className={`rounded-xl border p-2.5 transition-colors ${isOut ? "border-rose-100 bg-rose-50/30" : "border-emerald-100 bg-emerald-50/30"}`}>
             <div className="flex items-center gap-1.5 mb-0.5">
-              <Plus className="h-3 w-3 text-emerald-500" />
-              <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-500">Tambahan</span>
+              {isOut ? <Minus className="h-3 w-3 text-rose-500" /> : <Plus className="h-3 w-3 text-emerald-500" />}
+              <span className={`text-[9px] font-bold uppercase tracking-wider ${isOut ? "text-rose-500" : "text-emerald-500"}`}>
+                {isOut ? "Pengurangan" : "Tambahan"}
+              </span>
             </div>
-            <p className="text-lg font-bold tabular-nums text-emerald-600">+{totalBungkus} <span className="text-[10px] font-normal text-neutral-500 uppercase">Bks</span></p>
+            <p className={`text-lg font-bold tabular-nums ${isOut ? "text-rose-600" : "text-emerald-600"}`}>
+              {isOut ? "-" : "+"}{baseQty} <span className="text-[10px] font-normal text-neutral-500 uppercase">Bks</span>
+            </p>
           </div>
         </div>
       </section>
@@ -692,7 +732,7 @@ function TambahStokForm({ rokok, onSubmit, onCancel }) {
       {/* SECTION 2: INPUT JUMLAH */}
       <section className="space-y-1.5">
         <div className="flex items-center gap-2 px-1">
-          <div className="h-3 w-1 bg-emerald-500 rounded-full" />
+          <div className={`h-3 w-1 rounded-full ${isOut ? "bg-rose-500" : "bg-emerald-500"}`} />
           <h4 className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Input Jumlah</h4>
         </div>
         <div className="pt-1">
@@ -701,27 +741,25 @@ function TambahStokForm({ rokok, onSubmit, onCancel }) {
               <div className="relative">
                 <input
                   type="number"
-                  min="0"
                   value={slop}
                   onChange={(e) => setSlop(e.target.value)}
                   placeholder="0"
-                  className={`${inputCls} pl-10 pr-4 text-lg font-semibold tabular-nums border-neutral-200 focus:border-emerald-500 focus:ring-emerald-500/10`}
+                  className={`${inputCls} pl-10 pr-4 text-lg font-semibold tabular-nums ${themeCls}`}
                   autoFocus
                 />
-                <Package className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+                <Package className={`absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 ${isOut ? "text-rose-400" : "text-emerald-400"}`} />
               </div>
             </Field>
             <Field label="Bungkus">
               <div className="relative">
                 <input
                   type="number"
-                  min="0"
                   value={bungkus}
                   onChange={(e) => setBungkus(e.target.value)}
                   placeholder="0"
-                  className={`${inputCls} pl-10 pr-4 text-lg font-semibold tabular-nums border-neutral-200 focus:border-emerald-500 focus:ring-emerald-500/10`}
+                  className={`${inputCls} pl-10 pr-4 text-lg font-semibold tabular-nums ${themeCls}`}
                 />
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 rounded bg-neutral-100 flex items-center justify-center text-[10px] font-bold text-neutral-500 uppercase">
+                <div className={`absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 rounded flex items-center justify-center text-[10px] font-bold uppercase ${isOut ? "bg-rose-100 text-rose-500" : "bg-emerald-100 text-emerald-500"}`}>
                   B
                 </div>
               </div>
@@ -760,25 +798,31 @@ function TambahStokForm({ rokok, onSubmit, onCancel }) {
 
       {/* SECTION 4: KONFIRMASI */}
       <div className="pt-1">
-        <div className="rounded-xl border-2 border-emerald-500/10 bg-emerald-500/5 p-2.5 flex items-center justify-between border-dashed">
+        <div className={`rounded-xl border-2 p-2.5 flex items-center justify-between border-dashed transition-colors ${isOut ? "border-rose-500/20 bg-rose-500/5" : "border-emerald-500/10 bg-emerald-500/5"}`}>
           <div className="flex items-center gap-2.5">
-            <div className="p-1.5 rounded-lg bg-emerald-500 text-white shadow-sm">
-              <CheckCircle className="h-4 w-4" />
+            <div className={`p-1.5 rounded-lg text-white shadow-sm transition-colors ${isOut ? "bg-rose-500" : "bg-emerald-500"}`}>
+              {isOut ? <Minus className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}
             </div>
-            <div>
-              <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-600/70 leading-none mb-1">Stok Akhir</p>
-              <p className="text-[10px] font-medium text-neutral-500 italic leading-none">Estimasi total</p>
+            <div className="text-right">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-400 mb-1">Estimasi Stok Akhir</p>
+              <p className={`text-xl font-black tabular-nums transition-colors ${isOut ? "text-rose-700" : "text-emerald-700"}`}>
+                {(isSampleBiasa ? (rokok.stok_sample_biasa ?? 0) : 
+                  isSampleCukai ? (rokok.stok_sample_cukai ?? 0) : 
+                  (rokok.stok ?? 0)) + totalBungkus}
+              </p>
             </div>
-          </div>
-          <div className="text-right leading-none">
-            <p className="text-xl font-black tabular-nums text-emerald-700">{(rokok.stok ?? 0) + totalBungkus}</p>
-            <p className="text-[8px] font-bold text-emerald-600 tracking-wider">BUNGKUS</p>
           </div>
         </div>
       </div>
 
       <div className="pt-1">
-        <FormActions onCancel={onCancel} disabled={!valid} loading={loading} submitLabel="Simpan Stok" />
+        <FormActions 
+          onCancel={onCancel} 
+          disabled={!valid} 
+          loading={loading} 
+          submitLabel={isOut ? "Simpan Pengurangan" : "Simpan Tambahan"} 
+          variant={isOut ? "danger" : "primary"}
+        />
       </div>
     </form>
   )
@@ -787,13 +831,68 @@ function TambahStokForm({ rokok, onSubmit, onCancel }) {
 
 // ─── Form Konversi ke Sample Cukai ───────────────────────────────────────────
 
-function KonversiSampleForm({ rokok, onSubmit, onCancel }) {
+function SampleCukaiManagement({ rokok, onClose, upsertLocal, confirm, router }) {
+  const [tab, setTab] = useState("to_sample") // "to_sample" | "to_jual"
+
+  const handleTransfer = async (qty, direction, catatan) => {
+    const captured = rokok
+    const newStok = direction === "to_sample" ? (captured.stok ?? 0) - qty : (captured.stok ?? 0) + qty
+    const newSample = direction === "to_sample" ? (captured.stok_sample_cukai ?? 0) + qty : (captured.stok_sample_cukai ?? 0) - qty
+    
+    upsertLocal({ ...captured, stok: newStok, stok_sample_cukai: newSample, _pending: true })
+    onClose()
+    
+    pindahStokSampleCukai(captured.id, qty, direction, catatan)
+      .then(() => router.refresh())
+      .catch(async (error) => {
+        upsertLocal({ ...captured, _pending: false })
+        await confirm(error?.message || "Gagal memindahkan stok.", { title: "Gagal Pindah", hideCancel: true })
+      })
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex p-1 bg-neutral-100 rounded-xl">
+        <button
+          onClick={() => setTab("to_sample")}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${
+            tab === "to_sample" ? "bg-white text-orange-600 shadow-sm border border-neutral-200" : "text-neutral-400 hover:text-neutral-600"
+          }`}
+        >
+          <RefreshCcw className="h-3.5 w-3.5" />
+          Ke Sample
+        </button>
+        <button
+          onClick={() => setTab("to_jual")}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${
+            tab === "to_jual" ? "bg-white text-blue-600 shadow-sm border border-neutral-200" : "text-neutral-400 hover:text-neutral-600"
+          }`}
+        >
+          <RotateCcw className="h-3.5 w-3.5" />
+          Ke Stok Jual
+        </button>
+      </div>
+
+      <TransferSampleForm
+        rokok={rokok}
+        direction={tab}
+        onCancel={onClose}
+        onSubmit={(qty, catatan) => handleTransfer(qty, tab, catatan)}
+      />
+    </div>
+  )
+}
+
+
+function TransferSampleForm({ rokok, direction, onSubmit, onCancel }) {
   const [qty,      setQty]     = useState("")
   const [catatan,  setCatatan] = useState("")
   const [loading,  setLoading] = useState(false)
 
-  const qtyNum = Number(qty) || 0
-  const valid  = qtyNum > 0 && qtyNum <= (rokok.stok ?? 0)
+  const isToSample = direction === "to_sample"
+  const maxQty     = isToSample ? (rokok.stok ?? 0) : (rokok.stok_sample_cukai ?? 0)
+  const qtyNum     = Number(qty) || 0
+  const valid      = qtyNum > 0 && qtyNum <= maxQty
 
   const submit = async (e) => {
     e.preventDefault()
@@ -806,33 +905,41 @@ function KonversiSampleForm({ rokok, onSubmit, onCancel }) {
   return (
     <form onSubmit={submit} className="space-y-4">
       <div className="grid grid-cols-3 gap-2 text-center text-xs">
-        <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-2.5">
-          <p className="text-[9px] font-bold uppercase tracking-wider text-neutral-400 mb-1">Stok Jual</p>
-          <p className="text-lg font-bold tabular-nums text-neutral-700">{rokok.stok ?? 0}</p>
+        <div className={`rounded-xl border p-2.5 transition-colors ${!isToSample ? "border-blue-200 bg-blue-50/50" : "border-neutral-200 bg-neutral-50"}`}>
+          <p className={`text-[9px] font-bold uppercase tracking-wider mb-1 ${!isToSample ? "text-blue-500" : "text-neutral-400"}`}>Stok Jual</p>
+          <p className={`text-lg font-bold tabular-nums ${!isToSample ? "text-blue-700" : "text-neutral-700"}`}>{rokok.stok ?? 0}</p>
         </div>
-        <div className="rounded-xl border border-orange-100 bg-orange-50 p-2.5">
-          <p className="text-[9px] font-bold uppercase tracking-wider text-orange-400 mb-1">Dikonversi</p>
-          <p className="text-lg font-bold tabular-nums text-orange-600">{qtyNum > 0 ? `-${qtyNum}` : "0"}</p>
+        <div className={`rounded-xl border p-2.5 transition-colors ${isToSample ? "border-orange-100 bg-orange-50" : "border-blue-100 bg-blue-50"}`}>
+          <p className={`text-[9px] font-bold uppercase tracking-wider mb-1 ${isToSample ? "text-orange-400" : "text-blue-400"}`}>{isToSample ? "Pindah Ke Sample" : "Kembali Ke Stok"}</p>
+          <p className={`text-lg font-bold tabular-nums ${isToSample ? "text-orange-600" : "text-blue-600"}`}>{qtyNum > 0 ? `-${qtyNum}` : "0"}</p>
         </div>
-        <div className="rounded-xl border border-orange-200 bg-orange-50/50 p-2.5">
-          <p className="text-[9px] font-bold uppercase tracking-wider text-orange-500 mb-1">Sample Cukai</p>
-          <p className="text-lg font-bold tabular-nums text-orange-700">{(rokok.stok_sample_cukai ?? 0) + qtyNum}</p>
+        <div className={`rounded-xl border p-2.5 transition-colors ${isToSample ? "border-orange-200 bg-orange-50/50" : "border-neutral-200 bg-neutral-50"}`}>
+          <p className={`text-[9px] font-bold uppercase tracking-wider mb-1 ${isToSample ? "text-orange-500" : "text-neutral-400"}`}>Sample Cukai</p>
+          <p className={`text-lg font-bold tabular-nums ${isToSample ? "text-orange-700" : "text-neutral-700"}`}>{rokok.stok_sample_cukai ?? 0}</p>
         </div>
       </div>
-      <Field label="Qty (bungkus)">
+      
+      <Field label={`Berapa yang ingin dikurangi dari ${isToSample ? 'Stok Jual' : 'Sample Cukai'}?`}>
         <input
-          type="number" min="1" max={rokok.stok ?? 0}
+          type="number" min="1" max={maxQty}
           value={qty} onChange={(e) => setQty(e.target.value)}
           placeholder="0" className={inputCls} autoFocus
         />
-        {qtyNum > (rokok.stok ?? 0) && (
-          <p className="mt-1 text-xs text-red-500">Melebihi stok jual ({rokok.stok ?? 0})</p>
+        {qtyNum > maxQty && (
+          <p className="mt-1 text-xs text-red-500">Melebihi stok yang tersedia ({maxQty})</p>
         )}
       </Field>
+
       <Field label="Catatan (opsional)">
         <input type="text" value={catatan} onChange={(e) => setCatatan(e.target.value)} placeholder="Opsional" className={inputCls} />
       </Field>
-      <FormActions onCancel={onCancel} disabled={!valid} loading={loading} submitLabel="Konversi" />
+
+      <FormActions 
+        onCancel={onCancel} 
+        disabled={!valid} 
+        loading={loading} 
+        submitLabel={isToSample ? "Pindahkan ke Sample" : "Kembalikan ke Stok"} 
+      />
     </form>
   )
 }
