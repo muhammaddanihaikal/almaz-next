@@ -7,9 +7,10 @@ import { auth } from "@/lib/auth"
 import { logAudit, AUDIT_ACTION, AUDIT_ENTITY } from "@/lib/audit"
 
 const include = {
-  sales: true,
-  toko:  true,
-  items: { include: { rokok: true } },
+  sales:   true,
+  toko:    true,
+  sesi:    { select: { tanggal: true } },
+  items:   { include: { rokok: true } },
   setoran: true,
 }
 
@@ -31,6 +32,7 @@ function serialize(k) {
     toko_id:             k.toko_id,
     nama_toko:           k.toko.nama,
     kategori:            k.kategori,
+    tanggal_distribusi:  k.sesi?.tanggal ? k.sesi.tanggal.toISOString().split("T")[0] : null,
     tanggal_jatuh_tempo: jatuhTempo,
     tanggal_selesai:     k.tanggal_selesai ? k.tanggal_selesai.toISOString().split("T")[0] : null,
     status:              k.status,
@@ -647,21 +649,20 @@ export async function partialSettleTitipJual(id, data) {
 }
 
 export async function getTitipJualNotificationCounts() {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-
-  const tomorrow = new Date(today)
-  tomorrow.setDate(tomorrow.getDate() + 1)
-
-  const tigaHariLagi = new Date(today)
-  tigaHariLagi.setDate(tigaHariLagi.getDate() + 3)
+  // Gunakan UTC date string agar konsisten dengan @db.Date yang disimpan sebagai UTC midnight
+  const todayStr     = new Date().toISOString().split("T")[0]
+  const today        = new Date(todayStr + "T00:00:00.000Z")
+  const tomorrow     = new Date(todayStr + "T00:00:00.000Z")
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1)
+  const tigaHariLagi = new Date(todayStr + "T00:00:00.000Z")
+  tigaHariLagi.setUTCDate(tigaHariLagi.getUTCDate() + 3)
 
   const [red, yellow, neutral] = await Promise.all([
     prisma.titipJual.count({
       where: { status: "aktif", tanggal_jatuh_tempo: { lte: today } }
     }),
     prisma.titipJual.count({
-      where: { status: "aktif", tanggal_jatuh_tempo: { gte: tomorrow, lte: tigaHariLagi } }
+      where: { status: "aktif", tanggal_jatuh_tempo: { gt: today, lte: tigaHariLagi } }
     }),
     prisma.titipJual.count({
       where: { status: "selesai", flag_selisih_setoran: true }

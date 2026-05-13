@@ -1,3 +1,5 @@
+export const revalidate = 0
+
 import { auth } from "@/lib/auth"
 import Sidebar from "@/components/Sidebar"
 import { getTitipJualNotificationCounts } from "@/actions/titip_jual"

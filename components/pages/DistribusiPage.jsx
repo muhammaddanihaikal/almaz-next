@@ -2749,12 +2749,18 @@ function PenyelesaianDetail({ record }) {
 }
 
 function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerjualLangsung, qtyTukarKeluar = {}, konsinyasiBaru, tokoList, tanggalSesi, onChange, onRemove, onTokoCreated, extraUsedTokoIds = [], isEdit = false, isHistorical = false }) {
-  const [open,        setOpen]        = useState(!(isEdit && data.toko_id))
-  const [showAddToko, setShowAddToko] = useState(false)
-  const [newTokoNama, setNewTokoNama] = useState("")
-  const [newTokoAlamat, setNewTokoAlamat] = useState("")
-  const [newTokoKategori, setNewTokoKategori] = useState("toko")
-  const [savingToko,  setSavingToko]  = useState(false)
+  const [open,           setOpen]          = useState(!(isEdit && data.toko_id))
+  const [showAddToko,    setShowAddToko]    = useState(false)
+  const [newTokoNama,    setNewTokoNama]    = useState("")
+  const [newTokoAlamat,  setNewTokoAlamat]  = useState("")
+  const [newTokoKategori,setNewTokoKategori]= useState("toko")
+  const [savingToko,     setSavingToko]     = useState(false)
+  const [tokoQuery,      setTokoQuery]      = useState("")
+
+  useEffect(() => {
+    const t = setTimeout(() => setTokoQuery(newTokoNama.trim()), 300)
+    return () => clearTimeout(t)
+  }, [newTokoNama])
 
   const selectedToko  = tokoList.find((t) => t.id === data.toko_id)
   const usedTokoIds   = [...konsinyasiBaru.filter((_, i) => i !== currentIdx).map((k) => k.toko_id).filter(Boolean), ...extraUsedTokoIds]
@@ -2883,6 +2889,43 @@ function KonsinyasiBaruInput({ data, currentIdx, rokokDibawa, qtyDibawa, qtyTerj
               <div className="space-y-4">
                 <Field label="Nama Toko">
                   <input type="text" value={newTokoNama} onChange={(e) => setNewTokoNama(e.target.value)} placeholder="Nama toko" className={inputCls} autoFocus />
+                  {(() => {
+                    const q = tokoQuery.toLowerCase()
+                    if (!q) return null
+                    const matches = tokoList.filter((t) => t.nama.toLowerCase().includes(q))
+                    if (!matches.length) return null
+                    const exact    = matches.some((t) => t.nama.toLowerCase() === q)
+                    const visible  = matches.slice(0, 3)
+                    const hidden   = matches.slice(4)
+                    return (
+                      <div className={`mt-1.5 rounded-md border text-xs ${exact ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"}`}>
+                        <p className={`px-2.5 pt-2 pb-1 font-semibold ${exact ? "text-red-600" : "text-amber-700"}`}>
+                          {exact ? "Toko dengan nama ini sudah ada." : "Toko serupa sudah ada:"}
+                        </p>
+                        <ul className="px-2.5 pb-2 space-y-0.5">
+                          {visible.map((t) => (
+                            <li key={t.id} className="flex items-center gap-1.5 text-neutral-700">
+                              <span className="font-medium">{t.nama}</span>
+                              {t.alamat && <span className="text-neutral-400 truncate">— {t.alamat}</span>}
+                              <span className={`ml-auto shrink-0 capitalize rounded px-1.5 py-0.5 font-medium ${t.kategori === "grosir" ? "bg-blue-100 text-blue-700" : "bg-neutral-100 text-neutral-500"}`}>{t.kategori}</span>
+                            </li>
+                          ))}
+                        </ul>
+                        {hidden.length > 0 && (
+                          <div className="px-2.5 pb-2">
+                            <span
+                              className="relative group cursor-default text-neutral-400 hover:text-neutral-600 transition-colors"
+                            >
+                              +{hidden.length} lainnya
+                              <span className="pointer-events-none absolute bottom-full left-0 mb-1.5 w-max max-w-[200px] rounded-md bg-neutral-800 px-2 py-1.5 text-white opacity-0 group-hover:opacity-100 transition-opacity z-50 leading-snug">
+                                {hidden.map((t) => t.nama).join(", ")}
+                              </span>
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </Field>
                 <Field label="Kategori Default">
                   <SelectInput value={newTokoKategori} onChange={(e) => setNewTokoKategori(e.target.value)}>
