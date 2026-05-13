@@ -20,7 +20,7 @@ function Badge({ label, colorClass }) {
 
 export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, onCancel }) {
   const todayStr = new Date().toISOString().split("T")[0]
-  const [tanggal,     setTanggal]     = useState(konsinyasi.tanggal_selesai || todayStr)
+  const [tanggal,     setTanggal]     = useState(konsinyasi.tanggal_selesai || "")
   const [perpanjangTanggal, setPerpanjangTanggal] = useState("")
   const [items,       setItems]       = useState(
     konsinyasi.items.map((it) => ({
@@ -67,6 +67,7 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
 
   const canSubmit = !hasError &&
     !hasAllPerpanjang &&
+    !!tanggal &&
     (hasTerjual && hasSetoran) &&
     (!hasPerpanjang || !!perpanjangTanggal)
 
@@ -107,7 +108,7 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
           <Badge label={konsinyasi.kategori} colorClass={KATEGORI_COLOR[konsinyasi.kategori] || "bg-neutral-100 text-neutral-600"} />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div className="space-y-1">
             <p className="text-[10px] uppercase font-bold text-neutral-400">Sales</p>
             <p className="font-semibold text-neutral-900">{konsinyasi.sales}</p>
@@ -115,6 +116,10 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
           <div className="space-y-1">
             <p className="text-[10px] uppercase font-bold text-neutral-400">Toko / Customer</p>
             <p className="font-semibold text-neutral-900">{konsinyasi.nama_toko}</p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-[10px] uppercase font-bold text-neutral-400">Tgl Distribusi</p>
+            <p className="font-semibold text-neutral-900">{fmtTanggal(konsinyasi.tanggal_distribusi) || "—"}</p>
           </div>
           <div className="space-y-1">
             <p className="text-[10px] uppercase font-bold text-neutral-400">Jatuh Tempo</p>
@@ -126,15 +131,39 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
       </div>
 
       {/* SECTION: Tanggal Selesai */}
-      <div className="rounded-xl border border-blue-100 bg-blue-50/30 p-4">
-        <Field label="Tanggal Selesai Penagihan" className="w-full">
-          <input
-            type="date"
-            value={tanggal}
-            onChange={(e) => setTanggal(e.target.value)}
-            className={inputCls + " w-full bg-white shadow-sm font-semibold text-blue-700 focus:border-blue-500 focus:ring-blue-500"}
-          />
-        </Field>
+      <div className={`rounded-xl border p-5 transition-all duration-300 ${
+        !tanggal 
+          ? "bg-red-50 border-red-200 shadow-[0_0_15px_rgba(239,68,68,0.1)]" 
+          : "bg-blue-50 border-blue-200"
+      }`}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <label className={`text-xs font-bold uppercase tracking-wider ${!tanggal ? "text-red-600" : "text-blue-700"}`}>
+              Tanggal Selesai Penagihan (Wajib)
+            </label>
+            <p className="text-[11px] text-neutral-500 italic">
+              Pilih tanggal saat transaksi ini dianggap selesai/lunas ditagih.
+            </p>
+          </div>
+          <div className="w-full sm:w-64 relative">
+            <input
+              type="date"
+              value={tanggal}
+              onChange={(e) => setTanggal(e.target.value)}
+              className={inputCls + ` w-full h-12 text-base bg-white shadow-sm font-bold transition-all ${
+                !tanggal 
+                  ? "border-red-400 text-red-600 focus:border-red-500 focus:ring-red-500" 
+                  : "border-blue-400 text-blue-700 focus:border-blue-500 focus:ring-blue-500"
+              }`}
+              required
+            />
+            {!tanggal && (
+              <div className="absolute -bottom-5 left-0 flex items-center gap-1 text-[10px] text-red-500 font-bold uppercase">
+                <AlertCircle className="h-3 w-3" /> Mohon Pilih Tanggal!
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* SECTION 2: Barang & Penjualan */}
@@ -368,11 +397,17 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
           onClick={handleSubmit}
           disabled={!canSubmit}
           loading={loading}
-          className="px-8 shadow-md"
+          className={`px-8 shadow-md transition-all ${
+            !tanggal 
+              ? "bg-neutral-300 cursor-not-allowed opacity-50" 
+              : "bg-blue-600 hover:bg-blue-700"
+          }`}
         >
-          {hasPerpanjang
-            ? `Selesaikan & Perpanjang ${itemsPerpanjang.length} Item`
-            : "Konfirmasi Selesaikan Titip Jual"}
+          {!tanggal 
+            ? "Pilih Tanggal Selesai..." 
+            : hasPerpanjang
+              ? `Selesaikan & Perpanjang ${itemsPerpanjang.length} Item`
+              : "Konfirmasi Selesaikan Titip Jual"}
         </Button>
       </div>
     </div>
