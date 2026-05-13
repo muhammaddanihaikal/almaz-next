@@ -25,6 +25,15 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
+import {
+  calculateStats,
+  getSesiNetKeluar,
+  getSesiPenjualanBreakdown,
+  getSesiProfit,
+  getSesiSetoran,
+  getTitipProfit,
+  getTitipReturQty,
+} from "@/lib/dashboard-utils"
 import { defaultDateRange, filterByDateRange, fmtIDR, fmtTanggal, getDateRanges } from "@/lib/utils"
 
 const CARD_CLS = "rounded-xl border border-neutral-200 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
@@ -40,7 +49,6 @@ const DATE_PRESETS = [
 
 const toNumber = (value) => Number(value) || 0
 const sumBy = (items, getter) => (items || []).reduce((sum, item) => sum + toNumber(getter(item)), 0)
-
 function parseDate(value) {
   if (!value) return null
   const [year, month, day] = String(value).split("-").map(Number)
@@ -94,84 +102,12 @@ function isDateInRange(tanggal, range) {
   return tanggal >= range.start && tanggal <= range.end
 }
 
-function getSesiSetoran(sesi) {
-  return sumBy(sesi.setoran, (item) => item.jumlah)
-}
-
-function mergeTukarBarang(sesi) {
-  const map = new Map()
-  for (const item of [...(sesi.tukarBarang || []), ...(sesi.tukarBarangSelesaiDiSesi || [])]) {
-    if (!item) continue
-    map.set(item.id || `${item.tanggal}-${map.size}`, item)
-  }
-  return [...map.values()]
-}
-
-function totalTukarItems(items = []) {
-  return sumBy(items, (item) => item.qty * item.harga_satuan)
-}
-
-function getSesiPenjualanBreakdown(sesi) {
-  const langsung = sumBy(sesi.penjualan, (item) => item.qty * item.harga)
-  const titipJual = sumBy(sesi.konsinyasi, (titip) => sumBy(titip.items, (item) => item.qty_keluar * item.harga))
-  const tukarBarang = sumBy(mergeTukarBarang(sesi), (tukar) => totalTukarItems(tukar.itemsMasuk) - totalTukarItems(tukar.itemsKeluar))
-  const total = langsung + titipJual + tukarBarang
-
-  return { langsung, titipJual, tukarBarang, total }
-}
-
-function getSesiProfit(sesi, rokokById) {
-  return sumBy(sesi.penjualan, (item) => {
-    const rokok = rokokById.get(item.rokok_id)
-    return rokok ? item.qty * (item.harga - rokok.harga_beli) : 0
-  })
-}
-
-function getSesiNetKeluar(sesi) {
-  const keluar = sumBy(sesi.barangKeluar, (item) => item.qty)
-  const kembali = sumBy(sesi.barangKembali, (item) => item.qty)
-  return keluar - kembali
-}
-
-function getTitipSetoran(titip, range) {
-  return sumBy((titip.setoran || []).filter((item) => isDateInRange(item.tanggal, range)), (item) => item.jumlah)
-}
-
-function getTitipProfit(titip, rokokById) {
-  return sumBy(titip.items, (item) => {
-    const rokok = rokokById.get(item.rokok_id)
-    return rokok ? item.qty_terjual * (item.harga - rokok.harga_beli) : 0
-  })
-}
-
-function getTitipReturQty(titip) {
-  return sumBy(titip.items, (item) => item.qty_kembali)
-}
-
 function filterTitipSelesaiByRange(list, range) {
   return (list || []).filter((titip) => {
     if (titip.status !== "selesai") return false
     if (!range?.start || !range?.end) return true
     return titip.tanggal_selesai >= range.start && titip.tanggal_selesai <= range.end
   })
-}
-
-function calculateStats(sesiRows, titipProfitRows, titipSetoranRows, pengeluaranRows, rokokById, range) {
-  const penjualanBreakdown = (sesiRows || []).reduce((acc, sesi) => {
-    const row = getSesiPenjualanBreakdown(sesi)
-    return {
-      langsung: acc.langsung + row.langsung,
-      titipJual: acc.titipJual + row.titipJual,
-      tukarBarang: acc.tukarBarang + row.tukarBarang,
-      total: acc.total + row.total,
-    }
-  }, { langsung: 0, titipJual: 0, tukarBarang: 0, total: 0 })
-  const totalSetoran = sumBy(sesiRows, getSesiSetoran) + sumBy(titipSetoranRows, (titip) => getTitipSetoran(titip, range))
-  const profit = sumBy(sesiRows, (sesi) => getSesiProfit(sesi, rokokById)) + sumBy(titipProfitRows, (titip) => getTitipProfit(titip, rokokById))
-  const totalPengeluaran = sumBy((pengeluaranRows || []).filter((item) => item.sumber === "penjualan"), (item) => item.jumlah)
-  const totalKeluar = sumBy(sesiRows, getSesiNetKeluar) - sumBy(titipProfitRows, getTitipReturQty)
-
-  return { totalPenjualan: penjualanBreakdown.total, penjualanBreakdown, totalSetoran, profit, totalPengeluaran, totalKeluar }
 }
 
 function foldLongTail(items, limit = 8) {
@@ -501,6 +437,73 @@ function ChartTooltip({ active, payload, label, formatter }) {
   )
 }
 
+function QtyBreakdownCard({ data }) {
+  const chartData = [
+    { name: "Langsung", value: data.langsung, color: "#171717" },
+    { name: "Titip Jual", value: data.titipJual, color: "#C97B2A" },
+    { name: "Tukar Barang", value: data.tukarBarang, color: "#5C7A8C" },
+  ].filter(d => d.value > 0)
+
+  const total = data.langsung + data.titipJual + data.tukarBarang
+
+  return (
+    <section className={`${CARD_CLS} flex h-full flex-col p-5`}>
+      <div className="mb-4">
+        <h2 className="text-sm font-semibold text-neutral-950">Rincian Barang Keluar</h2>
+        <p className="mt-0.5 text-xs text-neutral-500">Berdasarkan saluran distribusi</p>
+      </div>
+
+      {total === 0 ? (
+        <div className="flex-1">
+          <EmptyChart />
+        </div>
+      ) : (
+        <div className="flex flex-1 flex-col justify-center">
+          <div className="relative mx-auto h-[160px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={chartData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={50}
+                  outerRadius={70}
+                  paddingAngle={4}
+                  stroke="none"
+                >
+                  {chartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip content={<ChartTooltip formatter={(v) => `${v} pcs`} />} />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+              <span className="text-[10px] font-bold uppercase text-neutral-400">Total</span>
+              <span className="text-xl font-black text-neutral-950">{total}</span>
+              <span className="text-[10px] text-neutral-400">pcs</span>
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-2">
+            {chartData.map((item) => (
+              <div key={item.name} className="flex items-center justify-between rounded-lg bg-neutral-50 px-3 py-2 text-neutral-950">
+                <div className="flex items-center gap-2 text-xs">
+                  <div className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
+                  <span className="text-neutral-600">{item.name}</span>
+                </div>
+                <span className="font-mono text-xs font-bold">{item.value} pcs</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
 function BarangKeluarChart({ data, rangeLabel }) {
   const chartData = data.filter((item) => item.qty > 0).sort((a, b) => b.qty - a.qty).slice(0, 8)
 
@@ -635,7 +638,7 @@ function DailyLine({ data, rangeLabel }) {
   const chartData = visibleData.length > 0 ? data : []
 
   return (
-    <section className={`${CARD_CLS} p-5`}>
+    <section className={`${CARD_CLS} flex h-full flex-col p-5`}>
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h2 className="text-sm font-semibold text-neutral-950">Setoran Harian</h2>
@@ -644,7 +647,7 @@ function DailyLine({ data, rangeLabel }) {
         <span className={CHIP_CLS}>{rangeLabel}</span>
       </div>
 
-      <div className="mt-4 h-[320px]">
+      <div className="mt-4 flex-1 min-h-[280px]">
         {chartData.length === 0 ? (
           <EmptyChart />
         ) : (
@@ -685,11 +688,11 @@ export default function DashboardPage({ sesiList, titipJualList, rokokList, peng
   const previousTitipJualF = useMemo(() => previousRange ? filterTitipSelesaiByRange(titipJualList || [], previousRange) : [], [titipJualList, previousRange])
 
   const stats = useMemo(
-    () => calculateStats(sesiF, titipJualF, titipJualList || [], pengeluaranF, rokokById, dateRange),
+    () => calculateStats(sesiF, titipJualF, titipJualList || [], pengeluaranF, rokokById, dateRange, isDateInRange),
     [sesiF, titipJualF, titipJualList, pengeluaranF, rokokById, dateRange]
   )
   const previousStats = useMemo(
-    () => calculateStats(previousSesiF, previousTitipJualF, titipJualList || [], previousPengeluaranF, rokokById, previousRange),
+    () => calculateStats(previousSesiF, previousTitipJualF, titipJualList || [], previousPengeluaranF, rokokById, previousRange, isDateInRange),
     [previousSesiF, previousTitipJualF, titipJualList, previousPengeluaranF, rokokById, previousRange]
   )
 
@@ -774,7 +777,14 @@ export default function DashboardPage({ sesiList, titipJualList, rokokList, peng
         </div>
       </section>
 
-      <DailyLine data={dailySummary} rangeLabel={rangeLabel} />
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+        <div className="xl:col-span-8">
+          <DailyLine data={dailySummary} rangeLabel={rangeLabel} />
+        </div>
+        <div className="xl:col-span-4">
+          <QtyBreakdownCard data={stats.qtyBreakdown} />
+        </div>
+      </section>
 
       <DebugSection stats={stats} sesiF={sesiF} titipJualF={titipJualF} rokokById={rokokById} range={dateRange} titipJualList={titipJualList} />
     </div>
