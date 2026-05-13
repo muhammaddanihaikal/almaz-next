@@ -775,6 +775,132 @@ export default function DashboardPage({ sesiList, titipJualList, rokokList, peng
       </section>
 
       <DailyLine data={dailySummary} rangeLabel={rangeLabel} />
+
+      <DebugSection stats={stats} sesiF={sesiF} titipJualF={titipJualF} rokokById={rokokById} range={dateRange} titipJualList={titipJualList} />
     </div>
+  )
+}
+
+function DebugSection({ stats, sesiF, titipJualF, rokokById, range, titipJualList }) {
+  // Setoran Breakdown
+  const allSesiSetoran = (sesiF || []).flatMap((s) => s.setoran || [])
+  const allTitipSetoran = (titipJualList || []).flatMap((t) => (t.setoran || []).filter((s) => isDateInRange(s.tanggal, range)))
+
+  const cashSesi = sumBy(allSesiSetoran.filter((s) => s.metode === "cash"), (s) => s.jumlah)
+  const transferSesi = sumBy(allSesiSetoran.filter((s) => s.metode === "transfer"), (s) => s.jumlah)
+
+  const cashTitip = sumBy(allTitipSetoran.filter((s) => s.metode === "cash"), (s) => s.jumlah)
+  const transferTitip = sumBy(allTitipSetoran.filter((s) => s.metode === "transfer"), (s) => s.jumlah)
+
+  const profitSesi = sumBy(sesiF, (sesi) => getSesiProfit(sesi, rokokById))
+  const profitTitip = sumBy(titipJualF, (titip) => getTitipProfit(titip, rokokById))
+
+  return (
+    <section className={`${CARD_CLS} overflow-hidden p-6 bg-neutral-50/80 border-dashed border-2`}>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h2 className="text-sm font-bold text-neutral-900 uppercase tracking-widest">Audit System: Rincian Kalkulasi Data</h2>
+          <p className="text-[11px] text-neutral-500 mt-0.5">Memastikan setiap rupiah terhitung dengan benar dari sumbernya.</p>
+        </div>
+        <div className="flex gap-2">
+          <span className="inline-flex items-center rounded-md bg-white px-2 py-1 text-[10px] font-medium text-neutral-600 ring-1 ring-inset ring-neutral-200">
+            {sesiF.length} Sesi Terhitung
+          </span>
+          <span className="inline-flex items-center rounded-md bg-white px-2 py-1 text-[10px] font-medium text-neutral-600 ring-1 ring-inset ring-neutral-200">
+            {titipJualF.length} Titip Jual Selesai
+          </span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        {/* Penjualan */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 text-xs font-bold text-neutral-900">
+            <div className="h-4 w-1 bg-neutral-900 rounded-full" />
+            OMZET PENJUALAN
+          </div>
+          <div className="space-y-2 text-[11px]">
+            <div className="flex justify-between">
+              <span className="text-neutral-500">Penjualan Langsung (Sesi)</span>
+              <span className="font-mono font-semibold">{fmtIDR(stats.penjualanBreakdown.langsung)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-neutral-500">Titip Jual (Keluar di Sesi)</span>
+              <span className="font-mono font-semibold">{fmtIDR(stats.penjualanBreakdown.titipJual)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-neutral-500">Tukar Barang (Selisih)</span>
+              <span className="font-mono font-semibold">{fmtIDR(stats.penjualanBreakdown.tukarBarang)}</span>
+            </div>
+            <div className="flex justify-between border-t border-neutral-200 pt-2 text-xs font-black text-neutral-950">
+              <span>TOTAL OMZET</span>
+              <span className="font-mono">{fmtIDR(stats.totalPenjualan)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Setoran */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 text-xs font-bold text-neutral-900">
+            <div className="h-4 w-1 bg-sky-600 rounded-full" />
+            SETORAN (CASH & TRANSFER)
+          </div>
+          <div className="space-y-2 text-[11px]">
+            <div className="rounded-lg bg-white/50 p-2 border border-neutral-100">
+              <div className="text-[10px] font-bold text-neutral-400 mb-1">DARI SESI DISTRIBUSI</div>
+              <div className="flex justify-between">
+                <span className="text-neutral-500">Cash</span>
+                <span className="font-mono">{fmtIDR(cashSesi)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-neutral-500">Transfer</span>
+                <span className="font-mono">{fmtIDR(transferSesi)}</span>
+              </div>
+            </div>
+            <div className="rounded-lg bg-white/50 p-2 border border-neutral-100">
+              <div className="text-[10px] font-bold text-neutral-400 mb-1">DARI TITIP JUAL (PELUNASAN)</div>
+              <div className="flex justify-between">
+                <span className="text-neutral-500">Cash</span>
+                <span className="font-mono">{fmtIDR(cashTitip)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-neutral-500">Transfer</span>
+                <span className="font-mono">{fmtIDR(transferTitip)}</span>
+              </div>
+            </div>
+            <div className="flex justify-between border-t border-neutral-200 pt-2 text-xs font-black text-neutral-950 px-1">
+              <span>TOTAL SETORAN</span>
+              <span className="font-mono">{fmtIDR(stats.totalSetoran)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Profit */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 text-xs font-bold text-neutral-900">
+            <div className="h-4 w-1 bg-emerald-600 rounded-full" />
+            PROFIT (MARGIN KOTOR)
+          </div>
+          <div className="space-y-2 text-[11px]">
+            <div className="flex justify-between">
+              <span className="text-neutral-500">Profit Sesi (Terjual)</span>
+              <span className="font-mono font-semibold">{fmtIDR(profitSesi)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-neutral-500">Profit Titip (Selesai)</span>
+              <span className="font-mono font-semibold">{fmtIDR(profitTitip)}</span>
+            </div>
+            <div className="mt-4 p-2 bg-emerald-50 rounded-lg text-emerald-900 border border-emerald-100">
+              <div className="text-[9px] font-bold uppercase opacity-60">Info</div>
+              <p className="leading-tight">Profit dihitung dari (Harga Jual - Harga Beli) produk yang keluar/terjual.</p>
+            </div>
+            <div className="flex justify-between border-t border-neutral-200 pt-2 text-xs font-black text-neutral-950">
+              <span>ESTIMASI PROFIT</span>
+              <span className="font-mono">{fmtIDR(stats.profit)}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   )
 }
