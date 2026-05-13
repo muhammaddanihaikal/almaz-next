@@ -39,28 +39,32 @@ model Toko {
 }
 
 model Rokok {
-  id               String   @id @default(cuid())
-  nama             String   @unique
-  stok             Int      @default(0)
-  harga_beli       Int
-  harga_grosir     Int
-  harga_toko       Int
-  harga_perorangan Int
-  aktif            Boolean  @default(true)
-  urutan           Int      @default(0)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                  String   @id @default(cuid())
+  nama                String   @unique
+  stok                Int      @default(0)
+  stok_sample_cukai   Int      @default(0)
+  stok_sample_biasa   Int      @default(0)
+  harga_beli          Int
+  harga_grosir        Int
+  harga_toko          Int
+  harga_perorangan    Int
+  aktif               Boolean  @default(true)
+  urutan              Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
-  sesiBarangKeluar  SesiBarangKeluar[]
-  sesiPenjualan     SesiPenjualan[]
-  sesiBarangKembali SesiBarangKembali[]
-  titipJualItems    TitipJualItem[]
-  returItems        ReturItem[]
-  stokMasuk         StokMasuk[]
-  stockMutations    StockMutation[]
-  closingHarian     ClosingHarian[]
-  tukarBarangMasuk  TukarBarangItemMasuk[]
-  tukarBarangKeluar TukarBarangItemKeluar[]
+  sesiBarangKeluar    SesiBarangKeluar[]
+  sesiPenjualan       SesiPenjualan[]
+  sesiBarangKembali   SesiBarangKembali[]
+  sesiSample          SesiSample[]
+  titipJualItems      TitipJualItem[]
+  returItems          ReturItem[]
+  stokMasuk           StokMasuk[]
+  stockMutations      StockMutation[]
+  closingHarian       ClosingHarian[]
+  tukarBarangMasuk    TukarBarangItemMasuk[]
+  tukarBarangKeluar   TukarBarangItemKeluar[]
+  sampleKonversi      SampleCukaiKonversi[]
 }
 
 model StokMasuk {
@@ -68,6 +72,7 @@ model StokMasuk {
   rokok_id   String
   tanggal    DateTime @db.Date
   qty        Int
+  jenis      String   @default("rokok") // "rokok" | "sample_biasa"
   keterangan String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -107,6 +112,7 @@ model SesiHarian {
   penjualan          SesiPenjualan[]
   setoran            SesiSetoran[]
   barangKembali      SesiBarangKembali[]
+  sample             SesiSample[]
   titipJual          TitipJual[]
   retur              Retur[]
   tukarBarang        TukarBarang[]       @relation("TukarBarangSesi")
@@ -168,6 +174,37 @@ model SesiBarangKembali {
 
   @@index([sesi_id])
   @@index([rokok_id])
+}
+
+model SesiSample {
+  id          String @id @default(cuid())
+  sesi_id     String
+  rokok_id    String
+  type        String // "cukai" | "biasa"
+  qty_keluar  Int    @default(0)
+  qty_kembali Int    @default(0)
+
+  sesi  SesiHarian @relation(fields: [sesi_id], references: [id], onDelete: Cascade)
+  rokok Rokok      @relation(fields: [rokok_id], references: [id])
+
+  @@unique([sesi_id, rokok_id, type])
+  @@index([sesi_id])
+  @@index([rokok_id])
+}
+
+model SampleCukaiKonversi {
+  id        String   @id @default(cuid())
+  rokok_id  String
+  qty       Int
+  tanggal   DateTime @db.Date
+  catatan   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rokok Rokok @relation(fields: [rokok_id], references: [id])
+
+  @@index([rokok_id])
+  @@index([tanggal])
 }
 
 // ─── TITIP JUAL ───────────────────────────────────────────────────────────────

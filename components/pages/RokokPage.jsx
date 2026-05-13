@@ -2,13 +2,13 @@
 
 import { useMemo, useState, useEffect, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { 
-  Plus, GripVertical, Save, X, MoveVertical, RotateCcw, ChevronDown, 
-  ChevronRight, Info, Package, TrendingUp, ShoppingCart, Store, Users, 
+import {
+  Plus, GripVertical, Save, X, MoveVertical, RotateCcw, ChevronDown,
+  ChevronRight, Info, Package, TrendingUp, ShoppingCart, Store, Users,
   CheckCircle, AlertCircle, Eye, Tag, Banknote
 } from "lucide-react"
 import { fmtIDR } from "@/lib/utils"
-import { addRokok, updateRokok, deleteRokok, toggleAktifRokok, tambahStok, updateRokokOrder } from "@/actions/rokok"
+import { addRokok, updateRokok, deleteRokok, toggleAktifRokok, tambahStok, updateRokokOrder, tambahStokSampleBiasa, konversiKeSampleCukai } from "@/actions/rokok"
 import { Card, PageHeader, PrimaryButton, IconButton, RowActions, Field, FormActions, Toggle, inputCls, useConfirm, useConfirmWithReason, Button, MoneyInput } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
@@ -56,8 +56,10 @@ export default function RokokPage({ role, rokokList, usedIds, mutasiHariIni = []
   const [localList, setLocalList] = useState(rokokList)
   const [mode, setMode] = useState(null)
   const [editing, setEditing] = useState(null)
-  const [stokTarget, setStokTarget] = useState(null)
-  const [detailTarget, setDetailTarget] = useState(null)
+  const [stokTarget,        setStokTarget]        = useState(null)
+  const [sampleBiasaTarget, setSampleBiasaTarget] = useState(null)
+  const [konversiTarget,    setKonversiTarget]    = useState(null)
+  const [detailTarget,      setDetailTarget]      = useState(null)
   const [expandedId, setExpandedId] = useState(null)
   const [isSorting, setIsSorting] = useState(false)
   const [sortedList, setSortedList] = useState([])
@@ -247,12 +249,60 @@ export default function RokokPage({ role, rokokList, usedIds, mutasiHariIni = []
                 )
               },
               {
-                key: "stok", label: "Stok", align: "right",
-                render: (r) => r._pending ? <SkeletonText w="w-12" /> : (
-                  <div className="flex items-center justify-end gap-2">
-                    <span className={`font-semibold tabular-nums ${r.aktif === false ? "text-neutral-400" : (r.stok ?? 0) < 50 ? "text-red-600" : (r.stok ?? 0) < 150 ? "text-amber-500" : "text-green-600"}`}>{r.stok ?? 0}</span>
+                key: "stok_total", label: "Total", align: "center",
+                render: (r) => r._pending ? <SkeletonText w="w-10" /> : (
+                  <span className={`text-sm font-bold tabular-nums ${r.aktif === false ? "text-neutral-400" : ((r.stok ?? 0) + (r.stok_sample_cukai ?? 0)) < 50 ? "text-red-600" : ((r.stok ?? 0) + (r.stok_sample_cukai ?? 0)) < 150 ? "text-amber-500" : "text-green-600"}`}>
+                    {(r.stok ?? 0) + (r.stok_sample_cukai ?? 0)}
+                  </span>
+                ),
+              },
+              {
+                key: "stok_rokok", label: "Stok Rokok", align: "center",
+                render: (r) => r._pending ? <SkeletonText w="w-10" /> : (
+                  <div className="inline-flex items-center gap-1.5">
+                    <span className="inline-block w-14 text-right text-sm font-semibold tabular-nums text-neutral-800">{r.stok ?? 0}</span>
                     {role !== "staff" && r.aktif !== false && (
-                      <IconButton onClick={() => setStokTarget(r)} icon={Plus} label="Tambah stok" className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border-emerald-100" />
+                      <button
+                        onClick={() => setStokTarget(r)}
+                        title="Tambah stok rokok"
+                        className="inline-flex h-5 w-5 items-center justify-center rounded border border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition"
+                      >
+                        <Plus className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                ),
+              },
+              {
+                key: "stok_sample_cukai", label: "Sample Cukai", align: "center",
+                render: (r) => r._pending ? <SkeletonText w="w-10" /> : (
+                  <div className="inline-flex items-center gap-1.5">
+                    <span className="inline-block w-10 text-right text-sm font-semibold tabular-nums text-orange-600">{r.stok_sample_cukai ?? 0}</span>
+                    {role !== "staff" && r.aktif !== false && (
+                      <button
+                        onClick={() => setKonversiTarget(r)}
+                        title="Konversi dari stok rokok ke sample cukai"
+                        className="inline-flex h-5 w-5 items-center justify-center rounded border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 transition"
+                      >
+                        <Plus className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                ),
+              },
+              {
+                key: "stok_sample_biasa", label: "Sample Biasa", align: "center",
+                render: (r) => r._pending ? <SkeletonText w="w-10" /> : (
+                  <div className="inline-flex items-center gap-1.5">
+                    <span className="inline-block w-10 text-right text-sm font-semibold tabular-nums text-blue-600">{r.stok_sample_biasa ?? 0}</span>
+                    {role !== "staff" && r.aktif !== false && (
+                      <button
+                        onClick={() => setSampleBiasaTarget(r)}
+                        title="Tambah stok sample biasa"
+                        className="inline-flex h-5 w-5 items-center justify-center rounded border border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 transition"
+                      >
+                        <Plus className="h-3 w-3" />
+                      </button>
                     )}
                   </div>
                 ),
@@ -430,6 +480,48 @@ export default function RokokPage({ role, rokokList, usedIds, mutasiHariIni = []
           />
         </Modal>
       )}
+      {/* Modal Konversi ke Sample Cukai */}
+      {konversiTarget && (
+        <Modal title={`Konversi ke Sample Cukai — ${konversiTarget.nama}`} onClose={() => setKonversiTarget(null)} width="max-w-sm">
+          <KonversiSampleForm
+            rokok={konversiTarget}
+            onSubmit={async (qty, catatan) => {
+              const captured = konversiTarget
+              upsertLocal({ ...captured, stok: (captured.stok ?? 0) - qty, stok_sample_cukai: (captured.stok_sample_cukai ?? 0) + qty, _pending: true })
+              setKonversiTarget(null)
+              konversiKeSampleCukai(captured.id, qty, catatan)
+                .then(() => router.refresh())
+                .catch(async (error) => {
+                  upsertLocal({ ...captured, _pending: false })
+                  await confirm(error?.message || "Gagal konversi.", { title: "Gagal Konversi", hideCancel: true })
+                })
+            }}
+            onCancel={() => setKonversiTarget(null)}
+          />
+        </Modal>
+      )}
+
+      {/* Modal Tambah Stok Sample Biasa */}
+      {sampleBiasaTarget && (
+        <Modal title={`Tambah Stok Sample Biasa — ${sampleBiasaTarget.nama}`} onClose={() => setSampleBiasaTarget(null)} width="max-w-sm">
+          <TambahStokForm
+            rokok={sampleBiasaTarget}
+            onSubmit={async (qty, date, ket) => {
+              const captured = sampleBiasaTarget
+              upsertLocal({ ...captured, stok_sample_biasa: (captured.stok_sample_biasa ?? 0) + qty, _pending: true })
+              setSampleBiasaTarget(null)
+              tambahStokSampleBiasa(captured.id, qty, date, ket)
+                .then(() => router.refresh())
+                .catch(async (error) => {
+                  upsertLocal({ ...captured, _pending: false })
+                  await confirm(error?.message || "Gagal tambah stok sample biasa.", { title: "Gagal Tambah", hideCancel: true })
+                })
+            }}
+            onCancel={() => setSampleBiasaTarget(null)}
+          />
+        </Modal>
+      )}
+
       {/* Modal Detail */}
       {detailTarget && (
         <Modal
@@ -439,32 +531,31 @@ export default function RokokPage({ role, rokokList, usedIds, mutasiHariIni = []
         >
           <div className="space-y-6">
             {/* Header Info: Stok & Status */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
-                    <Package className="h-4 w-4" />
-                  </div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Stok Tersedia</span>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { label: "Total Stok", value: (detailTarget.stok ?? 0) + (detailTarget.stok_sample_cukai ?? 0), color: "text-neutral-900", bg: "bg-neutral-50", border: "border-neutral-200", sub: "jual + sample cukai" },
+                { label: "Stok Jual",  value: detailTarget.stok ?? 0, color: (detailTarget.stok ?? 0) < 50 ? "text-red-600" : (detailTarget.stok ?? 0) < 150 ? "text-amber-500" : "text-green-600", bg: "bg-white", border: "border-neutral-200", sub: "siap distribusi" },
+                { label: "Sample Cukai", value: detailTarget.stok_sample_cukai ?? 0, color: "text-orange-600", bg: "bg-orange-50/50", border: "border-orange-100", sub: "dari stok reguler" },
+                { label: "Sample Biasa", value: detailTarget.stok_sample_biasa ?? 0, color: "text-blue-600", bg: "bg-blue-50/50", border: "border-blue-100", sub: "dari distributor" },
+              ].map((s) => (
+                <div key={s.label} className={`rounded-xl border ${s.border} ${s.bg} p-3 shadow-sm`}>
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-neutral-400 mb-1">{s.label}</p>
+                  <p className={`text-xl font-bold tabular-nums ${s.color}`}>{s.value}</p>
+                  <p className="text-[10px] text-neutral-400 mt-0.5">{s.sub}</p>
                 </div>
-                <p className={`text-2xl font-bold tabular-nums ${(detailTarget.stok ?? 0) < 50 ? "text-red-600" : (detailTarget.stok ?? 0) < 150 ? "text-amber-500" : "text-green-600"}`}>
-                  {detailTarget.stok ?? 0}
-                </p>
-                <p className="text-xs text-neutral-500 mt-1">bungkus di gudang</p>
-              </div>
-
-              <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm text-right">
-                <div className="flex items-center justify-end gap-2 mb-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Status Produk</span>
-                  <div className={`p-1.5 rounded-lg ${detailTarget.aktif ? "bg-green-50 text-green-600" : "bg-red-50 text-red-600"}`}>
-                    {detailTarget.aktif ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
-                  </div>
+              ))}
+            </div>
+            <div className="rounded-xl border border-neutral-200 bg-white p-3 shadow-sm text-right">
+              <div className="flex items-center justify-end gap-2 mb-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Status Produk</span>
+                <div className={`p-1.5 rounded-lg ${detailTarget.aktif ? "bg-green-50 text-green-600" : "bg-red-50 text-red-600"}`}>
+                  {detailTarget.aktif ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
                 </div>
-                <p className={`text-2xl font-bold ${detailTarget.aktif ? "text-green-600" : "text-red-600"}`}>
-                  {detailTarget.aktif ? "Aktif" : "Nonaktif"}
-                </p>
-                <p className="text-xs text-neutral-500 mt-1">{detailTarget.aktif ? "Siap didistribusikan" : "Tidak muncul di form"}</p>
               </div>
+              <p className={`text-xl font-bold ${detailTarget.aktif ? "text-green-600" : "text-red-600"}`}>
+                {detailTarget.aktif ? "Aktif" : "Nonaktif"}
+              </p>
+              <p className="text-xs text-neutral-500 mt-0.5">{detailTarget.aktif ? "Siap didistribusikan" : "Tidak muncul di form"}</p>
             </div>
 
             {/* Pricing Section */}
@@ -693,6 +784,58 @@ function TambahStokForm({ rokok, onSubmit, onCancel }) {
   )
 }
 
+
+// ─── Form Konversi ke Sample Cukai ───────────────────────────────────────────
+
+function KonversiSampleForm({ rokok, onSubmit, onCancel }) {
+  const [qty,      setQty]     = useState("")
+  const [catatan,  setCatatan] = useState("")
+  const [loading,  setLoading] = useState(false)
+
+  const qtyNum = Number(qty) || 0
+  const valid  = qtyNum > 0 && qtyNum <= (rokok.stok ?? 0)
+
+  const submit = async (e) => {
+    e.preventDefault()
+    if (!valid || loading) return
+    setLoading(true)
+    try { await onSubmit(qtyNum, catatan) }
+    finally { setLoading(false) }
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <div className="grid grid-cols-3 gap-2 text-center text-xs">
+        <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-2.5">
+          <p className="text-[9px] font-bold uppercase tracking-wider text-neutral-400 mb-1">Stok Jual</p>
+          <p className="text-lg font-bold tabular-nums text-neutral-700">{rokok.stok ?? 0}</p>
+        </div>
+        <div className="rounded-xl border border-orange-100 bg-orange-50 p-2.5">
+          <p className="text-[9px] font-bold uppercase tracking-wider text-orange-400 mb-1">Dikonversi</p>
+          <p className="text-lg font-bold tabular-nums text-orange-600">{qtyNum > 0 ? `-${qtyNum}` : "0"}</p>
+        </div>
+        <div className="rounded-xl border border-orange-200 bg-orange-50/50 p-2.5">
+          <p className="text-[9px] font-bold uppercase tracking-wider text-orange-500 mb-1">Sample Cukai</p>
+          <p className="text-lg font-bold tabular-nums text-orange-700">{(rokok.stok_sample_cukai ?? 0) + qtyNum}</p>
+        </div>
+      </div>
+      <Field label="Qty (bungkus)">
+        <input
+          type="number" min="1" max={rokok.stok ?? 0}
+          value={qty} onChange={(e) => setQty(e.target.value)}
+          placeholder="0" className={inputCls} autoFocus
+        />
+        {qtyNum > (rokok.stok ?? 0) && (
+          <p className="mt-1 text-xs text-red-500">Melebihi stok jual ({rokok.stok ?? 0})</p>
+        )}
+      </Field>
+      <Field label="Catatan (opsional)">
+        <input type="text" value={catatan} onChange={(e) => setCatatan(e.target.value)} placeholder="Opsional" className={inputCls} />
+      </Field>
+      <FormActions onCancel={onCancel} disabled={!valid} loading={loading} submitLabel="Konversi" />
+    </form>
+  )
+}
 
 // ─── Form Tambah/Edit Rokok ───────────────────────────────────────────────────
 

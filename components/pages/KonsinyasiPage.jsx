@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AlertCircle, Clock, Search, CheckCircle, ChevronDown } from "lucide-react"
 import { fmtIDR, fmtTanggal, defaultDateRange } from "@/lib/utils"
-import { settleTitipJual, editSettlement, revertSettlement, editTitipJualDetail, deleteTitipJual } from "@/actions/titip_jual"
+import { settleTitipJual, partialSettleTitipJual, editSettlement, revertSettlement, editTitipJualDetail, deleteTitipJual } from "@/actions/titip_jual"
 import { Card, PageHeader, SelectInput, Field, FormActions, inputCls, useConfirm, useConfirmWithReason, DateFilter, Button, IconButton } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
@@ -282,7 +282,8 @@ export default function KonsinyasiPage({ role, titipJualList, salesList }) {
           rows={rows}
           empty={`Tidak ada titip jual ${activeTab}.`}
           columns={[
-            { key: "no",         label: "No",           render: (_, idx) => idx + 1 },
+            { key: "no",              label: "No",              render: (_, idx) => idx + 1 },
+            { key: "tgl_distribusi",  label: "Tgl Distribusi",  render: (r) => r._pending ? <SkeletonText w="w-20" /> : r.tanggal_distribusi ? fmtTanggal(r.tanggal_distribusi) : <span className="text-neutral-300">—</span> },
             { key: "jatuh_tempo", label: "Jatuh Tempo", render: (r) => r._pending ? <SkeletonText w="w-20" /> : (
               <span className={r.status === "aktif" && r.selisihHari <= 0 ? "text-red-600 font-semibold" : r.status === "aktif" && r.selisihHari <= 3 ? "text-amber-600 font-semibold" : ""}>
                 {fmtTanggal(r.tanggal_jatuh_tempo)}
@@ -413,7 +414,9 @@ export default function KonsinyasiPage({ role, titipJualList, salesList }) {
               const captured = settling
               upsertLocal({ ...captured, _pending: true })
               setSettling(null)
-              settleTitipJual(captured.id, data)
+              const hasPerpanjang = data.items.some((it) => it.action === "perpanjang")
+              const action = hasPerpanjang ? partialSettleTitipJual : settleTitipJual
+              action(captured.id, data)
                 .then(() => router.refresh())
                 .catch(async (error) => {
                   upsertLocal({ ...captured, _pending: false })
@@ -536,6 +539,12 @@ function KonsinyasiDetail({ record }) {
             <p className="text-[10px] uppercase font-bold text-neutral-400">Toko / Customer</p>
             <p className="font-semibold text-neutral-900">{record.nama_toko}</p>
           </div>
+          {record.tanggal_distribusi && (
+            <div className="space-y-1">
+              <p className="text-[10px] uppercase font-bold text-neutral-400">Tgl Distribusi</p>
+              <p className="font-semibold text-neutral-900">{fmtTanggal(record.tanggal_distribusi)}</p>
+            </div>
+          )}
           <div className="space-y-1">
             <p className="text-[10px] uppercase font-bold text-neutral-400">Jatuh Tempo</p>
             <p className={`font-semibold ${record.status === "aktif" && record.selisihHari <= 0 ? "text-red-600" : "text-neutral-900"}`}>

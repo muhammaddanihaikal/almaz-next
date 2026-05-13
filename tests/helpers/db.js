@@ -76,6 +76,7 @@ export async function cleanupSesiById(sesiId) {
     await tx.sesiSetoran.deleteMany({ where: { sesi_id: sesiId } })
     await tx.sesiBarangKembali.deleteMany({ where: { sesi_id: sesiId } })
     await tx.sesiBarangKeluar.deleteMany({ where: { sesi_id: sesiId } })
+    await tx.sesiSample.deleteMany({ where: { sesi_id: sesiId } })
 
     // Titip jual
     const titipJualList = await tx.titipJual.findMany({ where: { sesi_id: sesiId } })

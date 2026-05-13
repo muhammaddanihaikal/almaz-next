@@ -12,6 +12,7 @@ import {
   reverseStockMutationNet,
 } from "@/actions/tukar-barang"
 import { getAppSetting } from "@/actions/settings"
+import { saveSesiSampleKeluar, revertSesiSampleKeluar, saveSesiSampleKembali } from "@/actions/sample"
 
 const include = {
   sales: true,
@@ -23,6 +24,7 @@ const include = {
   tukarBarang:   { include: { itemsMasuk: { include: { rokok: true } }, itemsKeluar: { include: { rokok: true } } } },
   tukarBarangSelesai: { include: { itemsMasuk: { include: { rokok: true } }, itemsKeluar: { include: { rokok: true } } } },
   retur:         { include: { items: { include: { rokok: true } } } },
+  sample:        { include: { rokok: { select: { nama: true } } } },
 }
 
 const DISTRIBUSI_TX_OPTIONS = { maxWait: 10000, timeout: 30000 }
@@ -81,23 +83,24 @@ function serialize(s) {
   const tanggal = s.tanggal.toISOString().split("T")[0]
 
   const nilaiPenjualanLangsung = s.penjualan.reduce((sum, it) => sum + it.qty * it.harga, 0)
-  const nilaiTitipJual = s.titipJual.reduce((sum, k) => (
-    sum + k.items.reduce((ss, it) => ss + it.qty_keluar * it.harga, 0)
-  ), 0)
-  const tukarMap = new Map([...(s.tukarBarang || []), ...(s.tukarBarangSelesai || [])].map((t) => [t.id, t]))
-  const nilaiTukar = [...tukarMap.values()].reduce((sum, t) => {
+  // Hanya tukar yang selesai di sesi ini (itemsKeluar sudah benar-benar diserahkan)
+  const nilaiTukar = (s.tukarBarangSelesai || []).reduce((sum, t) => {
     const totalMasuk = t.itemsMasuk.reduce((ss, it) => ss + it.qty * it.harga_satuan, 0)
     const totalKeluar = t.itemsKeluar.reduce((ss, it) => ss + it.qty * it.harga_satuan, 0)
-    return sum + (totalMasuk - totalKeluar)
+    return sum + (totalKeluar - totalMasuk)
   }, 0)
-  const nilaiPenjualan = nilaiPenjualanLangsung + nilaiTitipJual + nilaiTukar
+  const nilaiPenjualan = nilaiPenjualanLangsung + nilaiTukar
   const totalSetoran   = s.setoran.reduce((sum, it) => sum + it.jumlah, 0)
   const qtyKeluar      = s.barangKeluar.reduce((sum, it) => sum + it.qty, 0)
   const qtyTerjual     = s.penjualan.reduce((sum, it) => sum + it.qty, 0)
   const qtyKonsinyasi  = s.titipJual.reduce((sum, k) => sum + k.items.reduce((ss, it) => ss + it.qty_keluar, 0), 0)
   const qtyKembali     = s.barangKembali.reduce((sum, it) => sum + it.qty, 0)
+  // Tukar masuk (dari customer, diciptakan di sesi ini) → tambah pool
+  const qtyTukarMasuk = (s.tukarBarang || []).reduce((sum, t) => sum + t.itemsMasuk.reduce((ss, it) => ss + it.qty, 0), 0)
+  // Tukar keluar pengganti (diselesaikan di sesi ini) → dari pool barangKeluar
+  const qtyTukarSelesaiKeluar = (s.tukarBarangSelesai || []).reduce((sum, t) => sum + t.itemsKeluar.reduce((ss, it) => ss + it.qty, 0), 0)
   const flagSetoran    = nilaiPenjualan > 0 && totalSetoran !== nilaiPenjualan
-  const flagQty        = qtyKeluar > 0 && s.status === "selesai" && (qtyTerjual + qtyKonsinyasi + qtyKembali) !== qtyKeluar
+  const flagQty        = qtyKeluar > 0 && s.status === "selesai" && (qtyTerjual + qtyKonsinyasi + qtyKembali + qtyTukarSelesaiKeluar - qtyTukarMasuk) !== qtyKeluar
 
   return {
     id:        s.id,
@@ -141,6 +144,14 @@ function serialize(s) {
       items: r.items
         .sort((a, b) => (a.rokok?.urutan ?? 0) - (b.rokok?.urutan ?? 0))
         .map((it) => ({ rokok_id: it.rokok_id, rokok: it.rokok?.nama || "???", qty: it.qty })),
+    })),
+    sample: (s.sample || []).map((sm) => ({
+      id:          sm.id,
+      rokok_id:    sm.rokok_id,
+      rokok:       sm.rokok?.nama || "???",
+      type:        sm.type,
+      qty_keluar:  sm.qty_keluar,
+      qty_kembali: sm.qty_kembali,
     })),
     konsinyasi: s.titipJual.map((k) => ({
       id:                  k.id,
@@ -232,6 +243,9 @@ export async function createSesi(data) {
             })),
           })
         }
+        if (data.samples?.length > 0) {
+          await saveSesiSampleKeluar(sesi.id, data.samples, tx)
+        }
       }
 
       await logAudit({
@@ -308,6 +322,13 @@ export async function updateSesiPagi(id, data, alasan) {
         }
       }
       if (mutQueue.length > 0) await mutateStockBatch({ tx, mutations: mutQueue })
+
+      // Revert sample lama lalu apply sample baru
+      if (!oldIsHistorical) await revertSesiSampleKeluar(id, tx)
+      await tx.sesiSample.deleteMany({ where: { sesi_id: id } })
+      if (!is_historical && data.samples?.length > 0) {
+        await saveSesiSampleKeluar(id, data.samples, tx)
+      }
 
       await tx.sesiBarangKeluar.deleteMany({ where: { sesi_id: id } })
       await tx.sesiHarian.update({
@@ -495,7 +516,7 @@ export async function submitLaporanSore(id, data) {
         await createTukarBarangInSesi(tx, sesiObj, t, session, !!t.langsungSelesai, mutQueue)
       }
 
-      // Retur dari Tab Tukar Barang (kalau hanya isi barang return tanpa pengganti)
+      // Retur dari Tab Tukar Barang (barang return tanpa pengganti)
       const returFromTukar = data.returFromTukar
       if (returFromTukar && Array.isArray(returFromTukar.items) && returFromTukar.items.length > 0) {
         const validReturItems = returFromTukar.items.filter((it) => it.rokok_id && Number(it.qty) > 0)
@@ -563,6 +584,11 @@ export async function submitLaporanSore(id, data) {
             sesi_penyelesaian_id: id,
           })),
         })
+      }
+
+      // Sample kembali — update qty_kembali per SesiSample
+      if (data.sampleKembali?.length > 0) {
+        await saveSesiSampleKembali(id, data.sampleKembali, tx)
       }
 
       // Flush semua mutasi stok dalam batch
@@ -800,7 +826,7 @@ export async function editLaporanSore(id, data, alasan) {
         await selesaikanTukarBarangInSesi(tx, sesiObjEdit, tukar_id, session, mutQueue)
       }
 
-      // 6b. Retur dari Tab Tukar Barang (kalau hanya isi barang return tanpa pengganti)
+      // 6b. Retur dari Tab Tukar Barang (barang return tanpa pengganti)
       const returFromTukarEdit = data.returFromTukar
       if (returFromTukarEdit && Array.isArray(returFromTukarEdit.items) && returFromTukarEdit.items.length > 0) {
         const validReturItems = returFromTukarEdit.items.filter((it) => it.rokok_id && Number(it.qty) > 0)
@@ -867,6 +893,11 @@ export async function editLaporanSore(id, data, alasan) {
             sesi_penyelesaian_id: id,
           })),
         })
+      }
+
+      // Sample kembali — update qty_kembali per SesiSample
+      if (data.sampleKembali?.length > 0) {
+        await saveSesiSampleKembali(id, data.sampleKembali, tx)
       }
 
       // Flush semua mutasi stok dalam batch
@@ -1069,6 +1100,9 @@ export async function deleteSesi(id, alasan) {
         if (t.sesi_id === id) continue
         await revertSelesaiTukarBarangInSesi(tx, t.id, session, mutQueue)
       }
+
+      // Revert sample keluar (restore stok_sample_cukai & stok_sample_biasa)
+      if (!is_historical) await revertSesiSampleKeluar(id, tx)
 
       // Flush semua mutasi stok dalam batch
       await mutateStockBatch({ tx, mutations: mutQueue })
