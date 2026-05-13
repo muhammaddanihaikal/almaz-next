@@ -482,42 +482,15 @@ function QtyBreakdownCard({ data }) {
                     const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props
                     return (
                       <g>
-                        <path
-                          d={`M ${cx},${cy} L ${cx},${cy} Z`}
-                          fill={fill}
-                        />
-                        <path
-                          d={props.activeShape}
-                          fill={fill}
-                        />
-                        <path
-                          fill={fill}
-                          d={props.activeShape}
-                          style={{ filter: "drop-shadow(0px 0px 4px rgba(0,0,0,0.1))" }}
-                        />
-                        {/* Simple custom shape to highlight */}
-                        <circle cx={cx} cy={cy} innerRadius={innerRadius} outerRadius={outerRadius + 4} fill={fill} />
-                        <path
-                          fill={fill}
-                          stroke="none"
-                          d={(() => {
-                            // Helper to draw a slightly larger arc
-                            const RADIAN = Math.PI / 180;
-                            const sx = cx + (outerRadius + 6) * Math.cos(-startAngle * RADIAN);
-                            const sy = cy + (outerRadius + 6) * Math.sin(-startAngle * RADIAN);
-                            const ex = cx + (outerRadius + 6) * Math.cos(-endAngle * RADIAN);
-                            const ey = cy + (outerRadius + 6) * Math.sin(-endAngle * RADIAN);
-                            return `M ${sx} ${sy} A ${outerRadius + 6} ${outerRadius + 6} 0 0 1 ${ex} ${ey}`;
-                          })()}
-                        />
                         <Sector
                           cx={cx}
                           cy={cy}
                           innerRadius={innerRadius}
-                          outerRadius={outerRadius + 6}
+                          outerRadius={outerRadius + 8}
                           startAngle={startAngle}
                           endAngle={endAngle}
                           fill={fill}
+                          style={{ filter: "drop-shadow(0px 0px 8px rgba(0,0,0,0.15))" }}
                         />
                       </g>
                     )
@@ -527,9 +500,12 @@ function QtyBreakdownCard({ data }) {
                     <Cell 
                       key={`cell-${index}`} 
                       fill={entry.color} 
+                      onMouseEnter={() => setActiveIndex(index)}
+                      onMouseLeave={() => setActiveIndex(null)}
                       style={{ 
                         opacity: activeIndex === null || activeIndex === index ? 1 : 0.3,
-                        transition: "opacity 300ms ease"
+                        transition: "opacity 300ms ease",
+                        cursor: "pointer"
                       }}
                     />
                   ))}
@@ -538,13 +514,25 @@ function QtyBreakdownCard({ data }) {
               </PieChart>
             </ResponsiveContainer>
             <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-              <span className="text-[10px] font-bold uppercase text-neutral-400">Total</span>
-              <span className="text-xl font-black text-neutral-950">{total}</span>
-              <span className="text-[10px] text-neutral-400">pcs</span>
+              {activeIndex === null ? (
+                <>
+                  <span className="text-[10px] font-bold uppercase text-neutral-400">Total</span>
+                  <span className="text-xl font-black text-neutral-950">{total}</span>
+                  <span className="text-[10px] text-neutral-400">pcs</span>
+                </>
+              ) : (
+                <>
+                  <span className="text-[10px] font-bold uppercase text-neutral-500">Pilihan</span>
+                  <span className="text-xl font-black text-neutral-950">
+                    {total > 0 ? ((chartData[activeIndex].value / total) * 100).toFixed(1) : 0}%
+                  </span>
+                  <span className="text-[10px] font-medium text-neutral-500">{chartData[activeIndex].value} pcs</span>
+                </>
+              )}
             </div>
           </div>
 
-          <div className="min-w-0 flex-1 space-y-2">
+          <div className="min-w-0 flex-1 space-y-3">
             {chartData.map((item, index) => {
               const pct = total > 0 ? (item.value / total) * 100 : 0
               const isActive = activeIndex === index
@@ -554,27 +542,43 @@ function QtyBreakdownCard({ data }) {
                   key={item.name} 
                   onMouseEnter={() => setActiveIndex(index)}
                   onMouseLeave={() => setActiveIndex(null)}
-                  className={`flex cursor-default items-center justify-between rounded-lg border transition-all duration-200 px-3 py-2 ${
+                  className={`group relative flex cursor-pointer items-center justify-between rounded-xl border p-3 transition-colors duration-200 ${
                     isActive 
-                      ? "border-neutral-200 bg-white shadow-sm ring-1 ring-neutral-100" 
-                      : "border-neutral-100 bg-neutral-50/50"
+                      ? "border-neutral-200 bg-white" 
+                      : "border-transparent bg-neutral-50/50"
                   }`}
                 >
-                  <div className="flex min-w-0 items-center gap-2">
-                    <div className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
-                    <span className={`truncate text-[11px] font-medium transition-colors ${
-                      isActive ? "text-neutral-950" : "text-neutral-700"
-                    }`}>
-                      {item.name}
-                    </span>
+                  <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
+                      <span className={`truncate text-xs font-semibold transition-colors ${
+                        isActive ? "text-neutral-950" : "text-neutral-700"
+                      }`}>
+                        {item.name}
+                      </span>
+                    </div>
+                    {/* Progress Bar */}
+                    <div className="h-1 w-full max-w-[100px] overflow-hidden rounded-full bg-neutral-100">
+                      <div 
+                        className="h-full transition-all duration-500" 
+                        style={{ 
+                          width: `${pct}%`, 
+                          backgroundColor: item.color,
+                          opacity: isActive ? 1 : 0.6
+                        }} 
+                      />
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 font-mono text-[11px]">
-                    <span className={`font-bold transition-colors ${
-                      isActive ? "text-neutral-950 font-black" : "text-neutral-950"
+
+                  <div className="flex flex-col items-end text-right">
+                    <span className={`text-xs font-black tabular-nums transition-colors ${
+                      isActive ? "text-neutral-950" : "text-neutral-800"
                     }`}>
-                      {item.value}
+                      {pct.toFixed(1)}%
                     </span>
-                    <span className="text-neutral-400">({pct.toFixed(0)}%)</span>
+                    <span className="text-[10px] font-medium tabular-nums text-neutral-400">
+                      {item.value} pcs
+                    </span>
                   </div>
                 </div>
               )
