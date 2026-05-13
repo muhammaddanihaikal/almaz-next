@@ -460,8 +460,8 @@ function QtyBreakdownCard({ data }) {
           <EmptyChart />
         </div>
       ) : (
-        <div className="flex flex-1 flex-col justify-center">
-          <div className="relative mx-auto h-[160px] w-full">
+        <div className="mt-5 flex flex-1 flex-col gap-4 lg:flex-row lg:items-center">
+          <div className="relative mx-auto h-[170px] w-[170px] shrink-0">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -489,16 +489,22 @@ function QtyBreakdownCard({ data }) {
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-1 gap-2">
-            {chartData.map((item) => (
-              <div key={item.name} className="flex items-center justify-between rounded-lg bg-neutral-50 px-3 py-2 text-neutral-950">
-                <div className="flex items-center gap-2 text-xs">
-                  <div className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
-                  <span className="text-neutral-600">{item.name}</span>
+          <div className="min-w-0 flex-1 space-y-2">
+            {chartData.map((item) => {
+              const pct = total > 0 ? (item.value / total) * 100 : 0
+              return (
+                <div key={item.name} className="flex items-center justify-between rounded-lg border border-neutral-100 bg-neutral-50/50 px-3 py-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <div className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
+                    <span className="truncate text-[11px] font-medium text-neutral-700">{item.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2 font-mono text-[11px]">
+                    <span className="font-bold text-neutral-950">{item.value}</span>
+                    <span className="text-neutral-400">({pct.toFixed(0)}%)</span>
+                  </div>
                 </div>
-                <span className="font-mono text-xs font-bold">{item.value} pcs</span>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
