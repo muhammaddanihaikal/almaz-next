@@ -112,7 +112,7 @@ function TabButton({ active, onClick, children }) {
 function exportToExcel(rows, rokokList, dateRange, onNoData) {
   const XLSX = require("xlsx-js-style")
 
-  // Kumpulkan semua item penjualan (langsung + konsinyasi selesai)
+  // Kumpulkan semua item penjualan (langsung + konsinyasi selesai + tukar barang)
   const allItems = []
   for (const sesi of rows) {
     for (const it of (sesi.penjualan || [])) {
@@ -125,6 +125,21 @@ function exportToExcel(rows, rokokList, dateRange, onNoData) {
         if (it.qty_terjual > 0) {
           allItems.push({ tanggal, rokok_id: it.rokok_id, rokok: it.rokok, qty: it.qty_terjual, harga: it.harga })
         }
+      }
+    }
+    // Tukar Barang
+    const tukarMap = new Map()
+    for (const t of sesi.tukarBarang || []) tukarMap.set(t.id, t)
+    for (const t of sesi.tukarBarangSelesaiDiSesi || []) tukarMap.set(t.id, t)
+    for (const t of tukarMap.values()) {
+      const tanggal = t.tanggal_selesai || sesi.tanggal
+      for (const it of t.itemsKeluar || []) {
+        const rokokNama = it.rokok?.nama || it.rokok || rokokList.find(r => r.id === it.rokok_id)?.nama || ""
+        allItems.push({ tanggal, rokok_id: it.rokok_id, rokok: rokokNama, qty: it.qty, harga: it.harga_satuan })
+      }
+      for (const it of t.itemsMasuk || []) {
+        const rokokNama = it.rokok?.nama || it.rokok || rokokList.find(r => r.id === it.rokok_id)?.nama || ""
+        allItems.push({ tanggal, rokok_id: it.rokok_id, rokok: rokokNama, qty: -it.qty, harga: it.harga_satuan })
       }
     }
   }

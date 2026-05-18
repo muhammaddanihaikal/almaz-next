@@ -27,8 +27,8 @@ describe("Dashboard Calculation Logic", () => {
       tukarBarang: [
         {
           id: "tukar-1",
-          itemsKeluar: [{ qty: 5, harga_satuan: 12000 }], // Qty: 5, Nilai: 60.000
-          itemsMasuk: [{ qty: 2, harga_satuan: 12000 }], // Qty: 2, Nilai: 24.000
+          itemsKeluar: [{ rokok_id: "rokok-1", qty: 5, harga_satuan: 12000 }], // Qty: 5, Nilai: 60.000
+          itemsMasuk: [{ rokok_id: "rokok-1", qty: 2, harga_satuan: 12000 }], // Qty: 2, Nilai: 24.000
         },
       ],
       setoran: [{ jumlah: 500000, metode: "cash" }],
@@ -63,5 +63,13 @@ describe("Dashboard Calculation Logic", () => {
   it("calculates Total Net Keluar correctly", () => {
     const stats = calculateStats(mockSesi, [], [], [], mockRokokById, mockRange, mockIsDateInRange)
     expect(stats.totalKeluar).toBe(32)
+  })
+
+  it("calculates Total Profit (including Tukar Barang) correctly", () => {
+    const stats = calculateStats(mockSesi, [], [], [], mockRokokById, mockRange, mockIsDateInRange)
+    // Direct profit: 10 * (12000 - 10000) = 20000
+    // Tukar Barang net profit: (5 * (12000 - 10000)) - (2 * (12000 - 10000)) = 10000 - 4000 = 6000
+    // Total profit: 20000 + 6000 = 26000
+    expect(stats.profit).toBe(26000)
   })
 })

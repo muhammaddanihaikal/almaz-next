@@ -391,6 +391,61 @@ function SalesBreakdownTooltip({ breakdown, totalSetoran }) {
   )
 }
 
+function SetoranBreakdownTooltip({ breakdown }) {
+  const rows = [
+    ["Sesi (Cash)", breakdown.cashSesi],
+    ["Sesi (Transfer)", breakdown.transferSesi],
+    ["Titip Jual (Cash)", breakdown.cashTitip],
+    ["Titip Jual (Transfer)", breakdown.transferTitip],
+    ["Total Setoran", breakdown.total],
+  ]
+
+  return (
+    <div className="absolute left-0 top-full z-30 mt-2 hidden w-full min-w-[260px] overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-2xl ring-1 ring-black/5 group-hover:block">
+      <div className="bg-neutral-900 px-3.5 py-2">
+        <span className="text-[10px] font-semibold uppercase text-white/70">Rincian Setoran</span>
+      </div>
+      <div className="py-1">
+        {rows.map(([label, value], index) => (
+          <div key={label} className={`flex items-center justify-between gap-3 px-3.5 py-1.5 text-xs ${index === 4 ? "font-bold border-t border-neutral-100 pt-2 text-neutral-950" : "text-neutral-500"}`}>
+            <span className="min-w-0 truncate">{label}</span>
+            <span className="shrink-0 tabular-nums font-semibold text-neutral-900">
+              {fmtIDR(value)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ProfitBreakdownTooltip({ breakdown }) {
+  const rows = [
+    ["Profit Sesi (Langsung)", breakdown.profitSesi],
+    ["Profit Titip Jual (Konsinyasi)", breakdown.profitTitip],
+    ["Total Estimasi Profit", breakdown.total],
+  ]
+
+  return (
+    <div className="absolute left-0 top-full z-30 mt-2 hidden w-full min-w-[260px] overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-2xl ring-1 ring-black/5 group-hover:block">
+      <div className="bg-neutral-900 px-3.5 py-2">
+        <span className="text-[10px] font-semibold uppercase text-white/70">Rincian Estimasi Profit</span>
+      </div>
+      <div className="py-1">
+        {rows.map(([label, value], index) => (
+          <div key={label} className={`flex items-center justify-between gap-3 px-3.5 py-1.5 text-xs ${index === 2 ? "font-bold border-t border-neutral-100 pt-2 text-neutral-950" : "text-neutral-500"}`}>
+            <span className="min-w-0 truncate">{label}</span>
+            <span className="shrink-0 tabular-nums font-semibold text-neutral-900">
+              {fmtIDR(value)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+
 function KpiCardNew({ icon: Icon, label, value, subtitle, delta, compareLabel, sparkValues, color, tooltipItems, tooltipContent }) {
   return (
     <section className={`${CARD_CLS} group relative flex min-h-[148px] flex-col justify-between p-5 transition-all hover:border-neutral-300 hover:shadow-md`}>
@@ -446,7 +501,7 @@ function QtyBreakdownCard({ data }) {
     { name: "Langsung", value: data.langsung, color: "#171717" },
     { name: "Titip Jual", value: data.titipJual, color: "#C97B2A" },
     { name: "Tukar Barang", value: data.tukarBarang, color: "#5C7A8C" },
-    { name: "Sisa/Proses", value: data.sisa, color: "#ea580c" },
+    { name: "Proses", value: data.sisa, color: "#ea580c" },
   ].filter(d => d.value > 0)
 
   const total = data.total || (data.langsung + data.titipJual + data.tukarBarang + data.sisa)
@@ -727,16 +782,22 @@ function ProductOutgoingTable({ data }) {
         <p className="mt-0.5 text-xs text-neutral-500">Breakdown volume per saluran distribusi</p>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto md:overflow-visible">
         <table className="w-full text-left text-xs">
           <thead>
             <tr className="border-b border-neutral-100 text-neutral-400 uppercase tracking-wider font-semibold">
               <th className="py-3 pl-1">Produk</th>
-              <th className="py-3 text-right">Langsung</th>
-              <th className="py-3 text-right">Titip Jual</th>
-              <th className="py-3 text-right">Tukar Brg</th>
-              <th className="py-3 text-right text-orange-600">Sisa/Proses</th>
-              <th className="py-3 pr-1 text-right text-neutral-950 font-bold">Total</th>
+              <th className="py-3 text-center">Langsung</th>
+              <th className="py-3 text-center">Titip Jual</th>
+              <th className="py-3 text-center">Tukar Brg</th>
+              <th className="group relative py-3 text-center text-orange-600 cursor-default select-none">
+                <span className="underline decoration-dashed decoration-orange-300 underline-offset-4">Proses</span>
+                <div className="absolute left-1/2 bottom-full z-30 mb-2 hidden w-64 -translate-x-1/2 overflow-hidden rounded-xl border border-neutral-200 bg-white p-3.5 text-[11px] font-normal normal-case leading-relaxed text-neutral-600 shadow-2xl ring-1 ring-black/5 group-hover:block pointer-events-none">
+                  <div className="mb-1.5 font-bold text-neutral-950">Apa itu Proses?</div>
+                  Stok rokok yang **masih dibawa oleh Sales di lapangan** (belum terjual, belum dititipkan ke toko, dan belum dikembalikan ke gudang fisik).
+                </div>
+              </th>
+              <th className="py-3 pr-1 text-center text-neutral-950 font-bold">Total</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-50">
@@ -748,11 +809,11 @@ function ProductOutgoingTable({ data }) {
               data.map((row) => (
                 <tr key={row.id} className="hover:bg-neutral-50 transition-colors">
                   <td className="py-3 pl-1 font-medium text-neutral-900">{row.nama}</td>
-                  <td className="py-3 text-right tabular-nums text-neutral-600">{row.langsung || "-"}</td>
-                  <td className="py-3 text-right tabular-nums text-neutral-600">{row.titipJual || "-"}</td>
-                  <td className="py-3 text-right tabular-nums text-neutral-600">{row.tukarBarang || "-"}</td>
-                  <td className="py-3 text-right tabular-nums font-medium text-orange-600 bg-orange-50/30">{row.sisa || "-"}</td>
-                  <td className="py-3 pr-1 text-right tabular-nums font-bold text-neutral-950 bg-neutral-50/50">{row.total}</td>
+                  <td className="py-3 text-center tabular-nums text-neutral-600">{row.langsung || "-"}</td>
+                  <td className="py-3 text-center tabular-nums text-neutral-600">{row.titipJual || "-"}</td>
+                  <td className="py-3 text-center tabular-nums text-neutral-600">{row.tukarBarang || "-"}</td>
+                  <td className="py-3 text-center tabular-nums font-medium text-orange-600 bg-orange-50/30">{row.sisa || "-"}</td>
+                  <td className="py-3 pr-1 text-center tabular-nums font-bold text-neutral-950 bg-neutral-50/50">{row.total}</td>
                 </tr>
               ))
             )}
@@ -761,11 +822,11 @@ function ProductOutgoingTable({ data }) {
             <tfoot className="border-t-2 border-neutral-100 bg-neutral-50/30">
               <tr className="font-bold text-neutral-950">
                 <td className="py-3 pl-1">TOTAL KESELURUHAN</td>
-                <td className="py-3 text-right tabular-nums">{data.reduce((sum, r) => sum + r.langsung, 0)}</td>
-                <td className="py-3 text-right tabular-nums">{data.reduce((sum, r) => sum + r.titipJual, 0)}</td>
-                <td className="py-3 text-right tabular-nums">{data.reduce((sum, r) => sum + r.tukarBarang, 0)}</td>
-                <td className="py-3 text-right tabular-nums text-orange-700 bg-orange-100/20">{data.reduce((sum, r) => sum + r.sisa, 0)}</td>
-                <td className="py-3 pr-1 text-right tabular-nums bg-neutral-100/50">
+                <td className="py-3 text-center tabular-nums">{data.reduce((sum, r) => sum + r.langsung, 0)}</td>
+                <td className="py-3 text-center tabular-nums">{data.reduce((sum, r) => sum + r.titipJual, 0)}</td>
+                <td className="py-3 text-center tabular-nums">{data.reduce((sum, r) => sum + r.tukarBarang, 0)}</td>
+                <td className="py-3 text-center tabular-nums text-orange-700 bg-orange-100/20">{data.reduce((sum, r) => sum + r.sisa, 0)}</td>
+                <td className="py-3 pr-1 text-center tabular-nums bg-neutral-100/50">
                   {data.reduce((sum, r) => sum + r.total, 0)}
                 </td>
               </tr>
@@ -861,6 +922,36 @@ export default function DashboardPage({ sesiList, titipJualList, rokokList, peng
   const sparkProfit = dailySummary.map((item) => item.profit)
   const sparkQty = dailySummary.map((item) => item.qty)
 
+  const setoranBreakdown = useMemo(() => {
+    const allSesiSetoran = (sesiF || []).flatMap((s) => s.setoran || [])
+    const allTitipSetoran = (titipJualList || []).flatMap((t) => (t.setoran || []).filter((s) => isDateInRange(s.tanggal, dateRange)))
+
+    const cashSesi = sumBy(allSesiSetoran.filter((s) => s.metode === "cash"), (s) => s.jumlah)
+    const transferSesi = sumBy(allSesiSetoran.filter((s) => s.metode === "transfer"), (s) => s.jumlah)
+
+    const cashTitip = sumBy(allTitipSetoran.filter((s) => s.metode === "cash"), (s) => s.jumlah)
+    const transferTitip = sumBy(allTitipSetoran.filter((s) => s.metode === "transfer"), (s) => s.jumlah)
+
+    return {
+      cashSesi,
+      transferSesi,
+      cashTitip,
+      transferTitip,
+      total: cashSesi + transferSesi + cashTitip + transferTitip
+    }
+  }, [sesiF, titipJualList, dateRange])
+
+  const profitBreakdown = useMemo(() => {
+    const profitSesi = sumBy(sesiF, (sesi) => getSesiProfit(sesi, rokokById))
+    const profitTitip = sumBy(titipJualF, (titip) => getTitipProfit(titip, rokokById))
+
+    return {
+      profitSesi,
+      profitTitip,
+      total: profitSesi + profitTitip
+    }
+  }, [sesiF, titipJualF, rokokById])
+
   return (
     <div className="space-y-5 text-neutral-950">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -894,6 +985,7 @@ export default function DashboardPage({ sesiList, titipJualList, rokokList, peng
           compareLabel={compareLabel}
           sparkValues={sparkSetoran}
           color="#5C7A8C"
+          tooltipContent={<SetoranBreakdownTooltip breakdown={setoranBreakdown} />}
         />
         <KpiCardNew
           icon={TrendingUp}
@@ -904,6 +996,7 @@ export default function DashboardPage({ sesiList, titipJualList, rokokList, peng
           compareLabel={compareLabel}
           sparkValues={sparkProfit}
           color="#3F6B4A"
+          tooltipContent={<ProfitBreakdownTooltip breakdown={profitBreakdown} />}
         />
         <KpiCardNew
           icon={Package}
