@@ -1659,33 +1659,23 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, stockCutoffDate
     return aktif.map((r) => {
       const existing    = initial?.barangKeluar?.find((it) => it.rokok_id === r.id)
       const existingQty = existing ? existing.qty : 0
-      const existingSC  = initial?.samples?.find((s) => s.rokok_id === r.id && s.type === "cukai")
-      const existingSB  = initial?.samples?.find((s) => s.rokok_id === r.id && s.type === "biasa")
       return {
         rokok_id:          r.id,
         nama:              r.nama,
         stok:              (r.stok ?? 0) + existingQty,
-        stok_sample_cukai: (r.stok_sample_cukai ?? 0) + (existingSC?.qty_keluar ?? 0),
-        stok_sample_biasa: (r.stok_sample_biasa ?? 0) + (existingSB?.qty_keluar ?? 0),
         qty:               existing?.qty || "",
-        qty_sample_cukai:  existingSC?.qty_keluar || "",
-        qty_sample_biasa:  existingSB?.qty_keluar || "",
       }
     })
   })
   const [error, setError] = useState("")
 
   const updateQty        = (idx, val) => setItems(items.map((it, i) => i === idx ? { ...it, qty: val } : it))
-  const updateSampleCukai = (idx, val) => setItems(items.map((it, i) => i === idx ? { ...it, qty_sample_cukai: val } : it))
-  const updateSampleBiasa = (idx, val) => setItems(items.map((it, i) => i === idx ? { ...it, qty_sample_biasa: val } : it))
 
   const is_historical_computed = stockCutoffDate ? tanggal < stockCutoffDate : false
 
   const validItems = items.filter((it) => Number(it.qty) > 0)
   const hasStokError       = !is_historical_computed && validItems.some((it) => Number(it.qty) > it.stok)
-  const hasSampleCukaiError = !is_historical_computed && items.some((it) => Number(it.qty_sample_cukai) > it.stok_sample_cukai)
-  const hasSampleBiasaError = !is_historical_computed && items.some((it) => Number(it.qty_sample_biasa) > it.stok_sample_biasa)
-  const valid = tanggal && salesId && validItems.length >= 1 && !hasStokError && !hasSampleCukaiError && !hasSampleBiasaError
+  const valid = tanggal && salesId && validItems.length >= 1 && !hasStokError
 
   const [loading, setLoading] = useState(false)
   const submit = async (e) => {
@@ -1694,13 +1684,7 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, stockCutoffDate
     setLoading(true)
     try {
       setError("")
-      const samples = items.flatMap((it) => {
-        const out = []
-        if (Number(it.qty_sample_cukai) > 0) out.push({ rokok_id: it.rokok_id, type: "cukai", qty_keluar: Number(it.qty_sample_cukai) })
-        if (Number(it.qty_sample_biasa) > 0) out.push({ rokok_id: it.rokok_id, type: "biasa", qty_keluar: Number(it.qty_sample_biasa) })
-        return out
-      })
-      await onSubmit({ tanggal, sales_id: salesId, catatan, barangKeluar: validItems.map((it) => ({ rokok_id: it.rokok_id, qty: Number(it.qty) })), samples })
+      await onSubmit({ tanggal, sales_id: salesId, catatan, barangKeluar: validItems.map((it) => ({ rokok_id: it.rokok_id, qty: Number(it.qty) })), samples: [] })
     } catch (err) {
       if (err.message?.includes("Unique constraint failed")) {
         setError(`Sales ini sudah punya sesi pada tanggal ${tanggal}. Edit sesi yang ada atau pilih tanggal/sales lain.`)
@@ -1764,30 +1748,13 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, stockCutoffDate
               <th className="pb-2 text-left font-semibold">Produk</th>
               {!is_historical_computed && <th className="pb-2 text-center px-2 font-semibold">Stok Rokok</th>}
               <th className="pb-2 text-center px-2 font-semibold">Qty Bawa</th>
-              {!is_historical_computed && (
-                <>
-                  <th className="pb-2 text-center px-2 font-semibold text-orange-600">Stok SC</th>
-                  <th className="pb-2 text-center px-2 font-semibold text-orange-600">Qty SC</th>
-                  <th className="pb-2 text-center px-2 font-semibold text-blue-600">Stok SB</th>
-                  <th className="pb-2 text-center px-2 font-semibold text-blue-600">Qty SB</th>
-                </>
-              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100">
             {items.map((item, idx) => {
               const qty        = Number(item.qty)
-              const qtySC      = Number(item.qty_sample_cukai)
-              const qtySB      = Number(item.qty_sample_biasa)
-              
               const sisaStok   = item.stok - (qty > 0 ? qty : 0)
-              const sisaSC     = item.stok_sample_cukai - (qtySC > 0 ? qtySC : 0)
-              const sisaSB     = item.stok_sample_biasa - (qtySB > 0 ? qtySB : 0)
-
               const melebihi   = !is_historical_computed && qty > 0 && qty > item.stok
-              const melebihiSC = !is_historical_computed && qtySC > 0 && qtySC > item.stok_sample_cukai
-              const melebihiSB = !is_historical_computed && qtySB > 0 && qtySB > item.stok_sample_biasa
-              const hasError   = melebihi || melebihiSC || melebihiSB
               
               return (
                 <Fragment key={item.rokok_id}>
@@ -1811,54 +1778,13 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, stockCutoffDate
                         />
                       </div>
                     </td>
-                    {!is_historical_computed && (
-                      <>
-                        {/* Sample Cukai Column Group */}
-                        <td className={`py-2.5 text-center px-2 text-xs tabular-nums font-medium ${melebihiSC ? "text-red-500" : qtySC > 0 ? "text-orange-600" : "text-neutral-400"}`}>
-                          {qtySC > 0 ? sisaSC : item.stok_sample_cukai}
-                        </td>
-                        <td className="py-2.5 text-center px-2">
-                          <div className="flex justify-center">
-                            <input
-                              type="number" min="0"
-                              value={item.qty_sample_cukai}
-                              onChange={(e) => updateSampleCukai(idx, e.target.value)}
-                              placeholder="—"
-                              disabled={!salesId}
-                              style={{ width: '80px' }}
-                              className={inputCls + " text-center px-1 text-orange-700 font-medium" + (melebihiSC ? " border-red-400 focus:ring-red-500" : "") + (!salesId ? " opacity-40 cursor-not-allowed bg-neutral-50" : "")}
-                            />
-                          </div>
-                        </td>
-                        
-                        {/* Sample Biasa Column Group */}
-                        <td className={`py-2.5 text-center px-2 text-xs tabular-nums font-medium ${melebihiSB ? "text-red-500" : qtySB > 0 ? "text-blue-600" : "text-neutral-400"}`}>
-                          {qtySB > 0 ? sisaSB : item.stok_sample_biasa}
-                        </td>
-                        <td className="py-2.5 text-center px-2">
-                          <div className="flex justify-center">
-                            <input
-                              type="number" min="0"
-                              value={item.qty_sample_biasa}
-                              onChange={(e) => updateSampleBiasa(idx, e.target.value)}
-                              placeholder="—"
-                              disabled={!salesId}
-                              style={{ width: '80px' }}
-                              className={inputCls + " text-center px-1 text-blue-700 font-medium" + (melebihiSB ? " border-red-400 focus:ring-red-500" : "") + (!salesId ? " opacity-40 cursor-not-allowed bg-neutral-50" : "")}
-                            />
-                          </div>
-                        </td>
-                      </>
-                    )}
                   </tr>
-                  {hasError && (
+                  {melebihi && (
                     <tr>
-                      <td colSpan={7} className="pb-2 pt-0">
+                      <td colSpan={3} className="pb-2 pt-0">
                         <div className="flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] text-red-700">
                           <AlertCircle className="h-3 w-3 shrink-0" />
-                          {melebihi && `Stok Utama habis (tersedia ${item.stok}). `}
-                          {melebihiSC && `Stok Sample Cukai habis (tersedia ${item.stok_sample_cukai}). `}
-                          {melebihiSB && `Stok Sample Biasa habis (tersedia ${item.stok_sample_biasa}).`}
+                          Stok Utama habis (tersedia {item.stok}).
                         </div>
                       </td>
                     </tr>
@@ -1973,15 +1899,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
     return [{ toko_id: "", kategori: sesi.sales_kategori || "toko", tanggal_jatuh_tempo: "", catatan: "", items: [{ rokok_id: "", qty: "" }] }]
   })
 
-  const [sampleKembali, setSampleKembali] = useState(() =>
-    (sesi.sample || []).map((sm) => ({
-      rokok_id:    sm.rokok_id,
-      rokok:       sm.rokok,
-      type:        sm.type,
-      qty_keluar:  sm.qty_keluar,
-      qty_kembali: String(sm.qty_kembali ?? 0),
-    }))
-  )
+  const [sampleKembali, setSampleKembali] = useState([])
 
   const [loading, setLoading] = useState(false)
   const [showPerorangan,    setShowPerorangan]    = useState(false)

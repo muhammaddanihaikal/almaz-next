@@ -65,6 +65,7 @@ model Rokok {
   tukarBarangMasuk    TukarBarangItemMasuk[]
   tukarBarangKeluar   TukarBarangItemKeluar[]
   sampleKonversi      SampleCukaiKonversi[]
+  sampleHarianItems   SampleHarianItem[]
 }
 
 model StokMasuk {
@@ -433,6 +434,39 @@ model AuditLog {
 
   @@index([entity_type, entity_id])
   @@index([createdAt])
+}
+
+// ─── SAMPLE HARIAN ───────────────────────────────────────────────────────────
+
+model SampleHarian {
+  id        String   @id @default(cuid())
+  tanggal   DateTime @db.Date
+  status    String   @default("buka") // "buka" | "selesai"
+  catatan   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items SampleHarianItem[]
+
+  @@unique([tanggal])
+  @@index([tanggal])
+  @@index([status])
+}
+
+model SampleHarianItem {
+  id               String @id @default(cuid())
+  sample_harian_id String
+  rokok_id         String
+  type             String @default("biasa") // "cukai" | "biasa"
+  qty_keluar       Int    @default(0)
+  qty_kembali      Int    @default(0)
+
+  sampleHarian SampleHarian @relation(fields: [sample_harian_id], references: [id], onDelete: Cascade)
+  rokok        Rokok        @relation(fields: [rokok_id], references: [id])
+
+  @@unique([sample_harian_id, rokok_id, type])
+  @@index([sample_harian_id])
+  @@index([rokok_id])
 }
 
 // ─── SETTINGS ────────────────────────────────────────────────────────────────

@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Truck, PackageCheck, Cigarette,
   Users, CalendarCheck, Menu, X, ChevronDown, ChevronRight,
   Folder, Database, LogOut, ArrowDownCircle, Store,
-  UserCog, HardDrive, ShieldCheck, History, Loader2, Repeat, Settings
+  UserCog, HardDrive, ShieldCheck, History, Loader2, Repeat, Settings, FlaskConical
 } from "lucide-react"
 
 import { useLoading } from "./LoadingProvider"
@@ -24,8 +24,9 @@ function buildMenus(role, titipJualCounts, tukarAktifCount) {
       label: "Operasional",
       icon: Folder,
       items: [
-        { id: "distribusi",   href: "/distribusi",   label: "Distribusi",   icon: Truck           },
-        { id: "titip-jual",   href: "/titip-jual",   label: "Titip Jual",   icon: PackageCheck, badges: titipJualCounts },
+        { id: "distribusi",     href: "/distribusi",     label: "Distribusi",     icon: Truck           },
+        { id: "titip-jual",     href: "/titip-jual",     label: "Titip Jual",     icon: PackageCheck, badges: titipJualCounts },
+        { id: "sample-harian",  href: "/sample-harian",  label: "Sample Harian",  icon: FlaskConical    },
         // { id: "tukar-barang", href: "/tukar-barang", label: "Tukar Barang", icon: Repeat,       badges: tukarBadge },
       ],
     },
