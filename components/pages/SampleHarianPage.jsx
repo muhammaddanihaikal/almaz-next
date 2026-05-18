@@ -139,13 +139,13 @@ function BuatModal({ rokokList, existingList = [], onClose, onSaved }) {
 
         <div className="overflow-x-auto rounded-lg border border-neutral-200">
           <table className="w-full text-sm">
-            <thead className="bg-neutral-50 text-xs font-semibold uppercase tracking-wide text-neutral-500 border-b border-neutral-200">
-              <tr>
-                <th className="px-3 py-2.5 text-left">Produk</th>
-                <th className="px-3 py-2.5 text-center text-orange-600 font-semibold">Stok SC</th>
-                <th className="px-3 py-2.5 text-center text-orange-600 font-semibold">Qty SC</th>
-                <th className="px-3 py-2.5 text-center text-blue-600 font-semibold">Stok SB</th>
-                <th className="px-3 py-2.5 text-center text-blue-600 font-semibold">Qty SB</th>
+            <thead className="bg-neutral-50 border-b border-neutral-200">
+              <tr className="text-[10px] uppercase tracking-wider text-neutral-400 font-semibold">
+                <th className="px-3 py-2.5 text-left font-semibold">Produk</th>
+                <th className="px-3 py-2.5 text-center font-semibold">Stok Cukai</th>
+                <th className="px-3 py-2.5 text-center font-bold text-amber-600">Sample Cukai</th>
+                <th className="px-3 py-2.5 text-center font-semibold">Stok Biasa</th>
+                <th className="px-3 py-2.5 text-center font-bold text-blue-600">Sample Biasa</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100 px-3">
@@ -166,7 +166,7 @@ function BuatModal({ rokokList, existingList = [], onClose, onSaved }) {
                     <td className="px-3 py-2.5 text-sm font-medium text-neutral-800">{r.nama}</td>
                     
                     {/* Stok SC */}
-                    <td className={`px-3 py-2.5 text-center text-xs tabular-nums font-semibold ${melebihiSC ? "text-red-500" : Number(qtySC) > 0 ? "text-orange-600" : "text-neutral-400"}`}>
+                    <td className={`px-3 py-2.5 text-center text-xs tabular-nums font-medium ${melebihiSC ? "text-red-500" : Number(qtySC) > 0 ? "text-blue-600" : "text-neutral-400"}`}>
                       {Number(qtySC) > 0 ? sisaSC : stokSC}
                     </td>
                     {/* Qty SC Input */}
@@ -178,14 +178,15 @@ function BuatModal({ rokokList, existingList = [], onClose, onSaved }) {
                           value={qtySC}
                           onFocus={(e) => e.target.select()}
                           onChange={(e) => setQtysCukai((p) => ({ ...p, [r.id]: e.target.value === "" ? "" : Number(e.target.value) }))}
-                          className={`${inputCls} w-20 text-center text-orange-700 font-semibold ${melebihiSC ? "border-red-400 focus:ring-red-500" : ""}`}
+                          style={{ width: '120px' }}
+                          className={inputCls + " text-center px-3 py-1.5 font-semibold text-sm text-amber-600 focus:ring-amber-500" + (melebihiSC ? " border-red-400 focus:ring-red-500" : "")}
                           placeholder="—"
                         />
                       </div>
                     </td>
 
                     {/* Stok SB */}
-                    <td className={`px-3 py-2.5 text-center text-xs tabular-nums font-semibold ${melebihiSB ? "text-red-500" : Number(qtySB) > 0 ? "text-blue-600" : "text-neutral-400"}`}>
+                    <td className={`px-3 py-2.5 text-center text-xs tabular-nums font-medium ${melebihiSB ? "text-red-500" : Number(qtySB) > 0 ? "text-blue-600" : "text-neutral-400"}`}>
                       {Number(qtySB) > 0 ? sisaSB : stokSB}
                     </td>
                     {/* Qty SB Input */}
@@ -197,7 +198,8 @@ function BuatModal({ rokokList, existingList = [], onClose, onSaved }) {
                           value={qtySB}
                           onFocus={(e) => e.target.select()}
                           onChange={(e) => setQtysBiasa((p) => ({ ...p, [r.id]: e.target.value === "" ? "" : Number(e.target.value) }))}
-                          className={`${inputCls} w-20 text-center text-blue-700 font-semibold ${melebihiSB ? "border-red-400 focus:ring-red-500" : ""}`}
+                          style={{ width: '120px' }}
+                          className={inputCls + " text-center px-3 py-1.5 font-semibold text-sm text-blue-600 focus:ring-blue-500" + (melebihiSB ? " border-red-400 focus:ring-red-500" : "")}
                           placeholder="—"
                         />
                       </div>
@@ -285,11 +287,11 @@ function TutupModal({ session, onClose, onSaved }) {
         <p className="text-sm text-neutral-500">Lengkapi formulir di bawah ini dengan mencatat jumlah sample yang kembali per produk.</p>
         <div className="overflow-x-auto rounded-lg border border-neutral-200">
           <table className="w-full text-sm">
-            <thead className="bg-neutral-50 text-xs font-semibold uppercase tracking-wide text-neutral-500 border-b border-neutral-200">
-              <tr>
-                <th className="px-4 py-3 text-left">Produk</th>
-                <th className="px-4 py-3 text-center text-orange-600 font-bold bg-orange-50/30">Sample Cukai</th>
-                <th className="px-4 py-3 text-center text-blue-600 font-bold bg-blue-50/30">Sample Biasa</th>
+            <thead className="bg-neutral-50 border-b border-neutral-200">
+              <tr className="text-[10px] uppercase tracking-wider text-neutral-400 font-semibold">
+                <th className="px-4 py-3 text-left font-semibold">Produk</th>
+                <th className="px-4 py-3 text-center font-bold text-amber-600">Sample Cukai</th>
+                <th className="px-4 py-3 text-center font-bold text-blue-600">Sample Biasa</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100">
@@ -323,7 +325,7 @@ function TutupModal({ session, onClose, onSaved }) {
                         value={qtys[key] ?? ""}
                         onFocus={(e) => e.target.select()}
                         onChange={(e) => setQtys((p) => ({ ...p, [key]: e.target.value === "" ? "" : Number(e.target.value) }))}
-                        className={`${inputCls} w-full text-center font-semibold ${isCukai ? "text-orange-700 focus:ring-orange-500" : "text-blue-700 focus:ring-blue-500"} ${isInvalid ? "border-red-400 focus:ring-red-500" : ""}`}
+                        className={inputCls + " w-full text-center px-3 py-1.5 font-semibold text-sm " + (isCukai ? "text-amber-600 focus:ring-amber-500" : "text-blue-600 focus:ring-blue-500") + (isInvalid ? " border-red-400 focus:ring-red-500" : "")}
                       />
                     </div>
                   )
@@ -332,8 +334,8 @@ function TutupModal({ session, onClose, onSaved }) {
                 return (
                   <tr key={group.rokok_id} className="hover:bg-neutral-50/50 transition-colors">
                     <td className="px-4 py-3 text-sm font-semibold text-neutral-800">{group.rokokName}</td>
-                    <td className="px-4 py-2 bg-orange-50/10 border-r border-neutral-100">{renderInputCell(group.cukai)}</td>
-                    <td className="px-4 py-2 bg-blue-50/10">{renderInputCell(group.biasa)}</td>
+                    <td className="px-4 py-2 bg-neutral-50/10 border-r border-neutral-100">{renderInputCell(group.cukai)}</td>
+                    <td className="px-4 py-2 bg-neutral-50/10">{renderInputCell(group.biasa)}</td>
                   </tr>
                 )
               })}
@@ -481,13 +483,13 @@ function EditModal({ session, rokokList, existingList = [], onClose, onSaved }) 
 
         <div className="overflow-x-auto rounded-lg border border-neutral-200">
           <table className="w-full text-sm">
-            <thead className="bg-neutral-50 text-xs font-semibold uppercase tracking-wide text-neutral-500 border-b border-neutral-200">
-              <tr>
-                <th className="px-3 py-2.5 text-left">Produk</th>
-                <th className="px-3 py-2.5 text-center text-orange-600 font-semibold">Stok SC</th>
-                <th className="px-3 py-2.5 text-center text-orange-600 font-semibold">Qty SC</th>
-                <th className="px-3 py-2.5 text-center text-blue-600 font-semibold">Stok SB</th>
-                <th className="px-3 py-2.5 text-center text-blue-600 font-semibold">Qty SB</th>
+            <thead className="bg-neutral-50 border-b border-neutral-200">
+              <tr className="text-[10px] uppercase tracking-wider text-neutral-400 font-semibold">
+                <th className="px-3 py-2.5 text-left font-semibold">Produk</th>
+                <th className="px-3 py-2.5 text-center font-semibold">Stok Cukai</th>
+                <th className="px-3 py-2.5 text-center font-bold text-amber-600">Sample Cukai</th>
+                <th className="px-3 py-2.5 text-center font-semibold">Stok Biasa</th>
+                <th className="px-3 py-2.5 text-center font-bold text-blue-600">Sample Biasa</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100 px-3">
@@ -515,7 +517,7 @@ function EditModal({ session, rokokList, existingList = [], onClose, onSaved }) 
                     <td className="px-3 py-2.5 text-sm font-medium text-neutral-800">{r.nama}</td>
                     
                     {/* Stok SC */}
-                    <td className={`px-3 py-2.5 text-center text-xs tabular-nums font-semibold ${melebihiSC ? "text-red-500" : Number(qtySC) > 0 ? "text-orange-600" : "text-neutral-400"}`}>
+                    <td className={`px-3 py-2.5 text-center text-xs tabular-nums font-medium ${melebihiSC ? "text-red-500" : Number(qtySC) > 0 ? "text-blue-600" : "text-neutral-400"}`}>
                       {Number(qtySC) > 0 ? sisaSC : stokSC}
                     </td>
                     {/* Qty SC Input */}
@@ -527,14 +529,15 @@ function EditModal({ session, rokokList, existingList = [], onClose, onSaved }) 
                           value={qtySC}
                           onFocus={(e) => e.target.select()}
                           onChange={(e) => setQtysCukai((p) => ({ ...p, [r.id]: e.target.value === "" ? "" : Number(e.target.value) }))}
-                          className={`${inputCls} w-20 text-center text-orange-700 font-semibold ${melebihiSC ? "border-red-400 focus:ring-red-500" : ""}`}
+                          style={{ width: '120px' }}
+                          className={inputCls + " text-center px-3 py-1.5 font-semibold text-sm text-amber-600 focus:ring-amber-500" + (melebihiSC ? " border-red-400 focus:ring-red-500" : "")}
                           placeholder="—"
                         />
                       </div>
                     </td>
 
                     {/* Stok SB */}
-                    <td className={`px-3 py-2.5 text-center text-xs tabular-nums font-semibold ${melebihiSB ? "text-red-500" : Number(qtySB) > 0 ? "text-blue-600" : "text-neutral-400"}`}>
+                    <td className={`px-3 py-2.5 text-center text-xs tabular-nums font-medium ${melebihiSB ? "text-red-500" : Number(qtySB) > 0 ? "text-blue-600" : "text-neutral-400"}`}>
                       {Number(qtySB) > 0 ? sisaSB : stokSB}
                     </td>
                     {/* Qty SB Input */}
@@ -546,7 +549,8 @@ function EditModal({ session, rokokList, existingList = [], onClose, onSaved }) 
                           value={qtySB}
                           onFocus={(e) => e.target.select()}
                           onChange={(e) => setQtysBiasa((p) => ({ ...p, [r.id]: e.target.value === "" ? "" : Number(e.target.value) }))}
-                          className={`${inputCls} w-20 text-center text-blue-700 font-semibold ${melebihiSB ? "border-red-400 focus:ring-red-500" : ""}`}
+                          style={{ width: '120px' }}
+                          className={inputCls + " text-center px-3 py-1.5 font-semibold text-sm text-blue-600 focus:ring-blue-500" + (melebihiSB ? " border-red-400 focus:ring-red-500" : "")}
                           placeholder="—"
                         />
                       </div>
