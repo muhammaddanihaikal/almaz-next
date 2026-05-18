@@ -717,7 +717,7 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
       )}
 
       {mode && (
-        <Modal title={mode === "add" ? "Buat Sesi Pagi" : "Edit Sesi Pagi"} onClose={close} width="max-w-5xl">
+        <Modal title={mode === "add" ? "Buat Sesi Pagi" : "Edit Sesi Pagi"} onClose={close} width="max-w-2xl">
           <SesiPagiForm
             initial={editing}
             rokokList={localRokokList}
@@ -1773,8 +1773,8 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, stockCutoffDate
                           onChange={(e) => updateQty(idx, e.target.value)}
                           placeholder="—"
                           disabled={!salesId}
-                          style={{ width: '80px' }}
-                          className={inputCls + " text-center px-1" + (melebihi ? " border-red-400 focus:ring-red-500" : "") + (!salesId ? " opacity-40 cursor-not-allowed bg-neutral-50" : "")}
+                          style={{ width: '120px' }}
+                          className={inputCls + " text-center px-3 py-1.5 font-semibold text-sm" + (melebihi ? " border-red-400 focus:ring-red-500" : "") + (!salesId ? " opacity-40 cursor-not-allowed bg-neutral-50" : "")}
                         />
                       </div>
                     </td>
