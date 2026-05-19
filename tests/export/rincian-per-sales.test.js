@@ -39,22 +39,26 @@ describe("buildRincianPerSalesData", () => {
   // ── 2. Penjualan Langsung ─────────────────────────────────────────────────
   it("counts penjualan langsung correctly per sales", () => {
     const rows = [
-      makeSesi("DANDI", { penjualan: [{ rokok_id: "r1", qty: 5 }, { rokok_id: "r2", qty: 3 }] }),
-      makeSesi("MAS AMAR", { penjualan: [{ rokok_id: "r1", qty: 2 }] }),
+      makeSesi("DANDI", { penjualan: [{ rokok_id: "r1", qty: 5, harga: 11000 }, { rokok_id: "r2", qty: 3, harga: 10000 }] }),
+      makeSesi("MAS AMAR", { penjualan: [{ rokok_id: "r1", qty: 2, harga: 12000 }] }),
     ]
     const { dataMap } = buildRincianPerSalesData(rows, rokokList)
-    expect(dataMap["r1"]["DANDI"]).toBe(5)
-    expect(dataMap["r2"]["DANDI"]).toBe(3)
-    expect(dataMap["r1"]["MAS AMAR"]).toBe(2)
+    expect(dataMap["r1"]["DANDI"].langsungQty).toBe(5)
+    expect(dataMap["r1"]["DANDI"].langsungUang).toBe(55000)
+    expect(dataMap["r2"]["DANDI"].langsungQty).toBe(3)
+    expect(dataMap["r2"]["DANDI"].langsungUang).toBe(30000)
+    expect(dataMap["r1"]["MAS AMAR"].langsungQty).toBe(2)
+    expect(dataMap["r1"]["MAS AMAR"].langsungUang).toBe(24000)
   })
 
   it("aggregates multiple sessions of same sales for penjualan", () => {
     const rows = [
-      makeSesi("DANDI", { penjualan: [{ rokok_id: "r1", qty: 5 }] }),
-      makeSesi("DANDI", { penjualan: [{ rokok_id: "r1", qty: 3 }] }),
+      makeSesi("DANDI", { penjualan: [{ rokok_id: "r1", qty: 5, harga: 11000 }] }),
+      makeSesi("DANDI", { penjualan: [{ rokok_id: "r1", qty: 3, harga: 11000 }] }),
     ]
     const { dataMap } = buildRincianPerSalesData(rows, rokokList)
-    expect(dataMap["r1"]["DANDI"]).toBe(8)
+    expect(dataMap["r1"]["DANDI"].langsungQty).toBe(8)
+    expect(dataMap["r1"]["DANDI"].langsungUang).toBe(88000)
   })
 
   // ── 3. Titip Jual Selesai ─────────────────────────────────────────────────
@@ -65,15 +69,16 @@ describe("buildRincianPerSalesData", () => {
           {
             status: "selesai",
             items: [
-              { rokok_id: "r2", qty_terjual: 10 },
-              { rokok_id: "r3", qty_terjual: 0 },  // 0 → should not count
+              { rokok_id: "r2", qty_terjual: 10, harga: 10000 },
+              { rokok_id: "r3", qty_terjual: 0, harga: 9000 },  // 0 → should not count
             ],
           },
         ],
       }),
     ]
     const { dataMap } = buildRincianPerSalesData(rows, rokokList)
-    expect(dataMap["r2"]["PAK TROY"]).toBe(10)
+    expect(dataMap["r2"]["PAK TROY"].titipQty).toBe(10)
+    expect(dataMap["r2"]["PAK TROY"].titipUang).toBe(100000)
     expect(dataMap["r3"]).toBeUndefined()  // qty_terjual 0 → not added
   })
 
@@ -81,7 +86,7 @@ describe("buildRincianPerSalesData", () => {
     const rows = [
       makeSesi("PAK TROY", {
         konsinyasi: [
-          { status: "aktif", items: [{ rokok_id: "r1", qty_terjual: 20 }] },
+          { status: "aktif", items: [{ rokok_id: "r1", qty_terjual: 20, harga: 11000 }] },
         ],
       }),
     ]
@@ -95,14 +100,16 @@ describe("buildRincianPerSalesData", () => {
       makeSesi("MAS BOBI", {
         tukarBarangSelesaiDiSesi: [
           {
-            itemsKeluar: [{ rokok_id: "r1", qty: 7 }, { rokok_id: "r3", qty: 4 }],
+            itemsKeluar: [{ rokok_id: "r1", qty: 7, harga_satuan: 11000 }, { rokok_id: "r3", qty: 4, harga_satuan: 9000 }],
           },
         ],
       }),
     ]
     const { dataMap } = buildRincianPerSalesData(rows, rokokList)
-    expect(dataMap["r1"]["MAS BOBI"]).toBe(7)
-    expect(dataMap["r3"]["MAS BOBI"]).toBe(4)
+    expect(dataMap["r1"]["MAS BOBI"].tukarQty).toBe(7)
+    expect(dataMap["r1"]["MAS BOBI"].tukarUang).toBe(77000)
+    expect(dataMap["r3"]["MAS BOBI"].tukarQty).toBe(4)
+    expect(dataMap["r3"]["MAS BOBI"].tukarUang).toBe(36000)
   })
 
   it("does NOT count tukar barang itemsMasuk (barang retur dari customer)", () => {
@@ -110,14 +117,15 @@ describe("buildRincianPerSalesData", () => {
       makeSesi("MAS BOBI", {
         tukarBarangSelesaiDiSesi: [
           {
-            itemsMasuk:  [{ rokok_id: "r2", qty: 5 }],  // retur dari customer → tidak dihitung
-            itemsKeluar: [{ rokok_id: "r1", qty: 3 }],  // pengganti → dihitung
+            itemsMasuk:  [{ rokok_id: "r2", qty: 5, harga_satuan: 10000 }],  // retur dari customer → tidak dihitung
+            itemsKeluar: [{ rokok_id: "r1", qty: 3, harga_satuan: 11000 }],  // pengganti → dihitung
           },
         ],
       }),
     ]
     const { dataMap } = buildRincianPerSalesData(rows, rokokList)
-    expect(dataMap["r1"]["MAS BOBI"]).toBe(3)
+    expect(dataMap["r1"]["MAS BOBI"].tukarQty).toBe(3)
+    expect(dataMap["r1"]["MAS BOBI"].tukarUang).toBe(33000)
     expect(dataMap["r2"]).toBeUndefined()
   })
 
@@ -125,37 +133,41 @@ describe("buildRincianPerSalesData", () => {
   it("aggregates all sources (penjualan + titip jual + tukar barang) for same sales and rokok", () => {
     const rows = [
       makeSesi("DANDI", {
-        penjualan: [{ rokok_id: "r1", qty: 10 }],
+        penjualan: [{ rokok_id: "r1", qty: 10, harga: 11000 }],
         konsinyasi: [
-          { status: "selesai", items: [{ rokok_id: "r1", qty_terjual: 5 }] },
+          { status: "selesai", items: [{ rokok_id: "r1", qty_terjual: 5, harga: 11000 }] },
         ],
         tukarBarangSelesaiDiSesi: [
-          { itemsKeluar: [{ rokok_id: "r1", qty: 3 }] },
+          { itemsKeluar: [{ rokok_id: "r1", qty: 3, harga_satuan: 11000 }] },
         ],
       }),
     ]
     const { dataMap } = buildRincianPerSalesData(rows, rokokList)
-    // 10 (penjualan) + 5 (titip jual) + 3 (tukar) = 18
-    expect(dataMap["r1"]["DANDI"]).toBe(18)
+    expect(dataMap["r1"]["DANDI"].langsungQty).toBe(10)
+    expect(dataMap["r1"]["DANDI"].langsungUang).toBe(110000)
+    expect(dataMap["r1"]["DANDI"].titipQty).toBe(5)
+    expect(dataMap["r1"]["DANDI"].titipUang).toBe(55000)
+    expect(dataMap["r1"]["DANDI"].tukarQty).toBe(3)
+    expect(dataMap["r1"]["DANDI"].tukarUang).toBe(33000)
   })
 
   it("handles multiple sales with mixed sources correctly", () => {
     const rows = [
       makeSesi("DANDI", {
-        penjualan:  [{ rokok_id: "r1", qty: 6 }],
-        konsinyasi: [{ status: "selesai", items: [{ rokok_id: "r2", qty_terjual: 4 }] }],
+        penjualan:  [{ rokok_id: "r1", qty: 6, harga: 11000 }],
+        konsinyasi: [{ status: "selesai", items: [{ rokok_id: "r2", qty_terjual: 4, harga: 10000 }] }],
       }),
       makeSesi("PAK YAHMIN", {
-        penjualan:               [{ rokok_id: "r1", qty: 8 }],
-        tukarBarangSelesaiDiSesi: [{ itemsKeluar: [{ rokok_id: "r3", qty: 2 }] }],
+        penjualan:               [{ rokok_id: "r1", qty: 8, harga: 11000 }],
+        tukarBarangSelesaiDiSesi: [{ itemsKeluar: [{ rokok_id: "r3", qty: 2, harga_satuan: 9000 }] }],
       }),
     ]
     const { dataMap, activeSales } = buildRincianPerSalesData(rows, rokokList)
 
-    expect(dataMap["r1"]["DANDI"]).toBe(6)
-    expect(dataMap["r2"]["DANDI"]).toBe(4)
-    expect(dataMap["r1"]["PAK YAHMIN"]).toBe(8)
-    expect(dataMap["r3"]["PAK YAHMIN"]).toBe(2)
+    expect(dataMap["r1"]["DANDI"].langsungQty).toBe(6)
+    expect(dataMap["r2"]["DANDI"].titipQty).toBe(4)
+    expect(dataMap["r1"]["PAK YAHMIN"].langsungQty).toBe(8)
+    expect(dataMap["r3"]["PAK YAHMIN"].tukarQty).toBe(2)
     // DANDI harus tidak punya r3
     expect(dataMap["r3"]?.["DANDI"]).toBeUndefined()
     // activeSales sorted alphabetically
@@ -164,7 +176,7 @@ describe("buildRincianPerSalesData", () => {
 
   // ── 6. rokokMeta ─────────────────────────────────────────────────────────
   it("returns correct rokokMeta with all harga fields", () => {
-    const rows = [makeSesi("DANDI", { penjualan: [{ rokok_id: "r1", qty: 1 }] })]
+    const rows = [makeSesi("DANDI", { penjualan: [{ rokok_id: "r1", qty: 1, harga: 11000 }] })]
     const { rokokMeta } = buildRincianPerSalesData(rows, rokokList)
     expect(rokokMeta["r1"]).toEqual({
       nama:         "Produk A",
@@ -180,9 +192,9 @@ describe("buildRincianPerSalesData", () => {
     const rows = [
       makeSesi("DANDI", {
         penjualan: [
-          { rokok_id: "r3", qty: 1 },
-          { rokok_id: "r1", qty: 1 },
-          { rokok_id: "r2", qty: 1 },
+          { rokok_id: "r3", qty: 1, harga: 9000 },
+          { rokok_id: "r1", qty: 1, harga: 11000 },
+          { rokok_id: "r2", qty: 1, harga: 10000 },
         ],
       }),
     ]

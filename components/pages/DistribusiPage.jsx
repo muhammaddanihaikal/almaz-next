@@ -268,148 +268,180 @@ function exportToExcelBySales(rows, rokokList, dateRange, onNoData) {
   const { dataMap, activeSales, sortedRokokIds, rokokMeta } = buildRincianPerSalesData(rows, rokokList)
   if (!sortedRokokIds.length) { onNoData?.(); return }
 
-  // 2. Persiapkan Worksheet
-  const fmtD = (d) => { const [y, m, day] = d.split("-"); return `${day}/${m}/${y}` }
+  const getTotals = (rid) => {
+    const t = { langsungQty: 0, langsungUang: 0, titipQty: 0, titipUang: 0, tukarQty: 0, tukarUang: 0 }
+    for (const sn of activeSales) {
+      const d = dataMap[rid]?.[sn] || {}
+      t.langsungQty  += d.langsungQty  || 0; t.langsungUang += d.langsungUang || 0
+      t.titipQty     += d.titipQty     || 0; t.titipUang    += d.titipUang    || 0
+      t.tukarQty     += d.tukarQty     || 0; t.tukarUang    += d.tukarUang    || 0
+    }
+    t.totalQty = t.langsungQty + t.titipQty + t.tukarQty
+    t.totalUang = t.langsungUang + t.titipUang + t.tukarUang
+    return t
+  }
+
+  const fmtD  = (d) => { const [y, m, day] = d.split("-"); return `${day}/${m}/${y}` }
   const start = dateRange?.start ? fmtD(dateRange.start) : "-"
   const end   = dateRange?.end   ? fmtD(dateRange.end)   : "-"
   const title = `LAPORAN PENJUALAN PER MOTORIS (${start} - ${end})`
+  const fmtRp = (v) => "Rp " + (v || 0).toLocaleString("id-ID")
 
-  // No, Produk, Harga Beli, Harga Grosir, Harga Toko, Sales..., Total Qty, Total Uang
-  const salesStartCol = 5
-  const totalCols = salesStartCol + activeSales.length + 2
+  const n         = activeSales.length
+  const salesCol  = 5
+  const qtyCol    = salesCol + 3 * n
+  const uangCol   = qtyCol + 1
+  const totalCols = uangCol + 4
 
-  const bThin = { style: "thin", color: { rgb: "9CA3AF" } }
+  const bThin = { style: "thin", color: { rgb: "E2E8F0" } }
   const border = { top: bThin, bottom: bThin, left: bThin, right: bThin }
-  const sH          = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, alignment: { horizontal: "center", vertical: "center" }, border }
-  const sHAmber     = { font: { bold: true, color: { rgb: "1F2937" } }, fill: { fgColor: { rgb: "FDE68A" } }, alignment: { horizontal: "center", vertical: "center" }, border }
-  const sData       = { border, alignment: { vertical: "center", horizontal: "center" } }
-  const sCenter     = { ...sData, alignment: { horizontal: "center", vertical: "center" } }
-  const sProduct    = { ...sData, alignment: { horizontal: "left", vertical: "center" } }
-  const sNum        = { ...sData, alignment: { horizontal: "center", vertical: "center" }, z: "#,##0" }
-  const sMoney      = { ...sData, alignment: { horizontal: "center", vertical: "center" } }
-  const sMoneyGrosir= { ...sData, fill: { fgColor: { rgb: "F0FDF4" } }, alignment: { horizontal: "center", vertical: "center" } }
-  const sMoneyToko  = { ...sData, fill: { fgColor: { rgb: "EFF6FF" } }, alignment: { horizontal: "center", vertical: "center" } }
-  const sTotal      = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, border, alignment: { horizontal: "center", vertical: "center" } }
-  const sTotalNumCenter = { ...sTotal, alignment: { horizontal: "center", vertical: "center" }, z: "#,##0" }
-  const sTotalMoney = { ...sTotal, alignment: { horizontal: "center", vertical: "center" } }
-
-  const fmtExcelMoney = (v) => "Rp. " + (v || 0).toLocaleString("id-ID")
+  const ctr  = { horizontal: "center", vertical: "center" }
+  
+  // Header Styles (Soft slate & pastel palette)
+  const sH    = { font: { bold: true, color: { rgb: "334155" } }, fill: { fgColor: { rgb: "F1F5F9" } }, alignment: ctr, border }
+  const sHQ   = { font: { bold: true, color: { rgb: "0F766E" } }, fill: { fgColor: { rgb: "CCFBF1" } }, alignment: ctr, border }
+  const sHU   = { font: { bold: true, color: { rgb: "1E40AF" } }, fill: { fgColor: { rgb: "DBEAFE" } }, alignment: ctr, border }
+  const sHAmb = { font: { bold: true, color: { rgb: "92400E" } }, fill: { fgColor: { rgb: "FEF3C7" } }, alignment: ctr, border }
+  const sHGrn = { font: { bold: true, color: { rgb: "166534" } }, fill: { fgColor: { rgb: "DCFCE7" } }, alignment: ctr, border }
+  const sHLs  = { font: { bold: true, color: { rgb: "166534" } }, fill: { fgColor: { rgb: "DCFCE7" } }, alignment: ctr, border }
+  const sHTp  = { font: { bold: true, color: { rgb: "B45309" } }, fill: { fgColor: { rgb: "FEF9C3" } }, alignment: ctr, border }
+  const sHTk  = { font: { bold: true, color: { rgb: "1D4ED8" } }, fill: { fgColor: { rgb: "E0F2FE" } }, alignment: ctr, border }
+  const sHTQ  = { font: { bold: true, color: { rgb: "0F766E" } }, fill: { fgColor: { rgb: "CCFBF1" } }, alignment: ctr, border }
+  const sHTU  = { font: { bold: true, color: { rgb: "1E40AF" } }, fill: { fgColor: { rgb: "DBEAFE" } }, alignment: ctr, border }
+  
+  // Data Styles
+  const sBase = { border, alignment: ctr, font: { color: { rgb: "475569" } } }
+  const sProd = { border, alignment: { horizontal: "left", vertical: "center" }, font: { color: { rgb: "1E293B" } } }
+  const sNum  = { border, alignment: ctr, z: "#,##0", font: { color: { rgb: "475569" } } }
+  const sLsQ  = { ...sNum, fill: { fgColor: { rgb: "F0FDF4" } }, font: { color: { rgb: "166534" } } }
+  const sTpQ  = { ...sNum, fill: { fgColor: { rgb: "FEFCE8" } }, font: { color: { rgb: "854D0E" } } }
+  const sTkQ  = { ...sNum, fill: { fgColor: { rgb: "F0F9FF" } }, font: { color: { rgb: "1E40AF" } } }
+  const sTtQ  = { font: { bold: true, color: { rgb: "0F766E" } }, fill: { fgColor: { rgb: "F0FDFA" } }, border, alignment: ctr, z: "#,##0" }
+  const sMon  = { border, alignment: ctr, font: { color: { rgb: "475569" } } }
+  const sLsU  = { border, alignment: ctr, fill: { fgColor: { rgb: "F0FDF4" } }, font: { color: { rgb: "166534" } } }
+  const sTpU  = { border, alignment: ctr, fill: { fgColor: { rgb: "FEFCE8" } }, font: { color: { rgb: "854D0E" } } }
+  const sTkU  = { border, alignment: ctr, fill: { fgColor: { rgb: "F0F9FF" } }, font: { color: { rgb: "1E40AF" } } }
+  const sTtU  = { font: { bold: true, color: { rgb: "1E40AF" } }, fill: { fgColor: { rgb: "EFF6FF" } }, border, alignment: ctr }
+  const sMonG = { border, alignment: ctr, fill: { fgColor: { rgb: "FEF3C7" } }, font: { color: { rgb: "92400E" } } }
+  const sMonT = { border, alignment: ctr, fill: { fgColor: { rgb: "DCFCE7" } }, font: { color: { rgb: "166534" } } }
+  
+  // Footer Styles (Elegant solid light slate)
+  const sFoot = { font: { bold: true, color: { rgb: "1E293B" } }, fill: { fgColor: { rgb: "E2E8F0" } }, border, alignment: ctr }
+  const sFtQ  = { ...sFoot, z: "#,##0" }
 
   const wsData = [
-    // Row 1: Judul
-    [{ v: title, s: { font: { bold: true, sz: 12 }, alignment: { horizontal: "center", vertical: "center" } } }, ...Array(totalCols - 1).fill("")],
-    // Row 2: Kosong
+    // Row 0: Title
+    [{ v: title, s: { font: { bold: true, sz: 13 }, alignment: ctr } }, ...Array(totalCols - 1).fill("")],
+    // Row 1: Empty
     Array(totalCols).fill(""),
-    // Row 3: Header utama
+    // Row 2: Group headers
     [
-      { v: "NO",            s: sH },
-      { v: "PRODUK",        s: sH },
-      { v: "HARGA",         s: sH },
-      { v: "",              s: sH },
-      { v: "",              s: sH },
-      { v: "MOTORIS",       s: sH },
-      ...Array(activeSales.length - 1).fill({ v: "", s: sH }),
-      { v: "TOTAL TERJUAL", s: sH },
-      { v: "TOTAL UANG",    s: sH },
+      { v: "NO", s: sH }, { v: "PRODUK", s: sH },
+      { v: "HARGA", s: sH }, { v: "", s: sH }, { v: "", s: sH },
+      { v: "MOTORIS", s: sH }, ...Array(3 * n - 1).fill({ v: "", s: sH }),
+      { v: "TOTAL QTY", s: sHQ },
+      { v: "RINCIAN UANG", s: sHU }, { v: "", s: sHU }, { v: "", s: sHU }, { v: "", s: sHU },
     ],
-    // Row 4: Sub-header harga + nama sales
+    // Row 3: Sub-headers 1 (Sales names & money labels)
     [
-      { v: "", s: sH },
-      { v: "", s: sH },
-      { v: "BELI",   s: sH },
-      { v: "GROSIR", s: sHAmber },
-      { v: "TOKO",   s: sHAmber },
-      ...activeSales.map(name => ({ v: name.toUpperCase(), s: sH })),
-      { v: "", s: sH },
-      { v: "", s: sH },
+      { v: "", s: sH }, { v: "", s: sH },
+      { v: "BELI", s: sH }, { v: "GROSIR", s: sHAmb }, { v: "TOKO", s: sHGrn },
+      ...activeSales.flatMap(nm => [
+        { v: nm.toUpperCase(), s: sH }, { v: "", s: sH }, { v: "", s: sH }
+      ]),
+      { v: "", s: sHQ },
+      { v: "Langsung", s: sHLs }, { v: "Titip Jual", s: sHTp }, { v: "Tukar Brg", s: sHTk }, { v: "TOTAL UANG", s: sHTU },
     ],
-    // Baris data
+    // Row 4: Sub-headers 2 (LG, TJ, TB)
+    [
+      { v: "", s: sH }, { v: "", s: sH },
+      { v: "", s: sH }, { v: "", s: sH }, { v: "", s: sH },
+      ...activeSales.flatMap(() => [
+        { v: "LG", s: sHLs }, { v: "TJ", s: sHTp }, { v: "TB", s: sHTk }
+      ]),
+      { v: "", s: sHQ },
+      { v: "", s: sHU }, { v: "", s: sHU }, { v: "", s: sHU }, { v: "", s: sHU },
+    ],
+    // Data Rows
     ...sortedRokokIds.map((rid, i) => {
-      const rowData  = dataMap[rid] || {}
-      const meta     = rokokMeta[rid] || {}
-      const hBeli    = meta.harga_beli   || 0
-      const hGrosir  = meta.harga_grosir || 0
-      const hToko    = meta.harga_toko   || 0
-      const totalQty = activeSales.reduce((sum, sname) => sum + (rowData[sname] || 0), 0)
+      const meta = rokokMeta[rid] || {}
+      const tot  = getTotals(rid)
       return [
-        { v: i + 1,                      s: sCenter },
-        { v: meta.nama || rid,           s: sProduct },
-        { v: fmtExcelMoney(hBeli),   t: "s", s: sMoney       },
-        { v: fmtExcelMoney(hGrosir), t: "s", s: sMoneyGrosir },
-        { v: fmtExcelMoney(hToko),   t: "s", s: sMoneyToko   },
-        ...activeSales.map(sname => ({ v: rowData[sname] || 0, s: sNum })),
-        { v: totalQty,                   s: sNum    },
-        { v: fmtExcelMoney(totalQty * hBeli), t: "s", s: sMoney },
+        { v: i + 1, s: sBase },
+        { v: meta.nama || rid, s: sProd },
+        { v: fmtRp(meta.harga_beli), t: "s", s: sMon },
+        { v: fmtRp(meta.harga_grosir), t: "s", s: sMonG },
+        { v: fmtRp(meta.harga_toko), t: "s", s: sMonT },
+        ...activeSales.flatMap(sn => {
+          const d = dataMap[rid]?.[sn] || {}
+          return [
+            { v: d.langsungQty || 0, s: sLsQ },
+            { v: d.titipQty || 0, s: sTpQ },
+            { v: d.tukarQty || 0, s: sTkQ }
+          ]
+        }),
+        { v: tot.totalQty, s: sTtQ },
+        { v: fmtRp(tot.langsungUang), t: "s", s: sLsU },
+        { v: fmtRp(tot.titipUang),    t: "s", s: sTpU },
+        { v: fmtRp(tot.tukarUang),    t: "s", s: sTkU },
+        { v: fmtRp(tot.totalUang),    t: "s", s: sTtU },
       ]
     }),
-    // Baris total
+    // Footer Row
     [
-      { v: "",                  s: sTotal },
-      { v: "TOTAL KESELURUHAN", s: sTotal },
-      { v: "", s: sTotal },
-      { v: "", s: sTotal },
-      { v: "", s: sTotal },
-      ...activeSales.map(sname => ({
-        v: sortedRokokIds.reduce((sum, rid) => sum + (dataMap[rid]?.[sname] || 0), 0),
-        s: sTotalNumCenter,
-      })),
-      {
-        v: sortedRokokIds.reduce((sum, rid) => {
-          const rowData = dataMap[rid] || {}
-          return sum + activeSales.reduce((s, sn) => s + (rowData[sn] || 0), 0)
-        }, 0),
-        s: sTotalNumCenter,
-      },
-      {
-        v: fmtExcelMoney(sortedRokokIds.reduce((sum, rid) => {
-          const rowData = dataMap[rid] || {}
-          const hBeli   = rokokMeta[rid]?.harga_beli || 0
-          const totalQty = activeSales.reduce((s, sn) => s + (rowData[sn] || 0), 0)
-          return sum + (totalQty * hBeli)
-        }, 0)),
-        t: "s",
-        s: sTotalMoney,
-      },
+      { v: "", s: sFoot }, { v: "TOTAL KESELURUHAN", s: sFoot },
+      { v: "", s: sFoot }, { v: "", s: sFoot }, { v: "", s: sFoot },
+      ...activeSales.flatMap(sn => [
+        { v: sortedRokokIds.reduce((sum, rid) => sum + (dataMap[rid]?.[sn]?.langsungQty || 0), 0), s: sFtQ },
+        { v: sortedRokokIds.reduce((sum, rid) => sum + (dataMap[rid]?.[sn]?.titipQty || 0), 0), s: sFtQ },
+        { v: sortedRokokIds.reduce((sum, rid) => sum + (dataMap[rid]?.[sn]?.tukarQty || 0), 0), s: sFtQ }
+      ]),
+      { v: sortedRokokIds.reduce((s, rid) => s + getTotals(rid).totalQty, 0), s: sFtQ },
+      { v: fmtRp(sortedRokokIds.reduce((s, rid) => s + getTotals(rid).langsungUang, 0)), t: "s", s: sFoot },
+      { v: fmtRp(sortedRokokIds.reduce((s, rid) => s + getTotals(rid).titipUang,    0)), t: "s", s: sFoot },
+      { v: fmtRp(sortedRokokIds.reduce((s, rid) => s + getTotals(rid).tukarUang,    0)), t: "s", s: sFoot },
+      { v: fmtRp(sortedRokokIds.reduce((s, rid) => s + getTotals(rid).totalUang,    0)), t: "s", s: sFoot },
     ],
   ]
 
-  const ws = XLSX.utils.aoa_to_sheet(wsData)
+  const ws     = XLSX.utils.aoa_to_sheet(wsData)
+  const lastR  = wsData.length - 1
   ws["!merges"] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: totalCols - 1 } },                                              // Title
-    { s: { r: 2, c: 0 }, e: { r: 3, c: 0 } },                                                          // NO
-    { s: { r: 2, c: 1 }, e: { r: 3, c: 1 } },                                                          // PRODUK
-    { s: { r: 2, c: 2 }, e: { r: 2, c: 4 } },                                                          // HARGA (Beli+Grosir+Toko)
-    { s: { r: 2, c: salesStartCol }, e: { r: 2, c: salesStartCol + activeSales.length - 1 } },          // MOTORIS
-    { s: { r: 2, c: salesStartCol + activeSales.length },     e: { r: 3, c: salesStartCol + activeSales.length }     }, // TOTAL TERJUAL
-    { s: { r: 2, c: salesStartCol + activeSales.length + 1 }, e: { r: 3, c: salesStartCol + activeSales.length + 1 } }, // TOTAL UANG
-    { s: { r: wsData.length - 1, c: 1 }, e: { r: wsData.length - 1, c: 4 } },                          // Footer label
+    { s: { r: 0, c: 0 }, e: { r: 0, c: totalCols - 1 } },             // Title
+    { s: { r: 2, c: 0 }, e: { r: 4, c: 0 } },                         // NO
+    { s: { r: 2, c: 1 }, e: { r: 4, c: 1 } },                         // PRODUK
+    { s: { r: 2, c: 2 }, e: { r: 2, c: 4 } },                         // HARGA Group
+    { s: { r: 3, c: 2 }, e: { r: 4, c: 2 } },                         // BELI Sub-header
+    { s: { r: 3, c: 3 }, e: { r: 4, c: 3 } },                         // GROSIR Sub-header
+    { s: { r: 3, c: 4 }, e: { r: 4, c: 4 } },                         // TOKO Sub-header
+    { s: { r: 2, c: salesCol }, e: { r: 2, c: salesCol + 3 * n - 1 } }, // MOTORIS Group
+    ...activeSales.map((_, i) => ({
+      s: { r: 3, c: salesCol + 3 * i }, e: { r: 3, c: salesCol + 3 * i + 2 } // Individual Sales Name merge
+    })),
+    { s: { r: 2, c: qtyCol }, e: { r: 4, c: qtyCol } },               // TOTAL QTY
+    { s: { r: 2, c: uangCol }, e: { r: 2, c: uangCol + 3 } },         // RINCIAN UANG Group
+    { s: { r: 3, c: uangCol },     e: { r: 4, c: uangCol } },         // Langsung Uang Sub-header
+    { s: { r: 3, c: uangCol + 1 }, e: { r: 4, c: uangCol + 1 } },     // Titip Jual Uang Sub-header
+    { s: { r: 3, c: uangCol + 2 }, e: { r: 4, c: uangCol + 2 } },     // Tukar Brg Uang Sub-header
+    { s: { r: 3, c: uangCol + 3 }, e: { r: 4, c: uangCol + 3 } },     // TOTAL UANG Sub-header
+    { s: { r: lastR, c: 1 }, e: { r: lastR, c: 4 } },                 // Footer label merge
   ]
 
-  const autoW = (values) => ({ wch: Math.min(Math.max(...values.map((v) => String(v ?? "").length)) + 5, 50) })
-  ws["!cols"] = [
-    { wch: 6 },                                                                                               // NO
-    autoW(["PRODUK", ...sortedRokokIds.map(rid => rokokMeta[rid]?.nama || rid), "TOTAL KESELURUHAN"]),        // PRODUK
-    { wch: 15 }, // HARGA BELI
-    { wch: 15 }, // HARGA GROSIR
-    { wch: 15 }, // HARGA TOKO
-    ...activeSales.map(name => ({ wch: Math.max(12, name.length + 4) })),                                     // SALES
-    { wch: 16 }, // TOTAL QTY
-    { wch: 18 }, // TOTAL UANG
+  const autoW  = (vals) => ({ wch: Math.min(Math.max(...vals.map(v => String(v ?? "").length)) + 4, 40) })
+  ws["!cols"]  = [
+    { wch: 5 },                                                       // NO
+    autoW(["PRODUK", ...sortedRokokIds.map(rid => rokokMeta[rid]?.nama || rid), "TOTAL KESELURUHAN"]), // PRODUK
+    { wch: 14 }, { wch: 14 }, { wch: 14 },                            // Harga Beli/Grosir/Toko
+    ...Array(3 * n).fill({ wch: 6 }),                                 // LG, TJ, TB columns per sales (compact)
+    { wch: 13 },                                                      // TOTAL QTY
+    { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 18 },              // Rincian Uang
   ]
-
-  // Set Row heights
-  ws["!rows"] = [
-    { hpt: 25 }, // Title
-    { hpt: 10 }, // Empty
-    { hpt: 20 }, // Header 1
-    { hpt: 20 }, // Header 2
-  ]
+  ws["!rows"]  = [{ hpt: 25 }, { hpt: 8 }, { hpt: 22 }, { hpt: 22 }, { hpt: 20 }]
 
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, "Per Motoris")
   XLSX.writeFile(wb, `laporan_motoris_${getJakartaToday()}.xlsx`)
 }
-
 export default function DistribusiPage({ role, sesiList, rokokList, salesList, tokoList, tukarBarangList = [], stockCutoffSetting }) {
   const stockCutoffDate = stockCutoffSetting?.value
   const { confirm, ConfirmModal } = useConfirm()
