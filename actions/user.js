@@ -1,7 +1,7 @@
 "use server"
 
 import { prisma } from "@/lib/db"
-import bcrypt from "bcryptjs"
+import { hashPassword } from "@/lib/password"
 import { revalidatePath } from "next/cache"
 
 export async function getUserList() {
@@ -12,7 +12,7 @@ export async function getUserList() {
 }
 
 export async function addUser(data) {
-  const hashed = await bcrypt.hash(data.password, 10)
+  const hashed = hashPassword(data.password)
   await prisma.user.create({
     data: {
       username: data.username,
@@ -31,7 +31,7 @@ export async function updateUser(id, data) {
     role:     data.role,
   }
   if (data.password) {
-    update.password = await bcrypt.hash(data.password, 10)
+    update.password = hashPassword(data.password)
   }
   await prisma.user.update({ where: { id }, data: update })
   revalidatePath("/pengguna")

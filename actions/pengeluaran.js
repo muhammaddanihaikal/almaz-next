@@ -53,8 +53,19 @@ async function getPosisiUang(tx, tanggalDate, excludeId = null) {
   return penjualanSaatItu - pengeluaranSebelumnya
 }
 
-export async function getPengeluaran() {
-  const rows = await prisma.pengeluaran.findMany({ orderBy: { tanggal: "desc" } })
+export async function getPengeluaran(daysBack = 30) {
+  const where = {}
+  if (daysBack && Number.isFinite(daysBack)) {
+    const since = nowJakarta()
+    since.setHours(0, 0, 0, 0)
+    since.setDate(since.getDate() - daysBack)
+    where.tanggal = { gte: since }
+  }
+
+  const rows = await prisma.pengeluaran.findMany({
+    where,
+    orderBy: { tanggal: "desc" },
+  })
   return rows.map((r) => ({
     id: r.id,
     tanggal: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(r.tanggal),

@@ -9,7 +9,7 @@ export const revalidate = 60
 export default async function Page() {
   const [session, pengeluaranList, sesiList, titipJualList] = await Promise.all([
     auth(),
-    getPengeluaran(),
+    getPengeluaran(null),
     getSesiList(null),
     getTitipJualList(null),
   ])
