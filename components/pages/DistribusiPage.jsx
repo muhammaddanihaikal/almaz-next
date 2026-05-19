@@ -284,6 +284,7 @@ function exportToExcelBySales(rows, rokokList, dateRange, onNoData) {
   const sHAmber     = { font: { bold: true, color: { rgb: "1F2937" } }, fill: { fgColor: { rgb: "FDE68A" } }, alignment: { horizontal: "center", vertical: "center" }, border }
   const sData       = { border, alignment: { vertical: "center", horizontal: "center" } }
   const sCenter     = { ...sData, alignment: { horizontal: "center", vertical: "center" } }
+  const sProduct    = { ...sData, alignment: { horizontal: "left", vertical: "center" } }
   const sNum        = { ...sData, alignment: { horizontal: "center", vertical: "center" }, z: "#,##0" }
   const sMoney      = { ...sData, alignment: { horizontal: "center", vertical: "center" } }
   const sMoneyGrosir= { ...sData, fill: { fgColor: { rgb: "F0FDF4" } }, alignment: { horizontal: "center", vertical: "center" } }
@@ -332,7 +333,7 @@ function exportToExcelBySales(rows, rokokList, dateRange, onNoData) {
       const totalQty = activeSales.reduce((sum, sname) => sum + (rowData[sname] || 0), 0)
       return [
         { v: i + 1,                      s: sCenter },
-        { v: meta.nama || rid,           s: sData   },
+        { v: meta.nama || rid,           s: sProduct },
         { v: fmtExcelMoney(hBeli),   t: "s", s: sMoney       },
         { v: fmtExcelMoney(hGrosir), t: "s", s: sMoneyGrosir },
         { v: fmtExcelMoney(hToko),   t: "s", s: sMoneyToko   },
