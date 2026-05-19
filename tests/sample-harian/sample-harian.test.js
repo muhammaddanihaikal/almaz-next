@@ -481,10 +481,24 @@ describe("updateSampleHarian", () => {
   })
 
   it("gagal jika tanggal update sudah memiliki sesi lain", async () => {
-    const parts = TEST_DATE.split("-")
-    const d = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])))
-    d.setUTCDate(d.getUTCDate() - 2)
-    const otherDateStr = d.toISOString().split("T")[0]
+    let otherDateStr = null
+    let tempDate = new Date()
+    tempDate.setDate(tempDate.getDate() - 10)
+    while (!otherDateStr) {
+      const yyyy = tempDate.getFullYear()
+      const mm = String(tempDate.getMonth() + 1).padStart(2, '0')
+      const dd = String(tempDate.getDate()).padStart(2, '0')
+      const candidate = `${yyyy}-${mm}-${dd}`
+      if (candidate !== TEST_DATE) {
+        const existing = await prisma.sampleHarian.findFirst({
+          where: { tanggal: new Date(candidate) }
+        })
+        if (!existing) {
+          otherDateStr = candidate
+        }
+      }
+      tempDate.setDate(tempDate.getDate() - 1)
+    }
     
     const otherSesi = await prisma.sampleHarian.create({
       data: {

@@ -15,7 +15,7 @@ import { useLoading } from "./LoadingProvider"
 
 const ROLE_LABELS = { superadmin: "Super Admin", admin: "Admin", staff: "Staff" }
 
-function buildMenus(role, titipJualCounts, tukarAktifCount) {
+function buildMenus(role, titipJualCounts, tukarAktifCount, activeDistribusiCount, activeSampleHarianCount) {
   const tukarBadge = tukarAktifCount > 0 ? { neutral: tukarAktifCount } : null
   const menus = [
     { id: "dashboard", href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -24,9 +24,27 @@ function buildMenus(role, titipJualCounts, tukarAktifCount) {
       label: "Operasional",
       icon: Folder,
       items: [
-        { id: "distribusi",     href: "/distribusi",     label: "Distribusi",     icon: Truck           },
-        { id: "titip-jual",     href: "/titip-jual",     label: "Titip Jual",     icon: PackageCheck, badges: titipJualCounts },
-        { id: "sample-harian",  href: "/sample-harian",  label: "Sample Harian",  icon: FlaskConical    },
+        { 
+          id: "distribusi",     
+          href: "/distribusi",     
+          label: "Distribusi",     
+          icon: Truck,
+          badge: activeDistribusiCount > 0 ? activeDistribusiCount : null
+        },
+        { 
+          id: "titip-jual",     
+          href: "/titip-jual",     
+          label: "Titip Jual",     
+          icon: PackageCheck, 
+          badges: titipJualCounts 
+        },
+        { 
+          id: "sample-harian",  
+          href: "/sample-harian",  
+          label: "Sample Harian",  
+          icon: FlaskConical,
+          badge: activeSampleHarianCount > 0 ? activeSampleHarianCount : null
+        },
         // { id: "tukar-barang", href: "/tukar-barang", label: "Tukar Barang", icon: Repeat,       badges: tukarBadge },
       ],
     },
@@ -63,7 +81,14 @@ function buildMenus(role, titipJualCounts, tukarAktifCount) {
   return menus
 }
 
-export default function Sidebar({ role, userName, titipJualCounts, tukarAktifCount = 0 }) {
+export default function Sidebar({ 
+  role, 
+  userName, 
+  titipJualCounts, 
+  tukarAktifCount = 0, 
+  activeDistribusiCount = 0, 
+  activeSampleHarianCount = 0 
+}) {
   const pathname    = usePathname()
   const { isPending, loadingPath, navigate } = useLoading()
   
@@ -81,7 +106,7 @@ export default function Sidebar({ role, userName, titipJualCounts, tukarAktifCou
     "group-admin":       true,
   })
 
-  const MENUS = buildMenus(role, titipJualCounts, tukarAktifCount)
+  const MENUS = buildMenus(role, titipJualCounts, tukarAktifCount, activeDistribusiCount, activeSampleHarianCount)
 
   const isActive    = (href) => (href === "/" ? pathname === "/" : pathname.startsWith(href))
   const toggleGroup = (id) => setOpenGroups((prev) => ({ ...prev, [id]: !prev[id] }))
@@ -113,6 +138,11 @@ export default function Sidebar({ role, userName, titipJualCounts, tukarAktifCou
           )}
           <span>{item.label}</span>
         </div>
+        {item.badge !== undefined && item.badge !== null && (
+          <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-amber-100 px-1.5 text-[10px] font-bold text-amber-700">
+            {item.badge}
+          </span>
+        )}
         {item.badges && (item.badges.red > 0 || item.badges.yellow > 0 || item.badges.neutral > 0) && (
           <div className="flex gap-1">
             {item.badges.red > 0 && (

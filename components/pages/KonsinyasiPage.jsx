@@ -62,6 +62,8 @@ export default function KonsinyasiPage({ role, titipJualList, salesList }) {
   const [dateRange, setDateRange] = useState(defaultDateRange("minggu_ini"))
   const [expandedHariIni, setExpandedHariIni] = useState(false)
   const [expandedSegera,  setExpandedSegera]  = useState(false)
+  const [showAllHariIni,  setShowAllHariIni]  = useState(false)
+  const [showAllSegera,   setShowAllSegera]   = useState(false)
   const { confirm, ConfirmModal }                     = useConfirm()
   const { confirmWithReason, ConfirmWithReasonModal } = useConfirmWithReason()
   const [settling,          setSettling]          = useState(null)
@@ -85,6 +87,9 @@ export default function KonsinyasiPage({ role, titipJualList, salesList }) {
 
   const jatuhTempoHariIni = konsinyasiList.filter((k) => k.status === "aktif" && !k._pending && k.selisihHari <= 0)
   const jatuhTempoSegera  = konsinyasiList.filter((k) => k.status === "aktif" && !k._pending && k.selisihHari > 0 && k.selisihHari <= 3)
+
+  const visibleHariIni = showAllHariIni ? jatuhTempoHariIni : jatuhTempoHariIni.slice(0, 5)
+  const visibleSegera  = showAllSegera ? jatuhTempoSegera : jatuhTempoSegera.slice(0, 5)
 
   const { rows, countAktif, countSelesai } = useMemo(() => {
     const listAktif   = konsinyasiList.filter(r => r.status === "aktif")
@@ -157,13 +162,34 @@ export default function KonsinyasiPage({ role, titipJualList, salesList }) {
           </Button>
 
           {expandedHariIni && (
-            <div className="border-t border-red-100 p-3 space-y-1 bg-red-50/30">
-              {jatuhTempoHariIni.map((k) => (
-                <div key={k.id} className="flex items-center justify-between text-[11px] text-red-700">
-                  <span className="font-medium">{k.sales} → {k.nama_toko} ({k.kategori})</span>
-                  <span className="tabular-nums">{fmtIDR(k.nilaiTotal)}</span>
+            <div className="border-t border-red-100 p-3 bg-red-50/30">
+              <div className="space-y-1.5">
+                {visibleHariIni.map((k) => (
+                  <div key={k.id} className="flex items-center justify-between text-[11px] text-red-700">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="font-medium">{k.sales} → {k.nama_toko} ({k.kategori})</span>
+                      <span className="text-[10px] text-red-500 font-semibold">Jatuh Tempo: {fmtTanggal(k.tanggal_jatuh_tempo)}</span>
+                    </div>
+                    <span className="tabular-nums font-bold">{fmtIDR(k.nilaiTotal)}</span>
+                  </div>
+                ))}
+              </div>
+
+              {jatuhTempoHariIni.length > 5 && (
+                <div className="mt-3 border-t border-red-100/50 pt-2 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => setShowAllHariIni(!showAllHariIni)}
+                    className="text-[11px] font-bold text-red-600 hover:text-red-800 transition-colors flex items-center gap-1 focus:outline-none"
+                  >
+                    {showAllHariIni ? (
+                      <span>− Sembunyikan sebagian</span>
+                    ) : (
+                      <span>+ Tampilkan {jatuhTempoHariIni.length - 5} data lainnya</span>
+                    )}
+                  </button>
                 </div>
-              ))}
+              )}
             </div>
           )}
         </div>
@@ -188,13 +214,34 @@ export default function KonsinyasiPage({ role, titipJualList, salesList }) {
           </Button>
 
           {expandedSegera && (
-            <div className="border-t border-amber-100 p-3 space-y-1 bg-amber-50/30">
-              {jatuhTempoSegera.map((k) => (
-                <div key={k.id} className="flex items-center justify-between text-[11px] text-amber-800">
-                  <span className="font-medium">{k.sales} → {k.nama_toko} ({k.kategori}) — {k.selisihHari} hari lagi</span>
-                  <span className="tabular-nums">{fmtIDR(k.nilaiTotal)}</span>
+            <div className="border-t border-amber-100 p-3 bg-amber-50/30">
+              <div className="space-y-1.5">
+                {visibleSegera.map((k) => (
+                  <div key={k.id} className="flex items-center justify-between text-[11px] text-amber-800">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="font-medium">{k.sales} → {k.nama_toko} ({k.kategori}) — {k.selisihHari} hari lagi</span>
+                      <span className="text-[10px] text-amber-600 font-semibold">Jatuh Tempo: {fmtTanggal(k.tanggal_jatuh_tempo)}</span>
+                    </div>
+                    <span className="tabular-nums font-bold">{fmtIDR(k.nilaiTotal)}</span>
+                  </div>
+                ))}
+              </div>
+
+              {jatuhTempoSegera.length > 5 && (
+                <div className="mt-3 border-t border-amber-100/50 pt-2 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => setShowAllSegera(!showAllSegera)}
+                    className="text-[11px] font-bold text-amber-600 hover:text-amber-800 transition-colors flex items-center gap-1 focus:outline-none"
+                  >
+                    {showAllSegera ? (
+                      <span>− Sembunyikan sebagian</span>
+                    ) : (
+                      <span>+ Tampilkan {jatuhTempoSegera.length - 5} data lainnya</span>
+                    )}
+                  </button>
                 </div>
-              ))}
+              )}
             </div>
           )}
         </div>

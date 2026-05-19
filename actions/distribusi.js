@@ -495,6 +495,18 @@ export async function submitLaporanSore(id, data) {
 
       const konsinyasiBaru = data.konsinyasiBaru || []
       for (const k of konsinyasiBaru) {
+        if (!k.toko_id) continue
+
+        let tokoExists = await tx.toko.findUnique({ where: { id: k.toko_id } })
+        if (!tokoExists) {
+          // Tunggu 250ms jika ada delay replikasi / pooling serverless
+          await new Promise((resolve) => setTimeout(resolve, 250))
+          tokoExists = await tx.toko.findUnique({ where: { id: k.toko_id } })
+        }
+        if (!tokoExists) {
+          throw new Error(`Toko tidak ditemukan di database (ID: ${k.toko_id}). Silakan tunggu beberapa detik dan coba submit kembali.`)
+        }
+
         const titipJual = await tx.titipJual.create({
           data: {
             sesi_id:             id,
@@ -803,6 +815,18 @@ export async function editLaporanSore(id, data, alasan) {
       // 5. Konsinyasi Baru
       const konsinyasiBaru = data.konsinyasiBaru || []
       for (const k of konsinyasiBaru) {
+        if (!k.toko_id) continue
+
+        let tokoExists = await tx.toko.findUnique({ where: { id: k.toko_id } })
+        if (!tokoExists) {
+          // Tunggu 250ms jika ada delay replikasi / pooling serverless
+          await new Promise((resolve) => setTimeout(resolve, 250))
+          tokoExists = await tx.toko.findUnique({ where: { id: k.toko_id } })
+        }
+        if (!tokoExists) {
+          throw new Error(`Toko tidak ditemukan di database (ID: ${k.toko_id}). Silakan tunggu beberapa detik dan coba submit kembali.`)
+        }
+
         const titipJual = await tx.titipJual.create({
           data: {
             sesi_id:             id,
@@ -811,7 +835,7 @@ export async function editLaporanSore(id, data, alasan) {
             kategori:            k.kategori,
             tanggal_jatuh_tempo: new Date(k.tanggal_jatuh_tempo),
             catatan:             k.catatan || null,
-            is_historical: is_historical,
+            is_historical:       is_historical,
             items: {
               create: k.items
                 .filter((it) => it.rokok_id && Number(it.qty ?? it.qty_keluar) > 0)
