@@ -105,7 +105,10 @@ function BuatModal({ rokokList, existingList = [], onClose, onSaved }) {
 
     setLoading(true)
     try {
-      await createSampleHarian(tanggal, items, catatan || null)
+      const res = await createSampleHarian(tanggal, items, catatan || null)
+      if (!res?.success) {
+        throw new Error(res?.error || "Terjadi kesalahan saat menyimpan data.")
+      }
       onSaved()
     } catch (err) {
       setError(err.message)
@@ -250,10 +253,14 @@ function TutupModal({ session, onClose, onSaved }) {
     }))
     setLoading(true)
     try {
+      let res
       if (isSelesai) {
-        await updateSampleHarianReport(session.id, items)
+        res = await updateSampleHarianReport(session.id, items)
       } else {
-        await closeSampleHarian(session.id, items)
+        res = await closeSampleHarian(session.id, items)
+      }
+      if (!res?.success) {
+        throw new Error(res?.error || "Terjadi kesalahan saat memproses laporan.")
       }
       onSaved()
     } catch (err) {
@@ -449,7 +456,10 @@ function EditModal({ session, rokokList, existingList = [], onClose, onSaved }) 
 
     setLoading(true)
     try {
-      await updateSampleHarian(session.id, tanggal, items, catatan || null)
+      const res = await updateSampleHarian(session.id, tanggal, items, catatan || null)
+      if (!res?.success) {
+        throw new Error(res?.error || "Terjadi kesalahan saat menyimpan perubahan.")
+      }
       onSaved()
     } catch (err) {
       setError(err.message)
@@ -726,7 +736,10 @@ export default function SampleHarianPage({ list: initialList, rokokList }) {
     const ok = await confirmWithReason(`Hapus sample harian ${fmtTanggal(item.tanggal)}? Semua stok sample harian yang keluar akan dikembalikan ke gudang.`, { title: "Hapus Sample Harian" })
     if (!ok) return
     try {
-      await deleteSampleHarian(item.id, ok)
+      const res = await deleteSampleHarian(item.id, ok)
+      if (!res?.success) {
+        throw new Error(res?.error || "Gagal menghapus sample harian.")
+      }
       refresh()
     } catch (err) {
       await confirm(err.message, { title: "Gagal", hideCancel: true })
