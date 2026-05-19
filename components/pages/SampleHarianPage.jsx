@@ -775,7 +775,7 @@ export default function SampleHarianPage({ list: initialList, rokokList }) {
           )}
           <RowActions
             onDetail={() => setDetailTarget(r)}
-            onEdit={() => setEditTarget(r)}
+            onEdit={r.status === "buka" ? () => setEditTarget(r) : null}
             onDelete={() => handleDelete(r)}
           />
         </div>

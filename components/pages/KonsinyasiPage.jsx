@@ -413,9 +413,6 @@ export default function KonsinyasiPage({ role, titipJualList, salesList }) {
                         </Button>
                         {role !== "staff" && (
                           <>
-                            <Button size="sm" variant="ghost" onClick={() => setEditingSettlement(r)} className="border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100">
-                              Edit
-                            </Button>
                             <Button
                               size="sm" variant="ghost"
                               className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"

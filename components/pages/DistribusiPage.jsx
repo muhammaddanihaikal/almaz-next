@@ -715,7 +715,7 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
                     )}
                     <RowActions
                       onDetail={() => setDetail(r)}
-                      onEdit={role !== "staff" ? () => { setEditing(r); setMode("edit") } : null}
+                      onEdit={role !== "staff" && r.status === "aktif" ? () => { setEditing(r); setMode("edit") } : null}
                       onDelete={role !== "staff" ? () => { handleDelete(r) } : null}
                     />
                   </div>
