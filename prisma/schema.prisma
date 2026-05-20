@@ -443,6 +443,7 @@ model SampleHarian {
   tanggal   DateTime @db.Date
   status    String   @default("buka") // "buka" | "selesai"
   catatan   String?
+  is_historical Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

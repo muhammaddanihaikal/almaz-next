@@ -16,7 +16,17 @@ export default async function Page() {
 
   const setting = await getAppSetting("stock_cutoff_date")
   const stockCutoffDate = setting?.value || null
+
+  const sampleSetting = await getAppSetting("sample_cutoff_date")
+  const sampleCutoffDate = sampleSetting?.value || null
+
   const hasData = await prisma.sesiHarian.findFirst()
 
-  return <PengaturanPage initialStockCutoffDate={stockCutoffDate} hasData={!!hasData} />
+  return (
+    <PengaturanPage
+      initialStockCutoffDate={stockCutoffDate}
+      initialSampleCutoffDate={sampleCutoffDate}
+      hasData={!!hasData}
+    />
+  )
 }

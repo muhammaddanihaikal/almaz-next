@@ -5,12 +5,17 @@ import { useRouter } from "next/navigation"
 import { Settings, Save, AlertCircle, Loader2 } from "lucide-react"
 import { setSetting } from "@/actions/settings"
 
-export default function PengaturanPage({ initialStockCutoffDate, hasData }) {
+export default function PengaturanPage({ initialStockCutoffDate, initialSampleCutoffDate, hasData }) {
   const router = useRouter()
   const [stockCutoffDate, setStockCutoffDate] = useState(initialStockCutoffDate || "")
   const [loading, setLoading] = useState(false)
   const [successMsg, setSuccessMsg] = useState("")
   const [errorMsg, setErrorMsg] = useState("")
+
+  const [sampleCutoffDate, setSampleCutoffDate] = useState(initialSampleCutoffDate || "")
+  const [sampleLoading, setSampleLoading] = useState(false)
+  const [sampleSuccessMsg, setSampleSuccessMsg] = useState("")
+  const [sampleErrorMsg, setSampleErrorMsg] = useState("")
 
   const handleSave = async (e) => {
     e.preventDefault()
@@ -35,6 +40,23 @@ export default function PengaturanPage({ initialStockCutoffDate, hasData }) {
     }
   }
 
+  const handleSaveSample = async (e) => {
+    e.preventDefault()
+    setSampleLoading(true)
+    setSampleSuccessMsg("")
+    setSampleErrorMsg("")
+
+    try {
+      await setSetting("sample_cutoff_date", sampleCutoffDate)
+      setSampleSuccessMsg("Pengaturan Cutoff Sample Harian berhasil disimpan.")
+      router.refresh()
+    } catch (err) {
+      setSampleErrorMsg(err.message || "Gagal menyimpan pengaturan.")
+    } finally {
+      setSampleLoading(false)
+    }
+  }
+
   return (
     <div className="flex-1 overflow-auto bg-neutral-50/50 p-4 lg:p-8">
       <div className="mx-auto max-w-2xl space-y-6">
@@ -48,9 +70,10 @@ export default function PengaturanPage({ initialStockCutoffDate, hasData }) {
           </div>
         </div>
 
+        {/* Card 1: Mode Data Lama */}
         <div className="rounded-xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
           <div className="border-b border-neutral-100 bg-neutral-50/50 px-6 py-4">
-            <h2 className="font-semibold text-neutral-900">Mode Data Lama</h2>
+            <h2 className="font-semibold text-neutral-900">Mode Data Lama (Distribusi & Penjualan)</h2>
           </div>
           
           <form onSubmit={handleSave} className="p-6 space-y-6">
@@ -116,6 +139,57 @@ export default function PengaturanPage({ initialStockCutoffDate, hasData }) {
               >
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                 {hasData ? "Pengaturan Terkunci" : "Simpan Pengaturan"}
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* Card 2: Cutoff Sample Harian */}
+        <div className="rounded-xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
+          <div className="border-b border-neutral-100 bg-neutral-50/50 px-6 py-4">
+            <h2 className="font-semibold text-neutral-900">Cutoff Sample Harian</h2>
+          </div>
+          
+          <form onSubmit={handleSaveSample} className="p-6 space-y-6">
+            <div className="space-y-3">
+              <label className="text-sm font-medium text-neutral-900 block">
+                Tanggal Cutoff Sample Harian
+              </label>
+              <input
+                type="date"
+                value={sampleCutoffDate}
+                onChange={(e) => setSampleCutoffDate(e.target.value)}
+                className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900"
+              />
+              <p className="text-xs text-neutral-500 leading-relaxed">
+                Data Sample Harian dengan tanggal <strong>sebelum</strong> tanggal ini akan dianggap sebagai "Data Lama" (Historical) dan tidak memengaruhi stok.
+                <br />
+                <strong className="text-amber-600">Penting:</strong> Mengubah pengaturan ini akan menyesuaikan stok ledger secara otomatis lewat sinkronisasi transaksi.
+              </p>
+            </div>
+
+            {sampleErrorMsg && (
+              <div className="flex items-center gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-600 border border-red-100">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <p>{sampleErrorMsg}</p>
+              </div>
+            )}
+            
+            {sampleSuccessMsg && (
+              <div className="flex items-center gap-2 rounded-lg bg-green-50 p-3 text-sm text-green-600 border border-green-100">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <p>{sampleSuccessMsg}</p>
+              </div>
+            )}
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="submit"
+                disabled={sampleLoading}
+                className="flex items-center gap-2 rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-neutral-800 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {sampleLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Simpan Cutoff Sample
               </button>
             </div>
           </form>

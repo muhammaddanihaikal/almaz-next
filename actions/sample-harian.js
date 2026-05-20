@@ -59,19 +59,35 @@ export async function createSampleHarian(tanggal, items, catatan) {
         throw new Error(`Sesi sample harian untuk tanggal ${fmtTanggal(pureDateStr)} sudah ada. Satu hari hanya diperbolehkan satu sesi.`)
       }
 
-      for (const item of valid) {
-        const rokok = await tx.rokok.findUnique({
-          where: { id: item.rokok_id },
-          select: { nama: true, stok_sample_biasa: true, stok_sample_cukai: true },
-        })
-        if (!rokok) throw new Error(`Rokok tidak ditemukan.`)
-        
-        const stockField = item.type === "cukai" ? "stok_sample_cukai" : "stok_sample_biasa"
-        const label = item.type === "cukai" ? "cukai" : "biasa"
-        const currentStock = rokok[stockField] ?? 0
-        
-        if (currentStock < Number(item.qty_keluar)) {
-          throw new Error(`Stok sample ${label} ${rokok.nama} tidak cukup. Stok: ${currentStock}, dibutuhkan: ${item.qty_keluar}.`)
+      // Check if historical
+      const sampleSetting = await tx.appSetting.findUnique({ where: { key: "sample_cutoff_date" } })
+      const newCutoffStr = sampleSetting?.value || null
+      let is_historical = false
+      if (newCutoffStr) {
+        const cutoffDate = new Date(newCutoffStr)
+        cutoffDate.setHours(0, 0, 0, 0)
+        const shDate = new Date(pureDateStr)
+        shDate.setHours(0, 0, 0, 0)
+        if (shDate < cutoffDate) {
+          is_historical = true
+        }
+      }
+
+      if (!is_historical) {
+        for (const item of valid) {
+          const rokok = await tx.rokok.findUnique({
+            where: { id: item.rokok_id },
+            select: { nama: true, stok_sample_biasa: true, stok_sample_cukai: true },
+          })
+          if (!rokok) throw new Error(`Rokok tidak ditemukan.`)
+          
+          const stockField = item.type === "cukai" ? "stok_sample_cukai" : "stok_sample_biasa"
+          const label = item.type === "cukai" ? "cukai" : "biasa"
+          const currentStock = rokok[stockField] ?? 0
+          
+          if (currentStock < Number(item.qty_keluar)) {
+            throw new Error(`Stok sample ${label} ${rokok.nama} tidak cukup. Stok: ${currentStock}, dibutuhkan: ${item.qty_keluar}.`)
+          }
         }
       }
 
@@ -80,6 +96,7 @@ export async function createSampleHarian(tanggal, items, catatan) {
           tanggal: new Date(`${pureDateStr}T00:00:00.000Z`),
           status:  "buka",
           catatan: catatan || null,
+          is_historical,
         },
       })
 
@@ -97,20 +114,22 @@ export async function createSampleHarian(tanggal, items, catatan) {
           },
         })
 
-        const stock_type = type === "cukai" ? "sample_cukai" : "sample_biasa"
+        if (!is_historical) {
+          const stock_type = type === "cukai" ? "sample_cukai" : "sample_biasa"
 
-        await mutateStock({
-          tx,
-          rokok_id:     item.rokok_id,
-          tanggal:      new Date(`${pureDateStr}T00:00:00.000Z`),
-          jenis:        "out",
-          qty,
-          source:       MUTATION_SOURCE.SAMPLE_HARIAN_KELUAR,
-          stock_type,
-          reference_id: sh.id,
-          keterangan:   `Sample harian ${type} keluar pagi`,
-          user_id:      userId || null,
-        })
+          await mutateStock({
+            tx,
+            rokok_id:     item.rokok_id,
+            tanggal:      new Date(`${pureDateStr}T00:00:00.000Z`),
+            jenis:        "out",
+            qty,
+            source:       MUTATION_SOURCE.SAMPLE_HARIAN_KELUAR,
+            stock_type,
+            reference_id: sh.id,
+            keterangan:   `Sample harian ${type} keluar pagi`,
+            user_id:      userId || null,
+          })
+        }
       }
 
       await logAudit({
@@ -168,142 +187,163 @@ export async function updateSampleHarian(id, tanggal, items, catatan, alasan) {
       })
       if (!old) throw new Error("Sample harian tidak ditemukan.")
 
-      // 1. Revert old stock mutations
-      for (const oldItem of old.items) {
-        const stock_type = oldItem.type === "cukai" ? "sample_cukai" : "sample_biasa"
-        await mutateStock({
-          tx,
-          rokok_id: oldItem.rokok_id,
-          tanggal: old.tanggal,
-          jenis: "in",
-          qty: oldItem.qty_keluar,
-          source: MUTATION_SOURCE.REVERT,
-          stock_type,
-          reference_id: id,
-          keterangan: `Revert sample harian ${oldItem.type} keluar (edit)`,
-          user_id: userId || null,
-          allowNegative: true,
-        })
-        if (old.status === "selesai" && oldItem.qty_kembali > 0) {
+      // Get sample cutoff setting
+      const sampleSetting = await tx.appSetting.findUnique({ where: { key: "sample_cutoff_date" } })
+      const newCutoffStr = sampleSetting?.value || null
+      let shouldBeHistorical = false
+      if (newCutoffStr) {
+        const cutoffDate = new Date(newCutoffStr)
+        cutoffDate.setHours(0, 0, 0, 0)
+        const shDate = new Date(pureDateStr)
+        shDate.setHours(0, 0, 0, 0)
+        if (shDate < cutoffDate) {
+          shouldBeHistorical = true
+        }
+      }
+
+      // 1. Revert old stock mutations (only if old was not historical!)
+      if (!old.is_historical) {
+        for (const oldItem of old.items) {
+          const stock_type = oldItem.type === "cukai" ? "sample_cukai" : "sample_biasa"
           await mutateStock({
             tx,
             rokok_id: oldItem.rokok_id,
             tanggal: old.tanggal,
-            jenis: "out",
-            qty: oldItem.qty_kembali,
+            jenis: "in",
+            qty: oldItem.qty_keluar,
             source: MUTATION_SOURCE.REVERT,
             stock_type,
             reference_id: id,
-            keterangan: `Revert sample harian ${oldItem.type} kembali (edit)`,
+            keterangan: `Revert sample harian ${oldItem.type} keluar (edit)`,
             user_id: userId || null,
             allowNegative: true,
           })
+          if (old.status === "selesai" && oldItem.qty_kembali > 0) {
+            await mutateStock({
+              tx,
+              rokok_id: oldItem.rokok_id,
+              tanggal: old.tanggal,
+              jenis: "out",
+              qty: oldItem.qty_kembali,
+              source: MUTATION_SOURCE.REVERT,
+              stock_type,
+              reference_id: id,
+              keterangan: `Revert sample harian ${oldItem.type} kembali (edit)`,
+              user_id: userId || null,
+              allowNegative: true,
+            })
+          }
         }
       }
 
-      // 2. Validate new stock sufficiency
-      for (const item of valid) {
-        const rokok = await tx.rokok.findUnique({
-          where: { id: item.rokok_id },
-          select: { nama: true, stok_sample_biasa: true, stok_sample_cukai: true },
-        })
-        if (!rokok) throw new Error(`Rokok tidak ditemukan.`)
-        
-        const stockField = item.type === "cukai" ? "stok_sample_cukai" : "stok_sample_biasa"
-        const label = item.type === "cukai" ? "cukai" : "biasa"
-        const currentStock = rokok[stockField] ?? 0
-        
-        if (currentStock < Number(item.qty_keluar)) {
-          throw new Error(`Stok sample ${label} ${rokok.nama} tidak cukup. Stok: ${currentStock}, dibutuhkan: ${item.qty_keluar}.`)
+      // 2. Validate new stock sufficiency (only if new is not historical!)
+      if (!shouldBeHistorical) {
+        for (const item of valid) {
+          const rokok = await tx.rokok.findUnique({
+            where: { id: item.rokok_id },
+            select: { nama: true, stok_sample_biasa: true, stok_sample_cukai: true },
+          })
+          if (!rokok) throw new Error(`Rokok tidak ditemukan.`)
+          
+          const stockField = item.type === "cukai" ? "stok_sample_cukai" : "stok_sample_biasa"
+          const label = item.type === "cukai" ? "cukai" : "biasa"
+          const currentStock = rokok[stockField] ?? 0
+          
+          if (currentStock < Number(item.qty_keluar)) {
+            throw new Error(`Stok sample ${label} ${rokok.nama} tidak cukup. Stok: ${currentStock}, dibutuhkan: ${item.qty_keluar}.`)
+          }
         }
       }
 
-      // 3. Update main record date & catatan
+      // 3. Update main record date, catatan, and is_historical
       await tx.sampleHarian.update({
         where: { id },
         data: {
           tanggal: new Date(`${pureDateStr}T00:00:00.000Z`),
           catatan: catatan || null,
+          is_historical: shouldBeHistorical,
         },
       })
 
-    // 4. Delete old items and create new ones
-    await tx.sampleHarianItem.deleteMany({ where: { sample_harian_id: id } })
+      // 4. Delete old items and create new ones
+      await tx.sampleHarianItem.deleteMany({ where: { sample_harian_id: id } })
 
-    for (const item of valid) {
-      const qty = Number(item.qty_keluar)
-      const type = item.type === "cukai" ? "cukai" : "biasa"
+      for (const item of valid) {
+        const qty = Number(item.qty_keluar)
+        const type = item.type === "cukai" ? "cukai" : "biasa"
 
-      const oldItem = old.items.find((o) => o.rokok_id === item.rokok_id && o.type === type)
-      let qtyKembali = 0
-      if (oldItem && old.status === "selesai") {
-        qtyKembali = Math.min(oldItem.qty_kembali, qty)
-      }
+        const oldItem = old.items.find((o) => o.rokok_id === item.rokok_id && o.type === type)
+        let qtyKembali = 0
+        if (oldItem && old.status === "selesai") {
+          qtyKembali = Math.min(oldItem.qty_kembali, qty)
+        }
 
-      await tx.sampleHarianItem.create({
-        data: {
-          sample_harian_id: id,
-          rokok_id: item.rokok_id,
-          type,
-          qty_keluar: qty,
-          qty_kembali: qtyKembali,
-        },
-      })
-
-      const stock_type = type === "cukai" ? "sample_cukai" : "sample_biasa"
-
-      // Deduct new qty_keluar
-      await mutateStock({
-        tx,
-        rokok_id:     item.rokok_id,
-        tanggal:      new Date(`${pureDateStr}T00:00:00.000Z`),
-        jenis:        "out",
-        qty,
-        source:       MUTATION_SOURCE.SAMPLE_HARIAN_KELUAR,
-        stock_type,
-        reference_id: id,
-        keterangan:   `Sample harian ${type} keluar pagi (edit)`,
-        user_id:      userId || null,
-      })
-
-      // Add back qty_kembali if completed
-      if (old.status === "selesai" && qtyKembali > 0) {
-        await mutateStock({
-          tx,
-          rokok_id:     item.rokok_id,
-          tanggal:      new Date(`${pureDateStr}T00:00:00.000Z`),
-          jenis:        "in",
-          qty:          qtyKembali,
-          source:       MUTATION_SOURCE.SAMPLE_HARIAN_KEMBALI,
-          stock_type,
-          reference_id: id,
-          keterangan:   `Sample harian ${type} kembali sore (edit)`,
-          user_id:      userId || null,
+        await tx.sampleHarianItem.create({
+          data: {
+            sample_harian_id: id,
+            rokok_id: item.rokok_id,
+            type,
+            qty_keluar: qty,
+            qty_kembali: qtyKembali,
+          },
         })
-      }
-    }
 
-    // 5. Audit Log
-    await logAudit({
-      tx,
-      entity_type: AUDIT_ENTITY.SAMPLE_HARIAN,
-      change_type: "Ubah Sample Harian",
-      entity_id:   id,
-      action:      AUDIT_ACTION.UPDATE,
-      old_values:  {
-        tanggal: old.tanggal,
-        catatan: old.catatan,
-        items: old.items.map((i) => ({ rokok_id: i.rokok_id, type: i.type, qty_keluar: i.qty_keluar, qty_kembali: i.qty_kembali })),
-      },
-      new_values:  {
-        tanggal: pureDateStr,
-        catatan: catatan || null,
-        items: valid.map((i) => ({ rokok_id: i.rokok_id, type: i.type, qty_keluar: i.qty_keluar })),
-      },
-      alasan: alasan || null,
-      user_id:     userId,
-      user_name:   userName,
-    })
+        if (!shouldBeHistorical) {
+          const stock_type = type === "cukai" ? "sample_cukai" : "sample_biasa"
+
+          // Deduct new qty_keluar
+          await mutateStock({
+            tx,
+            rokok_id:     item.rokok_id,
+            tanggal:      new Date(`${pureDateStr}T00:00:00.000Z`),
+            jenis:        "out",
+            qty,
+            source:       MUTATION_SOURCE.SAMPLE_HARIAN_KELUAR,
+            stock_type,
+            reference_id: id,
+            keterangan:   `Sample harian ${type} keluar pagi (edit)`,
+            user_id:      userId || null,
+          })
+
+          // Add back qty_kembali if completed
+          if (old.status === "selesai" && qtyKembali > 0) {
+            await mutateStock({
+              tx,
+              rokok_id:     item.rokok_id,
+              tanggal:      new Date(`${pureDateStr}T00:00:00.000Z`),
+              jenis:        "in",
+              qty:          qtyKembali,
+              source:       MUTATION_SOURCE.SAMPLE_HARIAN_KEMBALI,
+              stock_type,
+              reference_id: id,
+              keterangan:   `Sample harian ${type} kembali sore (edit)`,
+              user_id:      userId || null,
+            })
+          }
+        }
+      }
+
+      // 5. Audit Log
+      await logAudit({
+        tx,
+        entity_type: AUDIT_ENTITY.SAMPLE_HARIAN,
+        change_type: "Ubah Sample Harian",
+        entity_id:   id,
+        action:      AUDIT_ACTION.UPDATE,
+        old_values:  {
+          tanggal: old.tanggal,
+          catatan: old.catatan,
+          items: old.items.map((i) => ({ rokok_id: i.rokok_id, type: i.type, qty_keluar: i.qty_keluar, qty_kembali: i.qty_kembali })),
+        },
+        new_values:  {
+          tanggal: pureDateStr,
+          catatan: catatan || null,
+          items: valid.map((i) => ({ rokok_id: i.rokok_id, type: i.type, qty_keluar: i.qty_keluar })),
+        },
+        alasan: alasan || null,
+        user_id:     userId,
+        user_name:   userName,
+      })
     }, TX_OPTIONS)
     
     revalidatePath("/sample-harian")
@@ -344,21 +384,23 @@ export async function closeSampleHarian(id, items) {
           data: { qty_kembali: qtyKembali },
         })
 
-        const stock_type = type === "cukai" ? "sample_cukai" : "sample_biasa"
+        if (!sh.is_historical) {
+          const stock_type = type === "cukai" ? "sample_cukai" : "sample_biasa"
 
-        if (qtyKembali > 0) {
-          await mutateStock({
-            tx,
-            rokok_id:     upd.rokok_id,
-            tanggal:      sh.tanggal,
-            jenis:        "in",
-            qty:          qtyKembali,
-            source:       MUTATION_SOURCE.SAMPLE_HARIAN_KEMBALI,
-            stock_type,
-            reference_id: id,
-            keterangan:   `Sample harian ${type} kembali sore`,
-            user_id:      userId || null,
-          })
+          if (qtyKembali > 0) {
+            await mutateStock({
+              tx,
+              rokok_id:     upd.rokok_id,
+              tanggal:      sh.tanggal,
+              jenis:        "in",
+              qty:          qtyKembali,
+              source:       MUTATION_SOURCE.SAMPLE_HARIAN_KEMBALI,
+              stock_type,
+              reference_id: id,
+              keterangan:   `Sample harian ${type} kembali sore`,
+              user_id:      userId || null,
+            })
+          }
         }
       }
 
@@ -398,23 +440,25 @@ export async function deleteSampleHarian(id, alasan) {
       })
       if (!sh) throw new Error("Sample harian tidak ditemukan.")
 
-      for (const item of sh.items) {
-        const net = item.qty_keluar - item.qty_kembali
-        if (net > 0) {
-          const stock_type = item.type === "cukai" ? "sample_cukai" : "sample_biasa"
-          await mutateStock({
-            tx,
-            rokok_id:     item.rokok_id,
-            tanggal:      sh.tanggal,
-            jenis:        "in",
-            qty:          net,
-            source:       MUTATION_SOURCE.REVERT,
-            stock_type,
-            reference_id: id,
-            keterangan:   `Revert sample harian ${item.type} (dihapus)`,
-            user_id:      userId || null,
-            allowNegative: true,
-          })
+      if (!sh.is_historical) {
+        for (const item of sh.items) {
+          const net = item.qty_keluar - item.qty_kembali
+          if (net > 0) {
+            const stock_type = item.type === "cukai" ? "sample_cukai" : "sample_biasa"
+            await mutateStock({
+              tx,
+              rokok_id:     item.rokok_id,
+              tanggal:      sh.tanggal,
+              jenis:        "in",
+              qty:          net,
+              source:       MUTATION_SOURCE.REVERT,
+              stock_type,
+              reference_id: id,
+              keterangan:   `Revert sample harian ${item.type} (dihapus)`,
+              user_id:      userId || null,
+              allowNegative: true,
+            })
+          }
         }
       }
 
@@ -452,10 +496,11 @@ export async function getSampleHarianList() {
     },
   })
   return rows.map((sh) => ({
-    id:       sh.id,
-    tanggal:  sh.tanggal.toISOString().split("T")[0],
-    status:   sh.status,
-    catatan:  sh.catatan,
+    id:            sh.id,
+    tanggal:       sh.tanggal.toISOString().split("T")[0],
+    status:        sh.status,
+    catatan:       sh.catatan,
+    is_historical: sh.is_historical,
     items: sh.items.map((i) => ({
       id:          i.id,
       rokok_id:    i.rokok_id,
@@ -493,8 +538,8 @@ export async function updateSampleHarianReport(id, items) {
 
         const stock_type = type === "cukai" ? "sample_cukai" : "sample_biasa"
 
-        // 1. Revert old qty_kembali (if it was > 0, deduct it out of stock)
-        if (existing.qty_kembali > 0) {
+        // 1. Revert old qty_kembali (only if NOT historical!)
+        if (!sh.is_historical && existing.qty_kembali > 0) {
           await mutateStock({
             tx,
             rokok_id:     upd.rokok_id,
@@ -516,8 +561,8 @@ export async function updateSampleHarianReport(id, items) {
           data: { qty_kembali: qtyKembali },
         })
 
-        // 3. Apply new qty_kembali (if > 0, add it to stock)
-        if (qtyKembali > 0) {
+        // 3. Apply new qty_kembali (only if NOT historical!)
+        if (!sh.is_historical && qtyKembali > 0) {
           await mutateStock({
             tx,
             rokok_id:     upd.rokok_id,

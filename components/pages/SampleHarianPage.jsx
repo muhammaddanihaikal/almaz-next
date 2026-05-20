@@ -33,7 +33,7 @@ function StatusBadge({ status }) {
   )
 }
 
-function BuatModal({ rokokList, existingList = [], onClose, onSaved }) {
+function BuatModal({ rokokList, existingList = [], sampleCutoffDate, onClose, onSaved }) {
   const [tanggal, setTanggal] = useState(getJakartaToday())
   const [catatan, setCatatan] = useState("")
   const [qtysBiasa, setQtysBiasa] = useState({})
@@ -54,6 +54,7 @@ function BuatModal({ rokokList, existingList = [], onClose, onSaved }) {
   })
 
   const isTomorrow = tanggal > getJakartaToday()
+  const isHistorical = sampleCutoffDate && tanggal < sampleCutoffDate
 
   let validationError = null
   if (isTomorrow) {
@@ -93,13 +94,15 @@ function BuatModal({ rokokList, existingList = [], onClose, onSaved }) {
       return
     }
 
-    // Client-side stock check to prevent saving if stock is insufficient
-    for (const item of items) {
-      const r = activeRokok.find((x) => x.id === item.rokok_id)
-      const stock = item.type === "cukai" ? (r.stok_sample_cukai ?? 0) : (r.stok_sample_biasa ?? 0)
-      if (item.qty_keluar > stock) {
-        setError(`Stok sample ${item.type === "cukai" ? "Cukai (SC)" : "Biasa (SB)"} untuk ${r.nama} tidak mencukupi.`)
-        return
+    // Client-side stock check to prevent saving if stock is insufficient (only if NOT historical!)
+    if (!isHistorical) {
+      for (const item of items) {
+        const r = activeRokok.find((x) => x.id === item.rokok_id)
+        const stock = item.type === "cukai" ? (r.stok_sample_cukai ?? 0) : (r.stok_sample_biasa ?? 0)
+        if (item.qty_keluar > stock) {
+          setError(`Stok sample ${item.type === "cukai" ? "Cukai (SC)" : "Biasa (SB)"} untuk ${r.nama} tidak mencukupi.`)
+          return
+        }
       }
     }
 
@@ -161,8 +164,8 @@ function BuatModal({ rokokList, existingList = [], onClose, onSaved }) {
                 const sisaSC = stokSC - (Number(qtySC) > 0 ? Number(qtySC) : 0)
                 const sisaSB = stokSB - (Number(qtySB) > 0 ? Number(qtySB) : 0)
 
-                const melebihiSC = Number(qtySC) > stokSC
-                const melebihiSB = Number(qtySB) > stokSB
+                const melebihiSC = !isHistorical && (Number(qtySC) > stokSC)
+                const melebihiSB = !isHistorical && (Number(qtySB) > stokSB)
 
                 return (
                   <tr key={r.id} className="hover:bg-neutral-50/50 transition-colors">
@@ -170,7 +173,7 @@ function BuatModal({ rokokList, existingList = [], onClose, onSaved }) {
                     
                     {/* Stok SC */}
                     <td className={`px-3 py-2.5 text-center text-xs tabular-nums font-medium ${melebihiSC ? "text-red-500" : Number(qtySC) > 0 ? "text-blue-600" : "text-neutral-400"}`}>
-                      {Number(qtySC) > 0 ? sisaSC : stokSC}
+                      {isHistorical ? "— (Historis)" : (Number(qtySC) > 0 ? sisaSC : stokSC)}
                     </td>
                     {/* Qty SC Input */}
                     <td className="px-3 py-2.5">
@@ -190,7 +193,7 @@ function BuatModal({ rokokList, existingList = [], onClose, onSaved }) {
 
                     {/* Stok SB */}
                     <td className={`px-3 py-2.5 text-center text-xs tabular-nums font-medium ${melebihiSB ? "text-red-500" : Number(qtySB) > 0 ? "text-blue-600" : "text-neutral-400"}`}>
-                      {Number(qtySB) > 0 ? sisaSB : stokSB}
+                      {isHistorical ? "— (Historis)" : (Number(qtySB) > 0 ? sisaSB : stokSB)}
                     </td>
                     {/* Qty SB Input */}
                     <td className="px-3 py-2.5">
@@ -359,7 +362,7 @@ function TutupModal({ session, onClose, onSaved }) {
   )
 }
 
-function EditModal({ session, rokokList, existingList = [], onClose, onSaved }) {
+function EditModal({ session, rokokList, existingList = [], sampleCutoffDate, onClose, onSaved }) {
   const [tanggal, setTanggal] = useState(() => {
     if (!session.tanggal) return getJakartaToday()
     const d = new Date(session.tanggal)
@@ -402,6 +405,7 @@ function EditModal({ session, rokokList, existingList = [], onClose, onSaved }) 
   })
 
   const isTomorrow = tanggal > getJakartaToday()
+  const isHistorical = sampleCutoffDate && tanggal < sampleCutoffDate
 
   let validationError = null
   if (isTomorrow) {
@@ -441,16 +445,18 @@ function EditModal({ session, rokokList, existingList = [], onClose, onSaved }) 
       return
     }
 
-    // Client-side stock check
-    for (const item of items) {
-      const r = filteredRokok.find((x) => x.id === item.rokok_id)
-      const oldItem = session.items.find(it => it.rokok_id === item.rokok_id && it.type === item.type)
-      const allocated = oldItem ? oldItem.qty_keluar : 0
-      const stock = item.type === "cukai" ? (r.stok_sample_cukai ?? 0) : (r.stok_sample_biasa ?? 0)
-      const totalAvailable = stock + allocated
-      if (item.qty_keluar > totalAvailable) {
-        setError(`Stok sample ${item.type === "cukai" ? "Cukai (SC)" : "Biasa (SB)"} untuk ${r.nama} tidak mencukupi.`)
-        return
+    // Client-side stock check (only if NOT historical!)
+    if (!isHistorical) {
+      for (const item of items) {
+        const r = filteredRokok.find((x) => x.id === item.rokok_id)
+        const oldItem = session.items.find(it => it.rokok_id === item.rokok_id && it.type === item.type)
+        const allocated = oldItem ? oldItem.qty_keluar : 0
+        const stock = item.type === "cukai" ? (r.stok_sample_cukai ?? 0) : (r.stok_sample_biasa ?? 0)
+        const totalAvailable = stock + allocated
+        if (item.qty_keluar > totalAvailable) {
+          setError(`Stok sample ${item.type === "cukai" ? "Cukai (SC)" : "Biasa (SB)"} untuk ${r.nama} tidak mencukupi.`)
+          return
+        }
       }
     }
 
@@ -519,8 +525,8 @@ function EditModal({ session, rokokList, existingList = [], onClose, onSaved }) 
                 const sisaSC = stokSC - (Number(qtySC) > 0 ? Number(qtySC) : 0)
                 const sisaSB = stokSB - (Number(qtySB) > 0 ? Number(qtySB) : 0)
 
-                const melebihiSC = Number(qtySC) > stokSC
-                const melebihiSB = Number(qtySB) > stokSB
+                const melebihiSC = !isHistorical && (Number(qtySC) > stokSC)
+                const melebihiSB = !isHistorical && (Number(qtySB) > stokSB)
 
                 return (
                   <tr key={r.id} className="hover:bg-neutral-50/50 transition-colors">
@@ -528,7 +534,7 @@ function EditModal({ session, rokokList, existingList = [], onClose, onSaved }) 
                     
                     {/* Stok SC */}
                     <td className={`px-3 py-2.5 text-center text-xs tabular-nums font-medium ${melebihiSC ? "text-red-500" : Number(qtySC) > 0 ? "text-blue-600" : "text-neutral-400"}`}>
-                      {Number(qtySC) > 0 ? sisaSC : stokSC}
+                      {isHistorical ? "— (Historis)" : (Number(qtySC) > 0 ? sisaSC : stokSC)}
                     </td>
                     {/* Qty SC Input */}
                     <td className="px-3 py-2.5">
@@ -548,7 +554,7 @@ function EditModal({ session, rokokList, existingList = [], onClose, onSaved }) 
 
                     {/* Stok SB */}
                     <td className={`px-3 py-2.5 text-center text-xs tabular-nums font-medium ${melebihiSB ? "text-red-500" : Number(qtySB) > 0 ? "text-blue-600" : "text-neutral-400"}`}>
-                      {Number(qtySB) > 0 ? sisaSB : stokSB}
+                      {isHistorical ? "— (Historis)" : (Number(qtySB) > 0 ? sisaSB : stokSB)}
                     </td>
                     {/* Qty SB Input */}
                     <td className="px-3 py-2.5">
@@ -688,7 +694,7 @@ function DetailModal({ session, onClose }) {
   )
 }
 
-export default function SampleHarianPage({ list: initialList, rokokList }) {
+export default function SampleHarianPage({ list: initialList, rokokList, sampleCutoffDate }) {
   const [list, setList] = useState(initialList)
   const [showBuat, setShowBuat] = useState(false)
   const [tutupTarget, setTutupTarget] = useState(null)
@@ -698,8 +704,8 @@ export default function SampleHarianPage({ list: initialList, rokokList }) {
   const [statusFilter, setStatusFilter] = useState("")
   const [rokokFilter, setRokokFilter] = useState([])
   
-  const confirm = useConfirm()
-  const confirmWithReason = useConfirmWithReason()
+  const { confirm, ConfirmModal } = useConfirm()
+  const { confirmWithReason, ConfirmWithReasonModal } = useConfirmWithReason()
 
   const filteredList = useMemo(() => {
     let temp = list || []
@@ -725,8 +731,12 @@ export default function SampleHarianPage({ list: initialList, rokokList }) {
       }
     }
     
-    return temp
-  }, [list, dateRange, statusFilter, rokokFilter])
+    // 4. Mark Historical
+    return temp.map(r => ({
+        ...r,
+        is_historical: sampleCutoffDate && r.tanggal < sampleCutoffDate
+    }))
+  }, [list, dateRange, statusFilter, rokokFilter, sampleCutoffDate])
 
   function refresh() {
     window.location.reload()
@@ -748,7 +758,20 @@ export default function SampleHarianPage({ list: initialList, rokokList }) {
 
   const columns = [
     { key: "no",      label: "No",      render: (_, idx) => idx + 1 },
-    { key: "tanggal", label: "Tanggal", render: (r) => fmtTanggal(r.tanggal) },
+    {
+      key: "tanggal",
+      label: "Tanggal",
+      render: (r) => (
+        <div className="flex items-center gap-2">
+          <span>{fmtTanggal(r.tanggal)}</span>
+          {r.is_historical && (
+            <span className="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-700/10">
+              Data Lama
+            </span>
+          )}
+        </div>
+      ),
+    },
     {
       key: "detail",
       label: "Detail",
@@ -785,7 +808,8 @@ export default function SampleHarianPage({ list: initialList, rokokList }) {
             >
               Edit Laporan
             </Button>
-          )}
+          )
+          }
           <RowActions
             onDetail={() => setDetailTarget(r)}
             onEdit={r.status === "buka" ? () => setEditTarget(r) : null}
@@ -846,6 +870,7 @@ export default function SampleHarianPage({ list: initialList, rokokList }) {
         <BuatModal
           rokokList={rokokList}
           existingList={list}
+          sampleCutoffDate={sampleCutoffDate}
           onClose={() => setShowBuat(false)}
           onSaved={() => { setShowBuat(false); refresh() }}
         />
@@ -862,6 +887,7 @@ export default function SampleHarianPage({ list: initialList, rokokList }) {
           session={editTarget}
           rokokList={rokokList}
           existingList={list}
+          sampleCutoffDate={sampleCutoffDate}
           onClose={() => setEditTarget(null)}
           onSaved={() => { setEditTarget(null); refresh() }}
         />
@@ -872,6 +898,8 @@ export default function SampleHarianPage({ list: initialList, rokokList }) {
           onClose={() => setDetailTarget(null)}
         />
       )}
+      <ConfirmModal />
+      <ConfirmWithReasonModal />
     </div>
   )
 }
