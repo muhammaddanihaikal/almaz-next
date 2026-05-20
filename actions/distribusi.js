@@ -223,14 +223,23 @@ export async function getSesiList(daysBack = 30) {
     orderBy: [{ tanggal: "desc" }, { createdAt: "desc" }],
   })
 
-  const ids = rows.map(r => r.id)
+  // Kumpulkan pasangan (tanggal, sales_id) dari semua sesi untuk lookup settled TJ
+  // TJ diselesaikan via halaman Konsinyasi TIDAK memiliki sesi_penyelesaian_id,
+  // sehingga kita match berdasarkan tanggal_selesai + sales_id.
+  const sesiByKey = {} // key: "tanggal|sales_id" → sesi
+  for (const row of rows) {
+    const key = `${dateOnly(row.tanggal)}|${row.sales_id}`
+    if (!sesiByKey[key]) sesiByKey[key] = []
+    sesiByKey[key].push(row)
+  }
+
+  // Cari semua TJ selesai yang tanggal_selesai-nya masuk dalam rentang sesi
+  const tanggalList = [...new Set(rows.map(r => dateOnly(r.tanggal)))]
   const settledTitipJual = await prisma.titipJual.findMany({
     where: {
       status: "selesai",
-      setoran: {
-        some: {
-          sesi_penyelesaian_id: { in: ids }
-        }
+      tanggal_selesai: {
+        in: tanggalList.map(d => new Date(d))
       }
     },
     include: {
@@ -240,30 +249,36 @@ export async function getSesiList(daysBack = 30) {
     }
   })
 
+  // Map TJ ke sesi berdasarkan tanggal_selesai + sales_id
   const settledTjBySesiId = {}
   for (const tj of settledTitipJual) {
-    const sesiId = tj.setoran.find(st => st.sesi_penyelesaian_id && ids.includes(st.sesi_penyelesaian_id))?.sesi_penyelesaian_id
-    if (sesiId) {
-      if (!settledTjBySesiId[sesiId]) settledTjBySesiId[sesiId] = []
-      settledTjBySesiId[sesiId].push(tj)
+    const tjTanggal = dateOnly(tj.tanggal_selesai)
+    const key = `${tjTanggal}|${tj.sales_id}`
+    const matchingSesi = sesiByKey[key] || []
+    for (const sesi of matchingSesi) {
+      // Hindari duplikasi — TJ yang sudah ada di sesi.titipJual (sesi_id === sesi.id) tidak perlu di-include
+      if (tj.sesi_id === sesi.id) continue
+      if (!settledTjBySesiId[sesi.id]) settledTjBySesiId[sesi.id] = {}
+      settledTjBySesiId[sesi.id][tj.id] = tj
     }
   }
 
-  return rows.map(s => serialize(s, settledTjBySesiId[s.id] || []))
+  return rows.map(s => serialize(s, Object.values(settledTjBySesiId[s.id] || {})))
 }
 
 export async function getSesi(id) {
   const s = await prisma.sesiHarian.findUnique({ where: { id }, include })
   if (!s) return null
 
+  // Cari TJ selesai berdasarkan tanggal_selesai + sales_id (menangkap settlement dari halaman Konsinyasi
+  // yang tidak mengisi sesi_penyelesaian_id), lalu exclude TJ yang memang milik sesi ini (sesi_id === id)
+  const sesiTanggal = dateOnly(s.tanggal)
   const settledTitipJual = await prisma.titipJual.findMany({
     where: {
       status: "selesai",
-      setoran: {
-        some: {
-          sesi_penyelesaian_id: id
-        }
-      }
+      sales_id: s.sales_id,
+      tanggal_selesai: new Date(sesiTanggal),
+      NOT: { sesi_id: id },
     },
     include: {
       items: { include: { rokok: true } },
