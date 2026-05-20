@@ -95,11 +95,13 @@ describe("buildRincianPerSalesData", () => {
   })
 
   // ── 4. Tukar Barang Selesai ───────────────────────────────────────────────
-  it("counts tukar barang selesai itemsKeluar per sales", () => {
+  it("counts tukar barang selesai: uang = selisih (keluar - masuk), qty = net per rokok", () => {
     const rows = [
       makeSesi("MAS BOBI", {
         tukarBarangSelesaiDiSesi: [
           {
+            // Tidak ada itemsMasuk → selisih = gross keluar
+            itemsMasuk:  [],
             itemsKeluar: [{ rokok_id: "r1", qty: 7, harga_satuan: 11000 }, { rokok_id: "r3", qty: 4, harga_satuan: 9000 }],
           },
         ],
@@ -107,26 +109,54 @@ describe("buildRincianPerSalesData", () => {
     ]
     const { dataMap } = buildRincianPerSalesData(rows, rokokList)
     expect(dataMap["r1"]["MAS BOBI"].tukarQty).toBe(7)
+    // selisih = (7×11000 + 4×9000) - 0 = 77000+36000 = 113000
+    // distribusi proporsional: r1 → 77000/113000 × 113000 = 77000
     expect(dataMap["r1"]["MAS BOBI"].tukarUang).toBe(77000)
     expect(dataMap["r3"]["MAS BOBI"].tukarQty).toBe(4)
+    // distribusi proporsional: r3 → 36000/113000 × 113000 = 36000
     expect(dataMap["r3"]["MAS BOBI"].tukarUang).toBe(36000)
   })
 
-  it("does NOT count tukar barang itemsMasuk (barang retur dari customer)", () => {
+  it("tukar barang uang = selisih (keluar - masuk), beda produk = offset bersama", () => {
     const rows = [
       makeSesi("MAS BOBI", {
         tukarBarangSelesaiDiSesi: [
           {
-            itemsMasuk:  [{ rokok_id: "r2", qty: 5, harga_satuan: 10000 }],  // retur dari customer → tidak dihitung
-            itemsKeluar: [{ rokok_id: "r1", qty: 3, harga_satuan: 11000 }],  // pengganti → dihitung
+            // r2 masuk (dari customer) 5×10000 = 50000
+            // r1 keluar (pengganti)    3×11000 = 33000
+            // selisih = 33000 - 50000 = -17000 (sales kasih kembalian)
+            itemsMasuk:  [{ rokok_id: "r2", qty: 5, harga_satuan: 10000 }],
+            itemsKeluar: [{ rokok_id: "r1", qty: 3, harga_satuan: 11000 }],
           },
         ],
       }),
     ]
     const { dataMap } = buildRincianPerSalesData(rows, rokokList)
     expect(dataMap["r1"]["MAS BOBI"].tukarQty).toBe(3)
-    expect(dataMap["r1"]["MAS BOBI"].tukarUang).toBe(33000)
-    expect(dataMap["r2"]).toBeUndefined()
+    // selisih negatif: sales kasih kembalian ke toko
+    expect(dataMap["r1"]["MAS BOBI"].tukarUang).toBe(-17000)
+    expect(dataMap["r2"]).toBeUndefined()  // itemsMasuk beda produk → net qty negatif → tidak di-include
+  })
+
+  it("tukar barang setara nilai → tukarUang = 0", () => {
+    const rows = [
+      makeSesi("PAK TROY", {
+        tukarBarangSelesaiDiSesi: [
+          {
+            // Tukar setara: keluar SCHIOSMAS x20 @ 9700 = 194000, masuk AL KRETEK x20 @ 9700 = 194000
+            // selisih = 0 → TB uang = 0 meski ada 20 unit yang bergerak
+            itemsMasuk:  [{ rokok_id: "r2", qty: 20, harga_satuan: 9700 }],
+            itemsKeluar: [{ rokok_id: "r1", qty: 20, harga_satuan: 9700 }],
+          },
+        ],
+      }),
+    ]
+    const { dataMap } = buildRincianPerSalesData(rows, rokokList)
+    // r1 keluar net=20, tapi selisih=0 → TB uang = 0
+    expect(dataMap["r1"]["PAK TROY"].tukarQty).toBe(20)
+    expect(dataMap["r1"]["PAK TROY"].tukarUang).toBe(0)
+    // r2 hanya masuk (net negatif) → tidak di-include
+    expect(dataMap["r2"]?.["PAK TROY"]).toBeUndefined()
   })
 
   // ── 5. Kombinasi semua sumber ─────────────────────────────────────────────
