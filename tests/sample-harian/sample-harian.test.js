@@ -213,23 +213,23 @@ describe("createSampleHarian", () => {
     const current = await freshRokok()
     const tooMany = current.stok_sample_biasa + 9999
 
-    await expect(
-      createSampleHarian(TEST_DATE, [{ rokok_id: testRokok.id, qty_keluar: tooMany }], null)
-    ).rejects.toThrow(/stok sample biasa/i)
+    const res = await createSampleHarian(TEST_DATE, [{ rokok_id: testRokok.id, qty_keluar: tooMany }], null)
+    expect(res.success).toBe(false)
+    expect(res.error).toMatch(/stok sample biasa/i)
   })
 
   it("gagal jika tidak ada item dengan qty > 0", async () => {
-    await expect(
-      createSampleHarian(TEST_DATE, [{ rokok_id: testRokok.id, qty_keluar: 0 }], null)
-    ).rejects.toThrow(/minimal satu produk/i)
+    const res = await createSampleHarian(TEST_DATE, [{ rokok_id: testRokok.id, qty_keluar: 0 }], null)
+    expect(res.success).toBe(false)
+    expect(res.error).toMatch(/minimal satu produk/i)
   })
 
   it("gagal jika tanggal sudah memiliki sesi", async () => {
     await buatSesi(1)
     
-    await expect(
-      createSampleHarian(TEST_DATE, [{ rokok_id: testRokok.id, type: "biasa", qty_keluar: 1 }], null)
-    ).rejects.toThrow(/sudah ada/i)
+    const res = await createSampleHarian(TEST_DATE, [{ rokok_id: testRokok.id, type: "biasa", qty_keluar: 1 }], null)
+    expect(res.success).toBe(false)
+    expect(res.error).toMatch(/sudah ada/i)
   })
 
   it("gagal jika tanggal adalah besok", async () => {
@@ -239,9 +239,9 @@ describe("createSampleHarian", () => {
     d.setUTCDate(d.getUTCDate() + 1)
     const tomorrowStr = d.toISOString().split("T")[0]
     
-    await expect(
-      createSampleHarian(tomorrowStr, [{ rokok_id: testRokok.id, type: "biasa", qty_keluar: 1 }], null)
-    ).rejects.toThrow(/tidak dapat membuat sesi/i)
+    const res = await createSampleHarian(tomorrowStr, [{ rokok_id: testRokok.id, type: "biasa", qty_keluar: 1 }], null)
+    expect(res.success).toBe(false)
+    expect(res.error).toMatch(/tidak dapat membuat sesi/i)
   })
 
   it("stok 9 dikurangi 2 menjadi 7", async () => {
@@ -354,17 +354,17 @@ describe("closeSampleHarian", () => {
     const sh = await buatSesi(2)
     await closeSampleHarian(sh.id, [{ rokok_id: testRokok.id, qty_kembali: 1 }])
 
-    await expect(
-      closeSampleHarian(sh.id, [{ rokok_id: testRokok.id, qty_kembali: 1 }])
-    ).rejects.toThrow(/sudah ditutup/i)
+    const res = await closeSampleHarian(sh.id, [{ rokok_id: testRokok.id, qty_kembali: 1 }])
+    expect(res.success).toBe(false)
+    expect(res.error).toMatch(/sudah ditutup/i)
   })
 
   it("gagal jika qty_kembali melebihi qty_keluar", async () => {
     const sh = await buatSesi(2)
 
-    await expect(
-      closeSampleHarian(sh.id, [{ rokok_id: testRokok.id, qty_kembali: 99 }])
-    ).rejects.toThrow(/melebihi qty keluar/i)
+    const res = await closeSampleHarian(sh.id, [{ rokok_id: testRokok.id, qty_kembali: 99 }])
+    expect(res.success).toBe(false)
+    expect(res.error).toMatch(/melebihi qty keluar/i)
   })
 
   it("stok reguler tidak berubah saat tutup sesi", async () => {
@@ -475,9 +475,9 @@ describe("updateSampleHarian", () => {
     d.setUTCDate(d.getUTCDate() + 1)
     const tomorrowStr = d.toISOString().split("T")[0]
 
-    await expect(
-      updateSampleHarian(sh.id, tomorrowStr, [{ rokok_id: testRokok.id, type: "biasa", qty_keluar: 2 }], null)
-    ).rejects.toThrow(/tidak dapat mengubah tanggal sesi/i)
+    const res = await updateSampleHarian(sh.id, tomorrowStr, [{ rokok_id: testRokok.id, type: "biasa", qty_keluar: 2 }], null)
+    expect(res.success).toBe(false)
+    expect(res.error).toMatch(/tidak dapat mengubah tanggal sesi/i)
   })
 
   it("gagal jika tanggal update sudah memiliki sesi lain", async () => {
@@ -514,9 +514,9 @@ describe("updateSampleHarian", () => {
     const mainSesi = await buatSesi(1)
     
     try {
-      await expect(
-        updateSampleHarian(mainSesi.id, otherDateStr, [{ rokok_id: testRokok.id, type: "biasa", qty_keluar: 1 }], null)
-      ).rejects.toThrow(/sudah ada/i)
+      const res = await updateSampleHarian(mainSesi.id, otherDateStr, [{ rokok_id: testRokok.id, type: "biasa", qty_keluar: 1 }], null)
+      expect(res.success).toBe(false)
+      expect(res.error).toMatch(/sudah ada/i)
     } finally {
       await prisma.sampleHarian.delete({ where: { id: otherSesi.id } })
     }
@@ -527,9 +527,9 @@ describe("updateSampleHarian", () => {
     const current = await freshRokok()
     const tooMany = current.stok_sample_biasa + 9999
 
-    await expect(
-      updateSampleHarian(sh.id, TEST_DATE, [{ rokok_id: testRokok.id, type: "biasa", qty_keluar: tooMany }], null)
-    ).rejects.toThrow(/tidak cukup/i)
+    const res = await updateSampleHarian(sh.id, TEST_DATE, [{ rokok_id: testRokok.id, type: "biasa", qty_keluar: tooMany }], null)
+    expect(res.success).toBe(false)
+    expect(res.error).toMatch(/tidak cukup/i)
   })
 
   it("berhasil update stok biasa ketika sesi berstatus selesai", async () => {
@@ -580,17 +580,17 @@ describe("updateSampleHarianReport", () => {
     const sh = await buatSesi(2)
     await closeSampleHarian(sh.id, [{ rokok_id: testRokok.id, qty_kembali: 1 }])
     
-    await expect(
-      updateSampleHarianReport(sh.id, [{ rokok_id: testRokok.id, qty_kembali: 5 }])
-    ).rejects.toThrow(/qty kembali tidak boleh melebihi/i)
+    const res = await updateSampleHarianReport(sh.id, [{ rokok_id: testRokok.id, qty_kembali: 5 }])
+    expect(res.success).toBe(false)
+    expect(res.error).toMatch(/qty kembali tidak boleh melebihi/i)
   })
 
   it("gagal jika sesi belum selesai", async () => {
     const sh = await buatSesi(2)
     
-    await expect(
-      updateSampleHarianReport(sh.id, [{ rokok_id: testRokok.id, qty_kembali: 1 }])
-    ).rejects.toThrow(/belum selesai/i)
+    const res = await updateSampleHarianReport(sh.id, [{ rokok_id: testRokok.id, qty_kembali: 1 }])
+    expect(res.success).toBe(false)
+    expect(res.error).toMatch(/belum selesai/i)
   })
 })
 

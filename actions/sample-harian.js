@@ -7,6 +7,8 @@ import { auth } from "@/lib/auth"
 import { logAudit, AUDIT_ACTION, AUDIT_ENTITY } from "@/lib/audit"
 import { getJakartaToday, fmtTanggal } from "@/lib/utils"
 
+const TX_OPTIONS = { maxWait: 10000, timeout: 30000 }
+
 async function getSession() {
   const session = await auth()
   let userId = session?.user?.id
@@ -121,7 +123,7 @@ export async function createSampleHarian(tanggal, items, catatan) {
         user_id:     userId,
         user_name:   userName,
       })
-    })
+    }, TX_OPTIONS)
 
     revalidatePath("/sample-harian")
     return { success: true }
@@ -302,7 +304,7 @@ export async function updateSampleHarian(id, tanggal, items, catatan, alasan) {
       user_id:     userId,
       user_name:   userName,
     })
-    })
+    }, TX_OPTIONS)
     
     revalidatePath("/sample-harian")
     return { success: true }
@@ -372,7 +374,7 @@ export async function closeSampleHarian(id, items) {
         user_id:     userId,
         user_name:   userName,
       })
-    })
+    }, TX_OPTIONS)
 
     revalidatePath("/sample-harian")
     return { success: true }
@@ -429,7 +431,7 @@ export async function deleteSampleHarian(id, alasan) {
       })
 
       await tx.sampleHarian.delete({ where: { id } })
-    })
+    }, TX_OPTIONS)
 
     revalidatePath("/sample-harian")
     return { success: true }
@@ -541,7 +543,7 @@ export async function updateSampleHarianReport(id, items) {
         user_id:     userId,
         user_name:   userName,
       })
-    })
+    }, TX_OPTIONS)
 
     revalidatePath("/sample-harian")
     return { success: true }

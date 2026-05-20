@@ -7,6 +7,8 @@ import { auth } from "@/lib/auth"
 import { logAudit, AUDIT_ACTION, AUDIT_ENTITY } from "@/lib/audit"
 import { nowJakarta, getJakartaToday } from "@/lib/utils"
 
+const TX_OPTIONS = { maxWait: 10000, timeout: 30000 }
+
 const include = {
   sales:   true,
   toko:    true,
@@ -173,7 +175,7 @@ export async function settleTitipJual(id, data) {
       user_id:   session?.user?.id,
       user_name: session?.user?.name,
     })
-  })
+  }, TX_OPTIONS)
 
   revalidatePath("/titip-jual")
   revalidatePath("/distribusi")
@@ -203,7 +205,7 @@ export async function editTitipJualDetail(id, data, alasan) {
       user_id:     session?.user?.id,
       user_name:   session?.user?.name,
     })
-  })
+  }, TX_OPTIONS)
   revalidatePath("/titip-jual")
   revalidatePath("/distribusi")
   revalidatePath("/")
@@ -253,7 +255,7 @@ export async function deleteTitipJual(id, alasan) {
       }
     }
     await tx.titipJual.delete({ where: { id } })
-  })
+  }, TX_OPTIONS)
   revalidatePath("/titip-jual")
   revalidatePath("/distribusi")
   revalidatePath("/")
@@ -325,7 +327,7 @@ export async function createTitipJual(sesiId, salesId, k) {
       user_name: session?.user?.name,
     })
     return created
-  })
+  }, TX_OPTIONS)
 
   revalidatePath("/distribusi")
   revalidatePath("/titip-jual")
@@ -436,7 +438,7 @@ export async function editSettlement(id, data, alasan) {
       user_id:   session?.user?.id,
       user_name: session?.user?.name,
     })
-  })
+  }, TX_OPTIONS)
 
   revalidatePath("/titip-jual")
   revalidatePath("/distribusi")
@@ -513,7 +515,7 @@ export async function revertSettlement(id, alasan) {
       user_id:   session?.user?.id,
       user_name: session?.user?.name,
     })
-  })
+  }, TX_OPTIONS)
 
   revalidatePath("/titip-jual")
   revalidatePath("/distribusi")
@@ -640,7 +642,7 @@ export async function partialSettleTitipJual(id, data) {
     })
 
     return rollover
-  })
+  }, TX_OPTIONS)
 
   revalidatePath("/titip-jual")
   revalidatePath("/distribusi")

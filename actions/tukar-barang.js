@@ -15,6 +15,8 @@ import { auth } from "@/lib/auth"
 import { logAudit, AUDIT_ACTION, AUDIT_ENTITY } from "@/lib/audit"
 import { nowJakarta } from "@/lib/utils"
 
+const TX_OPTIONS = { maxWait: 10000, timeout: 30000 }
+
 function mutationDateKey(tanggal) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date(tanggal))
 }
@@ -167,7 +169,7 @@ export async function deleteTukarBarang(id, alasan) {
       session,
     })
     await tx.tukarBarang.delete({ where: { id } })
-  })
+  }, TX_OPTIONS)
 
   revalidatePath("/tukar-barang")
   revalidatePath("/distribusi")
@@ -387,7 +389,7 @@ export async function selesaikanTukarBarang(tukar_id, itemsKeluarData) {
       user_id: session?.user?.id,
       user_name: session?.user?.name,
     })
-  })
+  }, TX_OPTIONS)
   revalidatePath("/tukar-barang")
 }
 
@@ -457,6 +459,6 @@ export async function editTukarBarangAktif(id, data, alasan) {
       user_id: session?.user?.id,
       user_name: session?.user?.name
     })
-  })
+  }, TX_OPTIONS)
   revalidatePath("/tukar-barang")
 }
