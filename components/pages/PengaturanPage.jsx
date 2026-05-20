@@ -42,9 +42,15 @@ export default function PengaturanPage({ initialStockCutoffDate, initialSampleCu
 
   const handleSaveSample = async (e) => {
     e.preventDefault()
-    setSampleLoading(true)
     setSampleSuccessMsg("")
     setSampleErrorMsg("")
+
+    if (!sampleCutoffDate) {
+      setSampleErrorMsg("Tanggal cutoff sample harian wajib diisi.")
+      return
+    }
+
+    setSampleLoading(true)
 
     try {
       await setSetting("sample_cutoff_date", sampleCutoffDate)

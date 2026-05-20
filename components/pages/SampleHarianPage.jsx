@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { Plus, CheckCircle, AlertCircle } from "lucide-react"
+import { Plus, CheckCircle, AlertCircle, History } from "lucide-react"
 import { fmtTanggal, getJakartaToday, defaultDateRange } from "@/lib/utils"
 import {
   createSampleHarian,
@@ -761,16 +761,7 @@ export default function SampleHarianPage({ list: initialList, rokokList, sampleC
     {
       key: "tanggal",
       label: "Tanggal",
-      render: (r) => (
-        <div className="flex items-center gap-2">
-          <span>{fmtTanggal(r.tanggal)}</span>
-          {r.is_historical && (
-            <span className="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-700/10">
-              Data Lama
-            </span>
-          )}
-        </div>
-      ),
+      render: (r) => <span>{fmtTanggal(r.tanggal)}</span>,
     },
     {
       key: "detail",
@@ -784,7 +775,21 @@ export default function SampleHarianPage({ list: initialList, rokokList, sampleC
         />
       ),
     },
-    { key: "status",  label: "Status",  align: "center", render: (r) => <StatusBadge status={r.status} /> },
+    {
+      key: "status",
+      label: "Status",
+      align: "center",
+      render: (r) => (
+        <div className="flex flex-row items-center justify-center gap-1.5 flex-wrap">
+          <StatusBadge status={r.status} />
+          {r.is_historical && (
+            <span className="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-700/10">
+              Data Lama
+            </span>
+          )}
+        </div>
+      ),
+    },
     {
       key: "actions",
       label: "",
@@ -824,7 +829,19 @@ export default function SampleHarianPage({ list: initialList, rokokList, sampleC
     <div className="space-y-6">
       <PageHeader
         title="Sample Harian"
-        subtitle="Kelola sample yang keluar pagi dan kembali sore."
+        subtitle={
+          <div className="flex items-center flex-wrap gap-x-2 gap-y-1">
+            <span className="text-neutral-500">
+              Kelola sample yang keluar pagi dan kembali sore.
+            </span>
+            {sampleCutoffDate && (
+              <span className="inline-flex items-center gap-1.5 bg-indigo-50/50 text-indigo-400 px-2 py-0.5 rounded-full border border-indigo-100/50 text-[10px] font-semibold tracking-wide transition-colors hover:bg-indigo-50">
+                <History className="h-3 w-3" />
+                CUTOFF: {fmtTanggal(sampleCutoffDate)}
+              </span>
+            )}
+          </div>
+        }
         action={
           <PrimaryButton icon={Plus} onClick={() => setShowBuat(true)}>Buat Sesi Pagi</PrimaryButton>
         }
@@ -898,8 +915,8 @@ export default function SampleHarianPage({ list: initialList, rokokList, sampleC
           onClose={() => setDetailTarget(null)}
         />
       )}
-      <ConfirmModal />
-      <ConfirmWithReasonModal />
+      {ConfirmModal}
+      {ConfirmWithReasonModal}
     </div>
   )
 }
