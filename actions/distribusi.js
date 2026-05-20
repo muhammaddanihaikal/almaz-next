@@ -89,7 +89,7 @@ function serializeTukarList(list) {
   }))
 }
 
-function serialize(s) {
+function serialize(s, settledTj = []) {
   const tanggal = s.tanggal.toISOString().split("T")[0]
 
   const nilaiPenjualanLangsung = s.penjualan.reduce((sum, it) => sum + it.qty * it.harga, 0)
@@ -163,6 +163,26 @@ function serialize(s) {
       qty_keluar:  sm.qty_keluar,
       qty_kembali: sm.qty_kembali,
     })),
+    konsinyasiSelesaiDiSesi: (settledTj || []).map((k) => ({
+      id:                  k.id,
+      toko_id:             k.toko_id,
+      nama_toko:           k.toko?.nama || "???",
+      kategori:            k.kategori,
+      tanggal_jatuh_tempo: k.tanggal_jatuh_tempo.toISOString().split("T")[0],
+      tanggal_selesai:     k.tanggal_selesai ? k.tanggal_selesai.toISOString().split("T")[0] : null,
+      status:              k.status,
+      items: (k.items || [])
+        .sort((a, b) => (a.rokok?.urutan ?? 0) - (b.rokok?.urutan ?? 0))
+        .map((it) => ({
+          id: it.id, rokok_id: it.rokok_id, rokok: it.rokok?.nama || "???",
+          qty_keluar: it.qty_keluar, qty_terjual: it.qty_terjual,
+          qty_kembali: it.qty_kembali, harga: it.harga,
+        })),
+      setoran: (k.setoran || []).map((it) => ({
+        id: it.id, metode: it.metode, jumlah: it.jumlah,
+        tanggal: it.tanggal.toISOString().split("T")[0],
+      })),
+    })),
     konsinyasi: s.titipJual.map((k) => ({
       id:                  k.id,
       toko_id:             k.toko_id,
@@ -202,12 +222,57 @@ export async function getSesiList(daysBack = 30) {
     include,
     orderBy: [{ tanggal: "desc" }, { createdAt: "desc" }],
   })
-  return rows.map(serialize)
+
+  const ids = rows.map(r => r.id)
+  const settledTitipJual = await prisma.titipJual.findMany({
+    where: {
+      status: "selesai",
+      setoran: {
+        some: {
+          sesi_penyelesaian_id: { in: ids }
+        }
+      }
+    },
+    include: {
+      items: { include: { rokok: true } },
+      setoran: true,
+      toko: true
+    }
+  })
+
+  const settledTjBySesiId = {}
+  for (const tj of settledTitipJual) {
+    const sesiId = tj.setoran.find(st => st.sesi_penyelesaian_id && ids.includes(st.sesi_penyelesaian_id))?.sesi_penyelesaian_id
+    if (sesiId) {
+      if (!settledTjBySesiId[sesiId]) settledTjBySesiId[sesiId] = []
+      settledTjBySesiId[sesiId].push(tj)
+    }
+  }
+
+  return rows.map(s => serialize(s, settledTjBySesiId[s.id] || []))
 }
 
 export async function getSesi(id) {
   const s = await prisma.sesiHarian.findUnique({ where: { id }, include })
-  return s ? serialize(s) : null
+  if (!s) return null
+
+  const settledTitipJual = await prisma.titipJual.findMany({
+    where: {
+      status: "selesai",
+      setoran: {
+        some: {
+          sesi_penyelesaian_id: id
+        }
+      }
+    },
+    include: {
+      items: { include: { rokok: true } },
+      setoran: true,
+      toko: true
+    }
+  })
+
+  return serialize(s, settledTitipJual)
 }
 
 export async function createSesi(data) {

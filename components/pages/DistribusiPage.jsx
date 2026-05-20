@@ -118,8 +118,14 @@ function exportToExcel(rows, rokokList, dateRange, onNoData) {
     for (const it of (sesi.penjualan || [])) {
       allItems.push({ tanggal: sesi.tanggal, rokok_id: it.rokok_id, rokok: it.rokok, qty: it.qty, harga: it.harga })
     }
+    const completedKonsinyasi = new Map()
     for (const k of (sesi.konsinyasi || [])) {
-      if (k.status !== "selesai") continue
+      if (k.status === "selesai") completedKonsinyasi.set(k.id, k)
+    }
+    for (const k of (sesi.konsinyasiSelesaiDiSesi || [])) {
+      if (k.status === "selesai") completedKonsinyasi.set(k.id, k)
+    }
+    for (const k of completedKonsinyasi.values()) {
       const tanggal = k.tanggal_selesai || sesi.tanggal
       for (const it of k.items) {
         if (it.qty_terjual > 0) {
