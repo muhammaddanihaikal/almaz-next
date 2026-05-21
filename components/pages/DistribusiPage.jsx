@@ -706,12 +706,24 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
 
       <Card>
         {isFetchingRange ? (
-          <div className="flex items-center justify-center gap-3 py-16 text-neutral-400">
-            <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-            </svg>
-            <span className="text-sm">Memuat data...</span>
+          <div className="divide-y divide-neutral-100">
+            {/* Header skeleton */}
+            <div className="grid grid-cols-[2rem_1fr_1fr_1fr_1fr_6rem] gap-4 px-4 py-3 bg-neutral-50">
+              {["w-4","w-16","w-20","w-14","w-24","w-10"].map((w, i) => (
+                <div key={i} className={`h-3 ${w} animate-pulse rounded bg-neutral-200`} />
+              ))}
+            </div>
+            {/* Row skeletons */}
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="grid grid-cols-[2rem_1fr_1fr_1fr_1fr_6rem] gap-4 px-4 py-3.5 items-center" style={{ opacity: 1 - i * 0.13 }}>
+                <div className="h-3 w-5 animate-pulse rounded bg-neutral-150" />
+                <div className="h-3 w-20 animate-pulse rounded bg-neutral-200" />
+                <div className="h-3 w-24 animate-pulse rounded bg-neutral-200" />
+                <div className="h-5 w-16 animate-pulse rounded-full bg-neutral-200" />
+                <div className="h-3 w-20 animate-pulse rounded bg-neutral-200" />
+                <div className="ml-auto h-6 w-16 animate-pulse rounded bg-neutral-100" />
+              </div>
+            ))}
           </div>
         ) : (
         <DataTable

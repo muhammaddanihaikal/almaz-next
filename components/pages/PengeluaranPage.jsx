@@ -24,15 +24,18 @@ export default function PengeluaranPage({ role, pengeluaranList, sesiList, titip
   const [detail, setDetail] = useState(null)
   const [dateRange, setDateRange] = useState(defaultDateRange("bulan_ini"))
   const [localPengeluaranList, setLocalPengeluaranList] = useState(pengeluaranList)
+  const [isFetchingRange, setIsFetchingRange] = useState(false)
 
   useEffect(() => { setLocalPengeluaranList(pengeluaranList) }, [pengeluaranList])
 
   // Fetch ulang dari server saat filter tanggal berubah agar data historical ikut masuk
   useEffect(() => {
     if (!dateRange?.start || !dateRange?.end) return
+    setIsFetchingRange(true)
     getPengeluaranByDateRange(dateRange.start, dateRange.end)
       .then((fresh) => setLocalPengeluaranList(fresh))
       .catch((err) => console.error("[PengeluaranPage] fetch range error", err))
+      .finally(() => setIsFetchingRange(false))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateRange?.start, dateRange?.end])
 
@@ -102,6 +105,25 @@ export default function PengeluaranPage({ role, pengeluaranList, sesiList, titip
       </div>
 
       <Card>
+        {isFetchingRange ? (
+          <div className="divide-y divide-neutral-100">
+            <div className="grid grid-cols-[2rem_1fr_1fr_2fr_1fr_5rem] gap-4 px-4 py-3 bg-neutral-50">
+              {["w-4","w-16","w-16","w-28","w-16","w-10"].map((w, i) => (
+                <div key={i} className={`h-3 ${w} animate-pulse rounded bg-neutral-200`} />
+              ))}
+            </div>
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="grid grid-cols-[2rem_1fr_1fr_2fr_1fr_5rem] gap-4 px-4 py-3.5 items-center" style={{ opacity: 1 - i * 0.15 }}>
+                <div className="h-3 w-4 animate-pulse rounded bg-neutral-200" />
+                <div className="h-3 w-20 animate-pulse rounded bg-neutral-200" />
+                <div className="h-5 w-20 animate-pulse rounded-full bg-neutral-200" />
+                <div className="h-3 w-32 animate-pulse rounded bg-neutral-200" />
+                <div className="h-3 w-16 animate-pulse rounded bg-neutral-200" />
+                <div className="ml-auto h-6 w-14 animate-pulse rounded bg-neutral-100" />
+              </div>
+            ))}
+          </div>
+        ) : (
         <DataTable
           key={`${dateRange?.start}-${dateRange?.end}`}
           pageSize={PAGE_SIZE}
@@ -174,6 +196,7 @@ export default function PengeluaranPage({ role, pengeluaranList, sesiList, titip
             </div>
           )}
         />
+        )}
       </Card>
 
       {detail && (
