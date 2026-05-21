@@ -4,7 +4,7 @@ import { useMemo, useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Plus } from "lucide-react"
 import { fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc, downloadExcel, getJakartaToday } from "@/lib/utils"
-import { saveAbsensi, deleteAbsensi } from "@/actions/absensi"
+import { saveAbsensi, deleteAbsensi, getAbsensiByDateRange } from "@/actions/absensi"
 import { Card, PageHeader, DateFilter, DownloadButton, PrimaryButton, Field, FormActions, SelectInput, RowActions, Button, inputCls, useConfirm } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
@@ -49,11 +49,31 @@ export default function AbsensiPage({ role, absensiList, salesList }) {
   const [editingTanggal, setEditingTanggal] = useState(null)
   const [detail, setDetail] = useState(null)
   const [dateRange, setDateRange] = useState(defaultDateRange("minggu_ini"))
+  const [isFetchingRange, setIsFetchingRange] = useState(false)
 
   useEffect(() => {
     setLocalList(absensiList)
     setPendingTanggal(new Set())
   }, [absensiList])
+
+  // Fetch ulang dari server saat filter tanggal berubah agar data historical ikut masuk
+  useEffect(() => {
+    if (!dateRange?.start || !dateRange?.end) return
+    setIsFetchingRange(true)
+    getAbsensiByDateRange(dateRange.start, dateRange.end)
+      .then((fresh) => {
+        setLocalList((prev) => {
+          // Ganti data dalam range, pertahankan data di luar range
+          const outside = prev.filter(
+            (a) => a.tanggal < dateRange.start || a.tanggal > dateRange.end
+          )
+          return [...outside, ...fresh]
+        })
+      })
+      .catch((err) => console.error("[AbsensiPage] fetch range error", err))
+      .finally(() => setIsFetchingRange(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRange?.start, dateRange?.end])
 
   const markPending = (tanggal) =>
     setPendingTanggal((prev) => {
@@ -137,6 +157,15 @@ export default function AbsensiPage({ role, absensiList, salesList }) {
       </div>
 
       <Card>
+        {isFetchingRange ? (
+          <div className="flex items-center justify-center gap-3 py-16 text-neutral-400">
+            <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+            </svg>
+            <span className="text-sm">Memuat data...</span>
+          </div>
+        ) : (
         <DataTable
           key={`${dateRange?.start}-${dateRange?.end}`}
           pageSize={PAGE_SIZE}
@@ -227,6 +256,7 @@ export default function AbsensiPage({ role, absensiList, salesList }) {
             )
           }}
         />
+        )}
       </Card>
 
       {detail && (

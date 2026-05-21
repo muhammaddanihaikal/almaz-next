@@ -217,6 +217,22 @@ export async function getSesiList(daysBack = 30) {
     since.setDate(since.getDate() - daysBack)
     where.tanggal = { gte: since }
   }
+  return _querySesiList(where)
+}
+
+/**
+ * Fetch sesi dalam rentang tanggal tertentu (YYYY-MM-DD).
+ * Dipakai oleh client saat filter berubah ke rentang di luar 30 hari default.
+ * Mengembalikan semua sesi dalam range, termasuk data historical.
+ */
+export async function getSesiListByDateRange(start, end) {
+  const where = {}
+  if (start) where.tanggal = { ...(where.tanggal || {}), gte: new Date(start) }
+  if (end)   where.tanggal = { ...(where.tanggal || {}), lte: new Date(end) }
+  return _querySesiList(where)
+}
+
+async function _querySesiList(where) {
   const rows = await prisma.sesiHarian.findMany({
     where,
     include,
@@ -235,7 +251,7 @@ export async function getSesiList(daysBack = 30) {
 
   // Cari semua TJ selesai yang tanggal_selesai-nya masuk dalam rentang sesi
   const tanggalList = [...new Set(rows.map(r => dateOnly(r.tanggal)))]
-  const settledTitipJual = await prisma.titipJual.findMany({
+  const settledTitipJual = tanggalList.length > 0 ? await prisma.titipJual.findMany({
     where: {
       status: "selesai",
       tanggal_selesai: {
@@ -247,7 +263,7 @@ export async function getSesiList(daysBack = 30) {
       setoran: true,
       toko: true
     }
-  })
+  }) : []
 
   // Map TJ ke sesi berdasarkan tanggal_selesai + sales_id
   const settledTjBySesiId = {}

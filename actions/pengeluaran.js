@@ -61,7 +61,21 @@ export async function getPengeluaran(daysBack = 30) {
     since.setDate(since.getDate() - daysBack)
     where.tanggal = { gte: since }
   }
+  return _queryPengeluaran(where)
+}
 
+/**
+ * Fetch pengeluaran dalam rentang tanggal tertentu (YYYY-MM-DD).
+ * Dipakai oleh client saat filter berubah ke rentang di luar 30 hari default.
+ */
+export async function getPengeluaranByDateRange(start, end) {
+  const where = {}
+  if (start) where.tanggal = { ...(where.tanggal || {}), gte: new Date(start) }
+  if (end)   where.tanggal = { ...(where.tanggal || {}), lte: new Date(end) }
+  return _queryPengeluaran(where)
+}
+
+async function _queryPengeluaran(where) {
   const rows = await prisma.pengeluaran.findMany({
     where,
     orderBy: { tanggal: "desc" },
@@ -75,6 +89,7 @@ export async function getPengeluaran(daysBack = 30) {
     createdAt: r.createdAt.toISOString(),
   }))
 }
+
 
 function validatePengeluaranInput(data) {
   const jumlah = Number(data.jumlah)

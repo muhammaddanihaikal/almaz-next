@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, Fragment } from "react"
 import { Plus, Trash2, AlertCircle, ChevronDown, ChevronUp, Download, X, History, Info } from "lucide-react"
 import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc, getJakartaToday } from "@/lib/utils"
-import { createSesi, updateSesiPagi, submitLaporanSore, editLaporanSore, deleteSesi } from "@/actions/distribusi"
+import { createSesi, updateSesiPagi, submitLaporanSore, editLaporanSore, deleteSesi, getSesiListByDateRange } from "@/actions/distribusi"
 import { settleTitipJual, createTitipJual, editSettlement, revertSettlement, editTitipJualDetail, deleteTitipJual } from "@/actions/titip_jual"
 import { addToko } from "@/actions/toko"
 import SettlementForm from "@/components/SettlementForm"
@@ -466,6 +466,7 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
   const [localSesiList, setLocalSesiList] = useState(sesiList)
   const [localRokokList, setLocalRokokList] = useState(rokokList)
   const [pendingIds, setPendingIds] = useState(new Set())
+  const [isFetchingRange, setIsFetchingRange] = useState(false)
 
   useEffect(() => {
     setLocalSesiList(sesiList)
@@ -474,6 +475,31 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
   useEffect(() => {
     setLocalRokokList(rokokList)
   }, [rokokList])
+
+  // Jika filter tanggal berubah, fetch ulang dari server agar data historical ikut masuk.
+  // Server hanya pre-load 30 hari terakhir; sesi lama harus di-fetch on demand.
+  useEffect(() => {
+    if (!dateRange?.start || !dateRange?.end) return
+    setIsFetchingRange(true)
+    getSesiListByDateRange(dateRange.start, dateRange.end)
+      .then((fresh) => {
+        // Gabungkan dengan localSesiList yang sudah ada:
+        // – Pertahankan semua sesi di luar range (agar operasi CRUD di range lain tidak hilang)
+        // – Timpa/tambah sesi di dalam range dengan data segar dari server
+        setLocalSesiList((prev) => {
+          const outside = prev.filter(
+            (s) => s.tanggal < dateRange.start || s.tanggal > dateRange.end
+          )
+          return [...outside, ...fresh].sort((a, b) => {
+            const byTanggal = b.tanggal.localeCompare(a.tanggal)
+            return byTanggal !== 0 ? byTanggal : (b.createdAt || "").localeCompare(a.createdAt || "")
+          })
+        })
+      })
+      .catch((err) => console.error("[DistribusiPage] fetch range error", err))
+      .finally(() => setIsFetchingRange(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRange?.start, dateRange?.end])
 
   const applyLocalStockDelta = (deltaMap) => {
     if (!deltaMap || deltaMap.size === 0) return
@@ -679,6 +705,15 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
       </div>
 
       <Card>
+        {isFetchingRange ? (
+          <div className="flex items-center justify-center gap-3 py-16 text-neutral-400">
+            <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+            </svg>
+            <span className="text-sm">Memuat data...</span>
+          </div>
+        ) : (
         <DataTable
           key={`${dateRange?.start}-${dateRange?.end}-${salesFilter}-${rokokFilter}-${statusFilter}`}
           pageSize={PAGE_SIZE}
@@ -762,6 +797,7 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
             },
           ]}
         />
+        )}
       </Card>
 
       {detail && (

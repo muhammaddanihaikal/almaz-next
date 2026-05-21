@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AlertCircle, Clock, Search, CheckCircle, ChevronDown } from "lucide-react"
 import { fmtIDR, fmtTanggal, defaultDateRange } from "@/lib/utils"
-import { settleTitipJual, partialSettleTitipJual, editSettlement, revertSettlement, editTitipJualDetail, deleteTitipJual } from "@/actions/titip_jual"
+import { settleTitipJual, partialSettleTitipJual, editSettlement, revertSettlement, editTitipJualDetail, deleteTitipJual, getTitipJualListByDateRange } from "@/actions/titip_jual"
 import { Card, PageHeader, SelectInput, Field, FormActions, inputCls, useConfirm, useConfirmWithReason, DateFilter, Button, IconButton } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
@@ -70,8 +70,30 @@ export default function KonsinyasiPage({ role, titipJualList, salesList }) {
   const [editingSettlement, setEditingSettlement] = useState(null)
   const [editingDetail,     setEditingDetail]     = useState(null)
   const [detail,            setDetail]            = useState(null)
+  const [isFetchingRange,   setIsFetchingRange]   = useState(false)
 
   useEffect(() => { setLocalList(titipJualList) }, [titipJualList])
+
+  // Fetch ulang dari server ketika filter tanggal berubah,
+  // agar data historical (selesai > 30 hari lalu) ikut masuk.
+  useEffect(() => {
+    if (!dateRange?.start || !dateRange?.end) return
+    setIsFetchingRange(true)
+    getTitipJualListByDateRange(dateRange.start, dateRange.end)
+      .then((fresh) => {
+        setLocalList((prev) => {
+          // Pertahankan data di luar range (aktif + selesai di luar filter)
+          const freshIds = new Set(fresh.map((r) => r.id))
+          const outside = prev.filter((r) => !freshIds.has(r.id) && r.status === "aktif")
+          return [...outside, ...fresh].sort((a, b) =>
+            a.tanggal_jatuh_tempo.localeCompare(b.tanggal_jatuh_tempo)
+          )
+        })
+      })
+      .catch((err) => console.error("[KonsinyasiPage] fetch range error", err))
+      .finally(() => setIsFetchingRange(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRange?.start, dateRange?.end])
 
   const upsertLocal = (record) => {
     if (!record?.id) return
@@ -323,6 +345,15 @@ export default function KonsinyasiPage({ role, titipJualList, salesList }) {
           </button>
         </div>
 
+        {isFetchingRange ? (
+          <div className="flex items-center justify-center gap-3 py-16 text-neutral-400">
+            <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+            </svg>
+            <span className="text-sm">Memuat data...</span>
+          </div>
+        ) : (
         <DataTable
           key={`${activeTab}-${salesFilter}-${search}-${statusAktifFilter}-${dateRange?.start}-${dateRange?.end}`}
           pageSize={PAGE_SIZE}
@@ -440,6 +471,7 @@ export default function KonsinyasiPage({ role, titipJualList, salesList }) {
             },
           ]}
         />
+        )}
       </Card>
 
       {/* Detail Modal */}

@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -37,6 +37,8 @@ import {
   getTitipReturQty,
 } from "@/lib/dashboard-utils"
 import { defaultDateRange, filterByDateRange, fmtIDR, fmtTanggal, getDateRanges } from "@/lib/utils"
+import { getSesiListByDateRange } from "@/actions/distribusi"
+import { getTitipJualListByDateRange } from "@/actions/titip_jual"
 
 const CARD_CLS = "rounded-xl border border-neutral-200 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
 const CHIP_CLS = "inline-flex items-center rounded-lg border border-neutral-200 bg-white px-2.5 py-1 text-xs font-medium text-neutral-600"
@@ -881,32 +883,56 @@ function DailyLine({ data, rangeLabel }) {
 
 export default function DashboardPage({ sesiList, titipJualList, rokokList, pengeluaranList }) {
   const [dateRange, setDateRange] = useState(defaultDateRange("minggu_ini"))
+  const [localSesiList,     setLocalSesiList]     = useState(sesiList || [])
+  const [localTitipJualList, setLocalTitipJualList] = useState(titipJualList || [])
+  const [isFetchingRange,   setIsFetchingRange]   = useState(false)
+
+  // Sync jika server push data baru (revalidate)
+  useEffect(() => { setLocalSesiList(sesiList || []) }, [sesiList])
+  useEffect(() => { setLocalTitipJualList(titipJualList || []) }, [titipJualList])
+
+  // Fetch ulang kedua sumber data ketika filter tanggal berubah
+  useEffect(() => {
+    if (!dateRange?.start || !dateRange?.end) return
+    setIsFetchingRange(true)
+    Promise.all([
+      getSesiListByDateRange(dateRange.start, dateRange.end),
+      getTitipJualListByDateRange(dateRange.start, dateRange.end),
+    ])
+      .then(([freshSesi, freshTitip]) => {
+        setLocalSesiList(freshSesi)
+        setLocalTitipJualList(freshTitip)
+      })
+      .catch((err) => console.error("[DashboardPage] fetch range error", err))
+      .finally(() => setIsFetchingRange(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRange?.start, dateRange?.end])
 
   const rokokById = useMemo(() => new Map((rokokList || []).map((rokok) => [rokok.id, rokok])), [rokokList])
   const previousRange = useMemo(() => getPreviousRange(dateRange), [dateRange])
 
-  const sesiF = useMemo(() => filterByDateRange(sesiList || [], dateRange), [sesiList, dateRange])
+  const sesiF = useMemo(() => filterByDateRange(localSesiList, dateRange), [localSesiList, dateRange])
   const pengeluaranF = useMemo(() => filterByDateRange(pengeluaranList || [], dateRange), [pengeluaranList, dateRange])
-  const titipJualF = useMemo(() => filterTitipSelesaiByRange(titipJualList || [], dateRange), [titipJualList, dateRange])
+  const titipJualF = useMemo(() => filterTitipSelesaiByRange(localTitipJualList, dateRange), [localTitipJualList, dateRange])
 
-  const previousSesiF = useMemo(() => previousRange ? filterByDateRange(sesiList || [], previousRange) : [], [sesiList, previousRange])
+  const previousSesiF = useMemo(() => previousRange ? filterByDateRange(localSesiList, previousRange) : [], [localSesiList, previousRange])
   const previousPengeluaranF = useMemo(() => previousRange ? filterByDateRange(pengeluaranList || [], previousRange) : [], [pengeluaranList, previousRange])
-  const previousTitipJualF = useMemo(() => previousRange ? filterTitipSelesaiByRange(titipJualList || [], previousRange) : [], [titipJualList, previousRange])
+  const previousTitipJualF = useMemo(() => previousRange ? filterTitipSelesaiByRange(localTitipJualList, previousRange) : [], [localTitipJualList, previousRange])
 
   const stats = useMemo(
-    () => calculateStats(sesiF, titipJualF, titipJualList || [], pengeluaranF, rokokById, dateRange, isDateInRange),
-    [sesiF, titipJualF, titipJualList, pengeluaranF, rokokById, dateRange]
+    () => calculateStats(sesiF, titipJualF, localTitipJualList, pengeluaranF, rokokById, dateRange, isDateInRange),
+    [sesiF, titipJualF, localTitipJualList, pengeluaranF, rokokById, dateRange]
   )
   const previousStats = useMemo(
-    () => calculateStats(previousSesiF, previousTitipJualF, titipJualList || [], previousPengeluaranF, rokokById, previousRange, isDateInRange),
-    [previousSesiF, previousTitipJualF, titipJualList, previousPengeluaranF, rokokById, previousRange]
+    () => calculateStats(previousSesiF, previousTitipJualF, localTitipJualList, previousPengeluaranF, rokokById, previousRange, isDateInRange),
+    [previousSesiF, previousTitipJualF, localTitipJualList, previousPengeluaranF, rokokById, previousRange]
   )
 
   const qtyPerRokok = useMemo(() => buildQtyPerRokok(sesiF, titipJualF, rokokList || []), [sesiF, titipJualF, rokokList])
   const qtyPositive = useMemo(() => qtyPerRokok.filter((item) => item.qty > 0).sort((a, b) => b.qty - a.qty), [qtyPerRokok])
   const dailySummary = useMemo(
-    () => buildDailySummary(sesiF, titipJualF, titipJualList || [], pengeluaranF, rokokById, dateRange),
-    [sesiF, titipJualF, titipJualList, pengeluaranF, rokokById, dateRange]
+    () => buildDailySummary(sesiF, titipJualF, localTitipJualList, pengeluaranF, rokokById, dateRange),
+    [sesiF, titipJualF, localTitipJualList, pengeluaranF, rokokById, dateRange]
   )
 
   const rangeLabel = dateRange?.start && dateRange?.end ? `${fmtTanggal(dateRange.start)} s/d ${fmtTanggal(dateRange.end)}` : "Semua Waktu"
@@ -924,7 +950,7 @@ export default function DashboardPage({ sesiList, titipJualList, rokokList, peng
 
   const setoranBreakdown = useMemo(() => {
     const allSesiSetoran = (sesiF || []).flatMap((s) => s.setoran || [])
-    const allTitipSetoran = (titipJualList || []).flatMap((t) => (t.setoran || []).filter((s) => isDateInRange(s.tanggal, dateRange)))
+    const allTitipSetoran = (localTitipJualList || []).flatMap((t) => (t.setoran || []).filter((s) => isDateInRange(s.tanggal, dateRange)))
 
     const cashSesi = sumBy(allSesiSetoran.filter((s) => s.metode === "cash"), (s) => s.jumlah)
     const transferSesi = sumBy(allSesiSetoran.filter((s) => s.metode === "transfer"), (s) => s.jumlah)
@@ -939,7 +965,7 @@ export default function DashboardPage({ sesiList, titipJualList, rokokList, peng
       transferTitip,
       total: cashSesi + transferSesi + cashTitip + transferTitip
     }
-  }, [sesiF, titipJualList, dateRange])
+  }, [sesiF, localTitipJualList, dateRange])
 
   const profitBreakdown = useMemo(() => {
     const profitSesi = sumBy(sesiF, (sesi) => getSesiProfit(sesi, rokokById))

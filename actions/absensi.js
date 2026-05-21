@@ -16,6 +16,21 @@ export async function getAbsensi(daysBack = 30) {
     since.setDate(since.getDate() - daysBack)
     where.tanggal = { gte: since }
   }
+  return _queryAbsensi(where)
+}
+
+/**
+ * Fetch absensi dalam rentang tanggal tertentu (YYYY-MM-DD).
+ * Dipakai oleh client saat filter berubah ke rentang di luar 30 hari default.
+ */
+export async function getAbsensiByDateRange(start, end) {
+  const where = {}
+  if (start) where.tanggal = { ...(where.tanggal || {}), gte: new Date(start) }
+  if (end)   where.tanggal = { ...(where.tanggal || {}), lte: new Date(end) }
+  return _queryAbsensi(where)
+}
+
+async function _queryAbsensi(where) {
   const rows = await prisma.absensi.findMany({
     where,
     orderBy: { tanggal: "desc" },

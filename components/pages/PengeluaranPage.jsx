@@ -1,10 +1,10 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Plus, Eye } from "lucide-react"
 import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc, downloadExcel, getJakartaToday } from "@/lib/utils"
-import { addPengeluaran, updatePengeluaran, deletePengeluaran } from "@/actions/pengeluaran"
+import { addPengeluaran, updatePengeluaran, deletePengeluaran, getPengeluaranByDateRange } from "@/actions/pengeluaran"
 import { Card, PageHeader, DateFilter, DownloadButton, PrimaryButton, Field, FormActions, RowActions, inputCls, useConfirmWithReason } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
@@ -23,10 +23,22 @@ export default function PengeluaranPage({ role, pengeluaranList, sesiList, titip
   const [editing, setEditing] = useState(null)
   const [detail, setDetail] = useState(null)
   const [dateRange, setDateRange] = useState(defaultDateRange("bulan_ini"))
+  const [localPengeluaranList, setLocalPengeluaranList] = useState(pengeluaranList)
+
+  useEffect(() => { setLocalPengeluaranList(pengeluaranList) }, [pengeluaranList])
+
+  // Fetch ulang dari server saat filter tanggal berubah agar data historical ikut masuk
+  useEffect(() => {
+    if (!dateRange?.start || !dateRange?.end) return
+    getPengeluaranByDateRange(dateRange.start, dateRange.end)
+      .then((fresh) => setLocalPengeluaranList(fresh))
+      .catch((err) => console.error("[PengeluaranPage] fetch range error", err))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRange?.start, dateRange?.end])
 
   const rows = useMemo(
-    () => sortByDateDesc(filterByDateRange(pengeluaranList, dateRange)),
-    [pengeluaranList, dateRange]
+    () => sortByDateDesc(filterByDateRange(localPengeluaranList, dateRange)),
+    [localPengeluaranList, dateRange]
   )
 
   const totalPengeluaran = useMemo(() => rows.reduce((s, r) => s + r.jumlah, 0), [rows])

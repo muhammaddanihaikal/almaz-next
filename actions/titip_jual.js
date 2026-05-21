@@ -82,6 +82,35 @@ export async function getTitipJualList(daysBack = 30) {
       { status: "selesai", tanggal_selesai: { gte: since } },
     ]
   }
+  return _queryTitipJualList(where)
+}
+
+/**
+ * Fetch titip jual dalam rentang tanggal tertentu (YYYY-MM-DD).
+ * Mengembalikan:
+ *  - Semua titip jual AKTIF (tanpa batasan tanggal)
+ *  - Titip jual SELESAI yang tanggal_selesai-nya dalam range
+ * Dipakai oleh client saat filter berubah ke rentang yang lebih lama.
+ */
+export async function getTitipJualListByDateRange(start, end) {
+  const where = {
+    OR: [
+      { status: "aktif" },
+      {
+        status: "selesai",
+        ...(start || end ? {
+          tanggal_selesai: {
+            ...(start ? { gte: new Date(start) } : {}),
+            ...(end   ? { lte: new Date(end)   } : {}),
+          }
+        } : {})
+      },
+    ]
+  }
+  return _queryTitipJualList(where)
+}
+
+async function _queryTitipJualList(where) {
   const rows = await prisma.titipJual.findMany({
     where,
     include,
@@ -89,6 +118,7 @@ export async function getTitipJualList(daysBack = 30) {
   })
   return rows.map(serialize)
 }
+
 
 export async function getTitipJualJatuhTempo() {
   const tiga_hari = nowJakarta()
