@@ -64,11 +64,13 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
   const hasError     = itemsBayar.some((it) => (Number(it.qty_terjual) || 0) > it.qty_keluar)
   const hasTerjual   = itemsBayar.some((it) => Number(it.qty_terjual) > 0)
   const hasSetoran   = totalSetoran > 0
+  // Kalau tidak ada yang terjual (nilaiTerjual = 0), setoran tidak wajib
+  const setoranValid = nilaiTerjual === 0 || hasSetoran
 
   const canSubmit = !hasError &&
     !hasAllPerpanjang &&
     !!tanggal &&
-    (hasTerjual && hasSetoran) &&
+    setoranValid &&
     (!hasPerpanjang || !!perpanjangTanggal)
 
   const handleSetoranAuto = (checked) => {
@@ -306,23 +308,23 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
       )}
 
       {/* SECTION 3: Setoran & Pembayaran */}
-      <div className={`rounded-xl border transition-all duration-300 p-4 space-y-4 ${!hasTerjual ? "bg-neutral-50/80 border-dashed opacity-75" : "bg-white border-neutral-200"}`}>
+      <div className={`rounded-xl border transition-all duration-300 p-4 space-y-4 ${nilaiTerjual === 0 ? "bg-neutral-50/80 border-dashed opacity-75" : "bg-white border-neutral-200"}`}>
         <div className="flex items-center justify-between border-b border-neutral-200 pb-2">
           <div className="flex items-center gap-2">
             <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Laporan Setoran</h3>
-            {!hasTerjual && (
-              <span className="flex items-center gap-1 text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-bold uppercase">
-                <AlertCircle className="h-3 w-3" /> Input Terjual Dahulu
+            {nilaiTerjual === 0 && (
+              <span className="flex items-center gap-1 text-[10px] bg-neutral-200 text-neutral-500 px-1.5 py-0.5 rounded-full font-bold uppercase">
+                Tidak Ada Setoran (Rp 0)
               </span>
             )}
           </div>
 
-          <label className={`flex items-center gap-2 text-xs font-medium transition-colors ${!hasTerjual ? "text-neutral-300 pointer-events-none" : "text-neutral-600 cursor-pointer"}`}>
+          <label className={`flex items-center gap-2 text-xs font-medium transition-colors ${nilaiTerjual === 0 ? "text-neutral-300 pointer-events-none" : "text-neutral-600 cursor-pointer"}`}>
             <input
               type="checkbox"
               checked={setoranAuto}
               onChange={(e) => handleSetoranAuto(e.target.checked)}
-              disabled={!hasTerjual}
+              disabled={nilaiTerjual === 0}
               className="h-4 w-4 rounded border-neutral-300 text-blue-600 focus:ring-blue-500"
             />
             Otomatis sesuai nilai terjual
@@ -336,7 +338,7 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
                 <SelectInput
                   value={st.metode}
                   onChange={(e) => setSetoran(setoran.map((s, i) => i === idx ? { ...s, metode: e.target.value } : s))}
-                  disabled={setoranAuto || !hasTerjual}
+                  disabled={setoranAuto || nilaiTerjual === 0}
                 >
                   <option value="cash">Uang Tunai (Cash)</option>
                   <option value="transfer">Transfer Bank</option>
@@ -347,17 +349,17 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
                   value={st.jumlah}
                   onChange={(raw) => setSetoran(setoran.map((s, i) => i === idx ? { ...s, jumlah: raw } : s))}
                   placeholder="0"
-                  className={inputCls + " w-full font-semibold" + (setoranAuto || !hasTerjual ? " bg-neutral-50 text-neutral-400" : "")}
-                  disabled={setoranAuto || !hasTerjual}
+                  className={inputCls + " w-full font-semibold" + (setoranAuto || nilaiTerjual === 0 ? " bg-neutral-50 text-neutral-400" : "")}
+                  disabled={setoranAuto || nilaiTerjual === 0}
                 />
               </div>
-              {setoran.length > 1 && !setoranAuto && hasTerjual && (
+              {setoran.length > 1 && !setoranAuto && nilaiTerjual > 0 && (
                 <IconButton icon={Trash2} onClick={() => setSetoran(setoran.filter((_, i) => i !== idx))} variant="danger" label="Hapus" />
               )}
             </div>
           ))}
 
-          {!setoranAuto && hasTerjual && (
+          {!setoranAuto && nilaiTerjual > 0 && (
             <Button
               variant="ghost"
               size="sm"
