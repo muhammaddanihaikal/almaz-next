@@ -109,7 +109,41 @@ function TabButton({ active, onClick, children }) {
   )
 }
 
-function exportToExcel(rows, rokokList, dateRange, onNoData) {
+function getFilterSuffix(filters) {
+  const { salesFilter, rokokFilter, statusFilter, salesList, rokokList } = filters || {}
+  let suffix = ""
+
+  if (salesFilter && salesFilter.length > 0 && salesList) {
+    const names = salesFilter
+      .map(id => salesList.find(s => String(s.id) === String(id))?.nama || "")
+      .filter(Boolean)
+      .map(name => name.toLowerCase().replace(/[^a-z0-9]+/g, "_"))
+      .filter(Boolean)
+    if (names.length > 0) {
+      suffix += `_${names.join("_")}`
+    }
+  }
+
+  if (rokokFilter && rokokFilter.length > 0 && rokokList) {
+    const names = rokokFilter
+      .map(id => rokokList.find(r => String(r.id) === String(id))?.nama || "")
+      .filter(Boolean)
+      .map(name => name.toLowerCase().replace(/[^a-z0-9]+/g, "_"))
+      .filter(Boolean)
+    if (names.length > 0) {
+      suffix += `_${names.join("_")}`
+    }
+  }
+
+  if (statusFilter) {
+    const cleanStatus = statusFilter.toLowerCase().replace(/[^a-z0-9]+/g, "_")
+    suffix += `_${cleanStatus}`
+  }
+
+  return suffix
+}
+
+function exportToExcel(rows, rokokList, dateRange, onNoData, filters = {}) {
   const XLSX = require("xlsx-js-style")
 
   // Kumpulkan semua item penjualan (langsung + konsinyasi selesai + tukar barang)
@@ -195,13 +229,14 @@ function exportToExcel(rows, rokokList, dateRange, onNoData) {
   const totalCols = 2 + products.length * 2 + 2
 
   // Border tipis
-  const bThin = { style: "thin", color: { rgb: "E2E8F0" } }
+  const bThin = { style: "thin", color: { rgb: "94A3B8" } }
   const border = { top: bThin, bottom: bThin, left: bThin, right: bThin }
   const ctr = { horizontal: "center", vertical: "center" }
 
   // Styles
   const sH     = { font: { bold: true, color: { rgb: "334155" } }, fill: { fgColor: { rgb: "F1F5F9" } }, alignment: ctr, border }
   const sSub   = { font: { bold: true, color: { rgb: "1E293B" } }, fill: { fgColor: { rgb: "F8FAFC" } }, alignment: ctr, border }
+  const sProdHeader = { font: { bold: true, color: { rgb: "3730A3" } }, fill: { fgColor: { rgb: "E0E7FF" } }, alignment: ctr, border }
   const sGR    = { font: { bold: true, color: { rgb: "92400E" } }, fill: { fgColor: { rgb: "FEF3C7" } }, alignment: ctr, border }
   const sTK    = { font: { bold: true, color: { rgb: "1E40AF" } }, fill: { fgColor: { rgb: "DBEAFE" } }, alignment: ctr, border }
   const sData  = { font: { color: { rgb: "475569" } }, alignment: ctr, border }
@@ -232,8 +267,8 @@ function exportToExcel(rows, rokokList, dateRange, onNoData) {
       { v: "", s: sSub },
       { v: "", s: sSub },
       ...products.flatMap((p) => [
-        { v: p.toUpperCase(), s: sSub },
-        { v: "", s: sSub }
+        { v: p.toUpperCase(), s: sProdHeader },
+        { v: "", s: sProdHeader }
       ]),
       { v: "", s: sSub },
       { v: "", s: sSub },
@@ -320,11 +355,12 @@ function exportToExcel(rows, rokokList, dateRange, onNoData) {
   XLSX.utils.book_append_sheet(wb, ws, "Distribusi")
   const startFmt = dateRange?.start ? dateRange.start : (dates[0] || "all")
   const endFmt = dateRange?.end ? dateRange.end : (dates[dates.length - 1] || "all")
-  const filename = `laporan_penjualan_${startFmt}_to_${endFmt}.xlsx`
+  const suffix = getFilterSuffix(filters)
+  const filename = `laporan_penjualan_${startFmt}_to_${endFmt}${suffix}.xlsx`
   XLSX.writeFile(wb, filename)
 }
 
-function exportToExcelBySales(rows, rokokList, dateRange, onNoData) {
+function exportToExcelBySales(rows, rokokList, dateRange, onNoData, filters = {}) {
   const XLSX = require("xlsx-js-style")
   const { buildRincianPerSalesData } = require("@/lib/export-rincian-sales")
 
@@ -356,7 +392,7 @@ function exportToExcelBySales(rows, rokokList, dateRange, onNoData) {
   const uangCol   = qtyCol + 1
   const totalCols = uangCol + 4
 
-  const bThin = { style: "thin", color: { rgb: "E2E8F0" } }
+  const bThin = { style: "thin", color: { rgb: "94A3B8" } }
   const border = { top: bThin, bottom: bThin, left: bThin, right: bThin }
   const ctr  = { horizontal: "center", vertical: "center" }
   
@@ -505,7 +541,8 @@ function exportToExcelBySales(rows, rokokList, dateRange, onNoData) {
   XLSX.utils.book_append_sheet(wb, ws, "Per Motoris")
   const startFmt = dateRange?.start ? dateRange.start : "all"
   const endFmt = dateRange?.end ? dateRange.end : "all"
-  const filename = `laporan_motoris_${startFmt}_to_${endFmt}.xlsx`
+  const suffix = getFilterSuffix(filters)
+  const filename = `laporan_motoris_${startFmt}_to_${endFmt}${suffix}.xlsx`
   XLSX.writeFile(wb, filename)
 }
 export default function DistribusiPage({ role, sesiList, rokokList, salesList, tokoList, tukarBarangList = [], stockCutoffSetting }) {
@@ -690,13 +727,13 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
                       className="w-full justify-start gap-3 h-auto py-3 px-3"
                       onClick={() => {
                         setShowExportMenu(false)
-                        exportToExcel(rows, rokokList, dateRange, () => confirm("Tidak ada data untuk diekspor.", { title: "Export Excel", hideCancel: true }))
+                        exportToExcel(rows, rokokList, dateRange, () => confirm("Tidak ada data untuk diekspor.", { title: "Export Excel", hideCancel: true }), { salesFilter, rokokFilter, statusFilter, salesList, rokokList })
                       }}
                     >
                       <Download className="h-4 w-4 shrink-0 text-blue-600" />
                       <div className="text-left">
-                        <p className="text-sm font-semibold text-neutral-900">Rekap Harian</p>
-                        <p className="text-xs text-neutral-500">Ringkasan per tanggal</p>
+                         <p className="text-sm font-semibold text-neutral-900">Rekap Harian</p>
+                         <p className="text-xs text-neutral-500">Ringkasan per tanggal</p>
                       </div>
                     </Button>
                     <Button
@@ -704,7 +741,7 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
                       className="w-full justify-start gap-3 h-auto py-3 px-3 mt-0.5"
                       onClick={() => {
                         setShowExportMenu(false)
-                        exportToExcelBySales(rows, rokokList, dateRange, () => confirm("Tidak ada data untuk diekspor.", { title: "Export Excel", hideCancel: true }))
+                        exportToExcelBySales(rows, rokokList, dateRange, () => confirm("Tidak ada data untuk diekspor.", { title: "Export Excel", hideCancel: true }), { salesFilter, rokokFilter, statusFilter, salesList, rokokList })
                       }}
                     >
                       <Download className="h-4 w-4 shrink-0 text-green-600" />
