@@ -119,11 +119,13 @@ function exportToExcel(rows, rokokList, dateRange, onNoData) {
       allItems.push({ tanggal: sesi.tanggal, rokok_id: it.rokok_id, rokok: it.rokok, qty: it.qty, harga: it.harga })
     }
     const completedKonsinyasi = new Map()
-    for (const k of (sesi.konsinyasi || [])) {
-      if (k.status === "selesai") completedKonsinyasi.set(k.id, k)
-    }
     for (const k of (sesi.konsinyasiSelesaiDiSesi || [])) {
       if (k.status === "selesai") completedKonsinyasi.set(k.id, k)
+    }
+    for (const k of (sesi.konsinyasi || [])) {
+      if (k.status === "selesai" && (!k.tanggal_selesai || !sesi.tanggal || k.tanggal_selesai === sesi.tanggal)) {
+        completedKonsinyasi.set(k.id, k)
+      }
     }
     for (const k of completedKonsinyasi.values()) {
       const tanggal = k.tanggal_selesai || sesi.tanggal
@@ -134,10 +136,11 @@ function exportToExcel(rows, rokokList, dateRange, onNoData) {
       }
     }
     // Tukar Barang
-    const tukarMap = new Map()
-    for (const t of sesi.tukarBarang || []) tukarMap.set(t.id, t)
-    for (const t of sesi.tukarBarangSelesaiDiSesi || []) tukarMap.set(t.id, t)
-    for (const t of tukarMap.values()) {
+    const completedTukar = new Map()
+    for (const t of (sesi.tukarBarangSelesaiDiSesi || [])) {
+      if (t.status === "selesai") completedTukar.set(t.id, t)
+    }
+    for (const t of completedTukar.values()) {
       const tanggal = t.tanggal_selesai || sesi.tanggal
       for (const it of t.itemsKeluar || []) {
         const rokokNama = it.rokok?.nama || it.rokok || rokokList.find(r => r.id === it.rokok_id)?.nama || ""
