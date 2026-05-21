@@ -116,7 +116,7 @@ function exportToExcel(rows, rokokList, dateRange, onNoData) {
   const allItems = []
   for (const sesi of rows) {
     for (const it of (sesi.penjualan || [])) {
-      allItems.push({ tanggal: sesi.tanggal, rokok_id: it.rokok_id, rokok: it.rokok, qty: it.qty, harga: it.harga })
+      allItems.push({ tanggal: sesi.tanggal, rokok_id: it.rokok_id, rokok: it.rokok, qty: it.qty, harga: it.harga, kategori: it.kategori || "toko" })
     }
     const completedKonsinyasi = new Map()
     for (const k of (sesi.konsinyasiSelesaiDiSesi || [])) {
@@ -131,7 +131,7 @@ function exportToExcel(rows, rokokList, dateRange, onNoData) {
       const tanggal = k.tanggal_selesai || sesi.tanggal
       for (const it of k.items) {
         if (it.qty_terjual > 0) {
-          allItems.push({ tanggal, rokok_id: it.rokok_id, rokok: it.rokok, qty: it.qty_terjual, harga: it.harga })
+          allItems.push({ tanggal, rokok_id: it.rokok_id, rokok: it.rokok, qty: it.qty_terjual, harga: it.harga, kategori: k.kategori || "toko" })
         }
       }
     }
@@ -144,11 +144,11 @@ function exportToExcel(rows, rokokList, dateRange, onNoData) {
       const tanggal = t.tanggal_selesai || sesi.tanggal
       for (const it of t.itemsKeluar || []) {
         const rokokNama = it.rokok?.nama || it.rokok || rokokList.find(r => r.id === it.rokok_id)?.nama || ""
-        allItems.push({ tanggal, rokok_id: it.rokok_id, rokok: rokokNama, qty: it.qty, harga: it.harga_satuan })
+        allItems.push({ tanggal, rokok_id: it.rokok_id, rokok: rokokNama, qty: it.qty, harga: it.harga_satuan, kategori: t.kategori || "grosir" })
       }
       for (const it of t.itemsMasuk || []) {
         const rokokNama = it.rokok?.nama || it.rokok || rokokList.find(r => r.id === it.rokok_id)?.nama || ""
-        allItems.push({ tanggal, rokok_id: it.rokok_id, rokok: rokokNama, qty: -it.qty, harga: it.harga_satuan })
+        allItems.push({ tanggal, rokok_id: it.rokok_id, rokok: rokokNama, qty: -it.qty, harga: it.harga_satuan, kategori: t.kategori || "grosir" })
       }
     }
   }
@@ -166,13 +166,23 @@ function exportToExcel(rows, rokokList, dateRange, onNoData) {
   const dateMap = {}
   for (const it of allItems) {
     if (!dateMap[it.tanggal]) dateMap[it.tanggal] = { byProduct: {}, penjualan: 0, profit: 0 }
-    dateMap[it.tanggal].byProduct[it.rokok] = (dateMap[it.tanggal].byProduct[it.rokok] || 0) + it.qty
+    if (!dateMap[it.tanggal].byProduct[it.rokok]) {
+      dateMap[it.tanggal].byProduct[it.rokok] = { grosir: 0, toko: 0 }
+    }
+    const cat = it.kategori === "grosir" ? "grosir" : "toko"
+    dateMap[it.tanggal].byProduct[it.rokok][cat] = (dateMap[it.tanggal].byProduct[it.rokok][cat] || 0) + it.qty
     dateMap[it.tanggal].penjualan += it.qty * it.harga
     dateMap[it.tanggal].profit   += it.qty * (it.harga - (hargaBeli[it.rokok_id] || 0))
   }
 
   // Hitung total
-  const totalByProduct = Object.fromEntries(products.map((p) => [p, dates.reduce((s, d) => s + (dateMap[d].byProduct[p] || 0), 0)]))
+  const totalByProduct = {}
+  for (const p of products) {
+    totalByProduct[p] = {
+      grosir: dates.reduce((s, d) => s + (dateMap[d].byProduct[p]?.grosir || 0), 0),
+      toko: dates.reduce((s, d) => s + (dateMap[d].byProduct[p]?.toko || 0), 0)
+    }
+  }
   const totalPenjualan = dates.reduce((s, d) => s + dateMap[d].penjualan, 0)
   const totalProfit    = dates.reduce((s, d) => s + dateMap[d].profit, 0)
 
@@ -182,21 +192,24 @@ function exportToExcel(rows, rokokList, dateRange, onNoData) {
   const end   = dateRange?.end   ? fmtD(dateRange.end)   : fmtD(dates[dates.length - 1])
   const title = `LAPORAN PENJUALAN HARIAN ${start} - ${end}`
 
-  const totalCols = 2 + products.length + 2
+  const totalCols = 2 + products.length * 2 + 2
 
   // Border tipis
-  const bThin = { style: "thin", color: { rgb: "9CA3AF" } }
+  const bThin = { style: "thin", color: { rgb: "E2E8F0" } }
   const border = { top: bThin, bottom: bThin, left: bThin, right: bThin }
+  const ctr = { horizontal: "center", vertical: "center" }
 
   // Styles
-  const sH     = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, alignment: { horizontal: "center", vertical: "center" }, border }
-  const sSub   = { font: { bold: true }, fill: { fgColor: { rgb: "E5E7EB" } }, alignment: { horizontal: "center", vertical: "center" }, border }
-  const sData  = { alignment: { horizontal: "center", vertical: "center" }, border }
-  const sNum   = { alignment: { horizontal: "center", vertical: "center" }, border }
-  const sMoney = { alignment: { horizontal: "center", vertical: "center" }, border }
-  const sTotal = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, alignment: { horizontal: "center", vertical: "center" }, border }
-  const sTotalNum = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, alignment: { horizontal: "center", vertical: "center" }, border }
-  const sTotalMoney = { ...sTotalNum, alignment: { horizontal: "center", vertical: "center" } }
+  const sH     = { font: { bold: true, color: { rgb: "334155" } }, fill: { fgColor: { rgb: "F1F5F9" } }, alignment: ctr, border }
+  const sSub   = { font: { bold: true, color: { rgb: "1E293B" } }, fill: { fgColor: { rgb: "F8FAFC" } }, alignment: ctr, border }
+  const sGR    = { font: { bold: true, color: { rgb: "92400E" } }, fill: { fgColor: { rgb: "FEF3C7" } }, alignment: ctr, border }
+  const sTK    = { font: { bold: true, color: { rgb: "1E40AF" } }, fill: { fgColor: { rgb: "DBEAFE" } }, alignment: ctr, border }
+  const sData  = { font: { color: { rgb: "475569" } }, alignment: ctr, border }
+  const sNum   = { font: { color: { rgb: "475569" } }, alignment: ctr, border }
+  const sMoney = { font: { color: { rgb: "475569" } }, alignment: { horizontal: "left", vertical: "center" }, border }
+  const sTotal = { font: { bold: true, color: { rgb: "1E293B" } }, fill: { fgColor: { rgb: "E2E8F0" } }, alignment: ctr, border }
+  const sTotalNum = { font: { bold: true, color: { rgb: "1E293B" } }, fill: { fgColor: { rgb: "E2E8F0" } }, alignment: ctr, border }
+  const sTotalMoney = { ...sTotalNum, alignment: { horizontal: "left", vertical: "center" } }
 
   const fmtExcelMoney = (v) => "Rp. " + (v || 0).toLocaleString("id-ID")
 
@@ -210,7 +223,7 @@ function exportToExcel(rows, rokokList, dateRange, onNoData) {
       { v: "NO",             s: sH },
       { v: "TANGGAL",        s: sH },
       { v: "PRODUK",         s: sH },
-      ...Array(products.length - 1).fill({ v: "", s: sH }),
+      ...Array(products.length * 2 - 1).fill({ v: "", s: sH }),
       { v: "PENJUALAN (RP)", s: sH },
       { v: "PROFIT (RP)",    s: sH },
     ],
@@ -218,7 +231,21 @@ function exportToExcel(rows, rokokList, dateRange, onNoData) {
     [
       { v: "", s: sSub },
       { v: "", s: sSub },
-      ...products.map((p) => ({ v: p.toUpperCase(), s: sSub })),
+      ...products.flatMap((p) => [
+        { v: p.toUpperCase(), s: sSub },
+        { v: "", s: sSub }
+      ]),
+      { v: "", s: sSub },
+      { v: "", s: sSub },
+    ],
+    // Baris 5: sub-headers (GR & TK)
+    [
+      { v: "", s: sSub },
+      { v: "", s: sSub },
+      ...products.flatMap(() => [
+        { v: "GR", s: sGR },
+        { v: "TK", s: sTK }
+      ]),
       { v: "", s: sSub },
       { v: "", s: sSub },
     ],
@@ -228,7 +255,13 @@ function exportToExcel(rows, rokokList, dateRange, onNoData) {
       return [
         { v: i + 1,       t: "n", s: sData },
         { v: fmtD(date),          s: sData },
-        ...products.map((p) => ({ v: d.byProduct[p] || 0, t: "n", s: sData })),
+        ...products.flatMap((p) => {
+          const prodData = d.byProduct[p] || { grosir: 0, toko: 0 }
+          return [
+            { v: prodData.grosir, t: "n", s: sData },
+            { v: prodData.toko,   t: "n", s: sData }
+          ]
+        }),
         { v: fmtExcelMoney(d.penjualan), t: "s", s: sMoney },
         { v: fmtExcelMoney(d.profit),    t: "s", s: sMoney },
       ]
@@ -237,7 +270,13 @@ function exportToExcel(rows, rokokList, dateRange, onNoData) {
     [
       { v: "",        s: sTotal },
       { v: "TOTAL",   s: sTotal },
-      ...products.map((p) => ({ v: totalByProduct[p], t: "n", s: sTotal })),
+      ...products.flatMap((p) => {
+        const prodTotal = totalByProduct[p] || { grosir: 0, toko: 0 }
+        return [
+          { v: prodTotal.grosir, t: "n", s: sTotal },
+          { v: prodTotal.toko,   t: "n", s: sTotal }
+        ]
+      }),
       { v: fmtExcelMoney(totalPenjualan), t: "s", s: sTotalMoney },
       { v: fmtExcelMoney(totalProfit),    t: "s", s: sTotalMoney },
     ],
@@ -248,26 +287,41 @@ function exportToExcel(rows, rokokList, dateRange, onNoData) {
   // Merge cells
   ws["!merges"] = [
     { s: { r: 0, c: 0 }, e: { r: 0, c: totalCols - 1 } },
-    { s: { r: 2, c: 0 }, e: { r: 3, c: 0 } },
-    { s: { r: 2, c: 1 }, e: { r: 3, c: 1 } },
-    { s: { r: 2, c: 2 }, e: { r: 2, c: 1 + products.length } },
-    { s: { r: 2, c: 2 + products.length }, e: { r: 3, c: 2 + products.length } },
-    { s: { r: 2, c: 3 + products.length }, e: { r: 3, c: 3 + products.length } },
+    { s: { r: 2, c: 0 }, e: { r: 4, c: 0 } },
+    { s: { r: 2, c: 1 }, e: { r: 4, c: 1 } },
+    { s: { r: 2, c: 2 }, e: { r: 2, c: 1 + products.length * 2 } },
+    ...products.map((_, i) => ({
+      s: { r: 3, c: 2 + i * 2 },
+      e: { r: 3, c: 2 + i * 2 + 1 }
+    })),
+    { s: { r: 2, c: 2 + products.length * 2 }, e: { r: 4, c: 2 + products.length * 2 } },
+    { s: { r: 2, c: 3 + products.length * 2 }, e: { r: 4, c: 3 + products.length * 2 } },
   ]
 
   // Auto-fit column widths berdasarkan konten terpanjang
   const autoW = (values) => ({ wch: Math.min(Math.max(...values.map((v) => String(v ?? "").length)) + 3, 40) })
+  const productCols = products.flatMap((p) => {
+    const w = Math.max(6, Math.ceil((p.length + 4) / 2))
+    return [
+      { wch: w },
+      { wch: w }
+    ]
+  })
+
   ws["!cols"] = [
     autoW(["NO", ...dates.map((_, i) => i + 1)]),                                            // NO
     autoW(["TANGGAL", ...dates.map(fmtD)]),                                                   // TANGGAL
-    ...products.map((p) => autoW([p, ...dates.map((d) => dateMap[d].byProduct[p] || 0)])),   // per produk
-    autoW(["PENJUALAN (RP)", totalPenjualan, ...dates.map((d) => dateMap[d].penjualan)]),     // PENJUALAN
-    autoW(["PROFIT (RP)",    totalProfit,    ...dates.map((d) => dateMap[d].profit)]),        // PROFIT
+    ...productCols,                                                                           // per produk (grosir & toko)
+    autoW(["PENJUALAN (RP)", fmtExcelMoney(totalPenjualan), ...dates.map((d) => fmtExcelMoney(dateMap[d].penjualan))]),     // PENJUALAN
+    autoW(["PROFIT (RP)",    fmtExcelMoney(totalProfit),    ...dates.map((d) => fmtExcelMoney(dateMap[d].profit))]),        // PROFIT
   ]
 
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, "Distribusi")
-  XLSX.writeFile(wb, `laporan_penjualan_${getJakartaToday()}.xlsx`)
+  const startFmt = dateRange?.start ? dateRange.start : (dates[0] || "all")
+  const endFmt = dateRange?.end ? dateRange.end : (dates[dates.length - 1] || "all")
+  const filename = `laporan_penjualan_${startFmt}_to_${endFmt}.xlsx`
+  XLSX.writeFile(wb, filename)
 }
 
 function exportToExcelBySales(rows, rokokList, dateRange, onNoData) {
@@ -449,7 +503,10 @@ function exportToExcelBySales(rows, rokokList, dateRange, onNoData) {
 
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, "Per Motoris")
-  XLSX.writeFile(wb, `laporan_motoris_${getJakartaToday()}.xlsx`)
+  const startFmt = dateRange?.start ? dateRange.start : "all"
+  const endFmt = dateRange?.end ? dateRange.end : "all"
+  const filename = `laporan_motoris_${startFmt}_to_${endFmt}.xlsx`
+  XLSX.writeFile(wb, filename)
 }
 export default function DistribusiPage({ role, sesiList, rokokList, salesList, tokoList, tukarBarangList = [], stockCutoffSetting }) {
   const stockCutoffDate = stockCutoffSetting?.value
