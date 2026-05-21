@@ -236,7 +236,7 @@ function exportToExcel(rows, rokokList, dateRange, onNoData, filters = {}) {
   // Styles
   const sH     = { font: { bold: true, color: { rgb: "334155" } }, fill: { fgColor: { rgb: "F1F5F9" } }, alignment: ctr, border }
   const sSub   = { font: { bold: true, color: { rgb: "1E293B" } }, fill: { fgColor: { rgb: "F8FAFC" } }, alignment: ctr, border }
-  const sProdHeader = { font: { bold: true, color: { rgb: "3730A3" } }, fill: { fgColor: { rgb: "E0E7FF" } }, alignment: ctr, border }
+  const sProdHeader = { font: { bold: true, color: { rgb: "334155" } }, fill: { fgColor: { rgb: "F1F5F9" } }, alignment: ctr, border }
   const sGR    = { font: { bold: true, color: { rgb: "92400E" } }, fill: { fgColor: { rgb: "FEF3C7" } }, alignment: ctr, border }
   const sTK    = { font: { bold: true, color: { rgb: "1E40AF" } }, fill: { fgColor: { rgb: "DBEAFE" } }, alignment: ctr, border }
   const sData  = { font: { color: { rgb: "475569" } }, alignment: ctr, border }
@@ -245,12 +245,17 @@ function exportToExcel(rows, rokokList, dateRange, onNoData, filters = {}) {
   const sTotal = { font: { bold: true, color: { rgb: "1E293B" } }, fill: { fgColor: { rgb: "E2E8F0" } }, alignment: ctr, border }
   const sTotalNum = { font: { bold: true, color: { rgb: "1E293B" } }, fill: { fgColor: { rgb: "E2E8F0" } }, alignment: ctr, border }
   const sTotalMoney = { ...sTotalNum, alignment: { horizontal: "left", vertical: "center" } }
+  const sTitle = { font: { bold: true, sz: 12 }, alignment: { horizontal: "center", vertical: "center" }, border }
+  
+  // Data column styles to flow all the way down
+  const sGRData = { font: { color: { rgb: "92400E" } }, fill: { fgColor: { rgb: "FEF3C7" } }, alignment: ctr, border }
+  const sTKData = { font: { color: { rgb: "1E40AF" } }, fill: { fgColor: { rgb: "DBEAFE" } }, alignment: ctr, border }
 
   const fmtExcelMoney = (v) => "Rp. " + (v || 0).toLocaleString("id-ID")
 
   const wsData = [
     // Baris 1: judul
-    [{ v: title, s: { font: { bold: true, sz: 12 }, alignment: { horizontal: "center", vertical: "center" } } }, ...Array(totalCols - 1).fill({ v: "" })],
+    [{ v: title, s: sTitle }, ...Array(totalCols - 1).fill({ v: "", s: sTitle })],
     // Baris 2: kosong
     Array(totalCols).fill({ v: "" }),
     // Baris 3: header atas
@@ -293,8 +298,8 @@ function exportToExcel(rows, rokokList, dateRange, onNoData, filters = {}) {
         ...products.flatMap((p) => {
           const prodData = d.byProduct[p] || { grosir: 0, toko: 0 }
           return [
-            { v: prodData.grosir, t: "n", s: sData },
-            { v: prodData.toko,   t: "n", s: sData }
+            { v: prodData.grosir, t: "n", s: sGRData },
+            { v: prodData.toko,   t: "n", s: sTKData }
           ]
         }),
         { v: fmtExcelMoney(d.penjualan), t: "s", s: sMoney },
@@ -423,14 +428,13 @@ function exportToExcelBySales(rows, rokokList, dateRange, onNoData, filters = {}
   const sTtU  = { font: { bold: true, color: { rgb: "1E40AF" } }, fill: { fgColor: { rgb: "EFF6FF" } }, border, alignment: ctr }
   const sMonG = { border, alignment: ctr, fill: { fgColor: { rgb: "FEF3C7" } }, font: { color: { rgb: "92400E" } } }
   const sMonT = { border, alignment: ctr, fill: { fgColor: { rgb: "DCFCE7" } }, font: { color: { rgb: "166534" } } }
-  
-  // Footer Styles (Elegant solid light slate)
+  const sTitle = { font: { bold: true, sz: 13 }, alignment: ctr, border }
   const sFoot = { font: { bold: true, color: { rgb: "1E293B" } }, fill: { fgColor: { rgb: "E2E8F0" } }, border, alignment: ctr }
   const sFtQ  = { ...sFoot, z: "#,##0" }
 
   const wsData = [
     // Row 0: Title
-    [{ v: title, s: { font: { bold: true, sz: 13 }, alignment: ctr } }, ...Array(totalCols - 1).fill("")],
+    [{ v: title, s: sTitle }, ...Array(totalCols - 1).fill({ v: "", s: sTitle })],
     // Row 1: Empty
     Array(totalCols).fill(""),
     // Row 2: Group headers
