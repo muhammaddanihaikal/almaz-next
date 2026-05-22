@@ -16,7 +16,7 @@ export default function Modal({ title, subtitle = "Lengkapi formulir di bawah in
   if (!mounted) return null
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/40 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-neutral-900/40 p-4" onClick={onClose}>
       <div
         className={`w-full ${width} max-h-[90vh] overflow-y-auto rounded-xl border border-neutral-200 bg-white p-6 shadow-xl`}
         onClick={(e) => e.stopPropagation()}

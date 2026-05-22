@@ -87,13 +87,17 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
       await onSubmit({
         tanggal,
         perpanjang_tanggal: perpanjangTanggal || null,
-        items: items.map((it) => ({
-          id:          it.id,
-          rokok_id:    it.rokok_id,
-          action:      it.action,
-          qty_terjual: it.action === "bayar" ? (Number(it.qty_terjual) || 0) : 0,
-          qty_kembali: it.action === "bayar" ? (Number(it.qty_kembali) || 0) : 0,
-        })),
+        items: items.map((it) => {
+          const terjual = it.action === "bayar" ? (Number(it.qty_terjual) || 0) : 0
+          const kembali = it.action === "bayar" ? Math.max(0, it.qty_keluar - terjual) : 0
+          return {
+            id:          it.id,
+            rokok_id:    it.rokok_id,
+            action:      it.action,
+            qty_terjual: terjual,
+            qty_kembali: kembali,
+          }
+        }),
         setoran: setoran.map((s) => ({ metode: s.metode, jumlah: Number(s.jumlah) || 0 })),
       })
     } finally {
