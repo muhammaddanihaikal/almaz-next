@@ -3,9 +3,12 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import { Calendar, ChevronDown, Download, Eye, Pencil, Trash2, ChevronRight, CalendarDays, X, Loader2 } from "lucide-react"
 import { getDateRanges } from "@/lib/utils"
+import Datepicker from "react-tailwindcss-datepicker"
 
 export const inputCls =
   "w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 outline-none transition focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10"
+
+
 
 export function MoneyInput({ value, onChange, placeholder, className, disabled }) {
   const [focused, setFocused] = useState(false)
@@ -367,27 +370,68 @@ export function Button({
 }
 
 export function DateFilter({ value, onChange }) {
+  const containerRef = useRef(null)
+  const interacted = useRef(false)
+  const [pickerKey, setPickerKey] = useState(0)
+  const preset = value?.preset || "semua"
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        if (interacted.current) {
+          setPickerKey(prev => prev + 1)
+          interacted.current = false
+        }
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
+
   const handlePresetChange = (e) => {
-    const preset = e.target.value
-    if (preset === "custom") {
+    const presetKey = e.target.value
+    if (presetKey === "custom") {
       onChange({ preset: "custom", start: value?.start || "", end: value?.end || "" })
-    } else if (preset === "semua") {
+    } else if (presetKey === "semua") {
       onChange({ preset: "semua", start: "", end: "" })
     } else {
       const ranges = getDateRanges()
-      onChange({ preset, ...ranges[preset] })
+      onChange({ preset: presetKey, ...(ranges[presetKey] || { start: "", end: "" }) })
     }
   }
-  const handleCustomChange = (field, val) => {
-    onChange({ preset: "custom", start: value?.start || "", end: value?.end || "", [field]: val })
+
+  const toYMD = (d) => {
+    if (!d) return ""
+    if (typeof d === "string") return d.slice(0, 10)
+    if (d instanceof Date) {
+      const y = d.getFullYear()
+      const m = String(d.getMonth() + 1).padStart(2, "0")
+      const day = String(d.getDate()).padStart(2, "0")
+      return `${y}-${m}-${day}`
+    }
+    return String(d)
+  }
+
+  const handleValueChange = (newValue) => {
+    onChange({
+      preset: "custom",
+      start: toYMD(newValue?.startDate),
+      end: toYMD(newValue?.endDate)
+    })
+    interacted.current = false
+  }
+
+  const datepickerValue = {
+    startDate: value?.start || null,
+    endDate: value?.end || null
   }
 
   return (
-    <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3">
-      <div className="relative w-full sm:w-auto">
+    <div className="flex w-full items-center gap-2 sm:gap-3">
+      <div className="relative shrink-0">
         <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" strokeWidth={2} />
         <select
-          value={value?.preset || "semua"}
+          value={preset}
           onChange={handlePresetChange}
           className="h-[38px] w-full cursor-pointer appearance-none rounded-lg border border-neutral-200 bg-white pl-9 pr-8 text-sm font-medium text-neutral-800 outline-none transition hover:border-neutral-300 focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10 sm:w-auto"
         >
@@ -401,10 +445,25 @@ export function DateFilter({ value, onChange }) {
           <path d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.06l3.71-3.83a.75.75 0 1 1 1.08 1.04l-4.25 4.39a.75.75 0 0 1-1.08 0L5.21 8.27a.75.75 0 0 1 .02-1.06z" />
         </svg>
       </div>
-      <div className="flex w-full items-center gap-2 sm:w-auto sm:gap-3">
-        <input type="date" value={value?.start || ""} onChange={(e) => handleCustomChange("start", e.target.value)} className="h-[38px] flex-1 rounded-lg border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-800 outline-none transition hover:border-neutral-300 focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10 sm:flex-none sm:w-32" />
-        <span className="text-sm font-medium text-neutral-400">-</span>
-        <input type="date" value={value?.end || ""} onChange={(e) => handleCustomChange("end", e.target.value)} className="h-[38px] flex-1 rounded-lg border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-800 outline-none transition hover:border-neutral-300 focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10 sm:flex-none sm:w-32" />
+
+      <div
+        className="min-w-0 flex-1"
+        ref={containerRef}
+        onClick={() => { interacted.current = true }}
+      >
+        <Datepicker
+          key={pickerKey}
+          value={datepickerValue}
+          onChange={handleValueChange}
+          showShortcuts={false}
+          primaryColor="blue"
+          placeholder="Pilih rentang waktu"
+          displayFormat="DD/MM/YYYY"
+          separator=" - "
+          popoverDirection="down"
+          inputClassName="h-[38px] w-full cursor-pointer rounded-lg border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-800 outline-none transition hover:border-neutral-300 focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/10"
+          containerClassName="relative z-[100]"
+        />
       </div>
     </div>
   )

@@ -252,27 +252,27 @@ function exportToExcel(rows, rokokList, dateRange, onNoData, filters = {}) {
   const totalCols = 2 + products.length * 2 + 2
 
   // Border tipis
-  const bThin = { style: "thin", color: { rgb: "94A3B8" } }
+  const bThin = { style: "thin", color: { rgb: "000000" } }
   const border = { top: bThin, bottom: bThin, left: bThin, right: bThin }
   const ctr = { horizontal: "center", vertical: "center" }
 
-  // Styles
-  const sH     = { font: { bold: true, color: { rgb: "334155" } }, fill: { fgColor: { rgb: "F1F5F9" } }, alignment: ctr, border }
-  const sSub   = { font: { bold: true, color: { rgb: "1E293B" } }, fill: { fgColor: { rgb: "F8FAFC" } }, alignment: ctr, border }
-  const sProdHeader = { font: { bold: true, color: { rgb: "334155" } }, fill: { fgColor: { rgb: "F1F5F9" } }, alignment: ctr, border }
-  const sGR    = { font: { bold: true, color: { rgb: "92400E" } }, fill: { fgColor: { rgb: "FEF3C7" } }, alignment: ctr, border }
-  const sTK    = { font: { bold: true, color: { rgb: "1E40AF" } }, fill: { fgColor: { rgb: "DBEAFE" } }, alignment: ctr, border }
-  const sData  = { font: { color: { rgb: "475569" } }, alignment: ctr, border }
-  const sNum   = { font: { color: { rgb: "475569" } }, alignment: ctr, border }
-  const sMoney = { font: { color: { rgb: "475569" } }, alignment: { horizontal: "left", vertical: "center" }, border }
-  const sTotal = { font: { bold: true, color: { rgb: "1E293B" } }, fill: { fgColor: { rgb: "E2E8F0" } }, alignment: ctr, border }
-  const sTotalNum = { font: { bold: true, color: { rgb: "1E293B" } }, fill: { fgColor: { rgb: "E2E8F0" } }, alignment: ctr, border }
-  const sTotalMoney = { ...sTotalNum, alignment: { horizontal: "left", vertical: "center" } }
-  const sTitle = { font: { bold: true, sz: 12 }, alignment: { horizontal: "center", vertical: "center" }, border }
+  // Styles (Monochrome / Black & White)
+  const sH     = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, alignment: ctr, border }
+  const sSub   = sH
+  const sProdHeader = sH
+  const sGR    = sH
+  const sTK    = sH
+  const sData  = { alignment: ctr, border }
+  const sNum   = { alignment: ctr, border }
+  const sMoney = { alignment: { horizontal: "left", vertical: "center" }, border }
+  const sTotal = { font: { bold: true, color: { rgb: "000000" } }, fill: { fgColor: { rgb: "E5E7EB" } }, alignment: ctr, border }
+  const sTotalNum = sTotal
+  const sTotalMoney = { ...sTotal, alignment: { horizontal: "left", vertical: "center" } }
+  const sTitle = { font: { bold: true, sz: 14 }, alignment: { horizontal: "center", vertical: "center" } }
   
   // Data column styles to flow all the way down
-  const sGRData = { font: { color: { rgb: "92400E" } }, fill: { fgColor: { rgb: "FEF3C7" } }, alignment: ctr, border }
-  const sTKData = { font: { color: { rgb: "1E40AF" } }, fill: { fgColor: { rgb: "DBEAFE" } }, alignment: ctr, border }
+  const sGRData = sData
+  const sTKData = sData
 
   const fmtExcelMoney = (v) => "Rp. " + (v || 0).toLocaleString("id-ID")
 

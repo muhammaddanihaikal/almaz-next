@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { AlertCircle, Clock, Search, CheckCircle, ChevronDown } from "lucide-react"
+import { AlertCircle, Clock, Search, CheckCircle, ChevronDown, Download } from "lucide-react"
 import { fmtIDR, fmtTanggal, defaultDateRange } from "@/lib/utils"
 import { settleTitipJual, partialSettleTitipJual, editSettlement, revertSettlement, editTitipJualDetail, deleteTitipJual, getTitipJualListByDateRange } from "@/actions/titip_jual"
 import { Card, PageHeader, SelectInput, Field, FormActions, inputCls, useConfirm, useConfirmWithReason, DateFilter, Button, IconButton } from "@/components/ui"
@@ -50,6 +50,141 @@ function TabButton({ active, onClick, children }) {
 
 function SkeletonText({ w = "w-24" }) {
   return <div className={`h-3.5 ${w} animate-pulse rounded bg-neutral-200`} />
+}
+
+function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}) {
+  const XLSX = require("xlsx-js-style")
+  if (!data || data.length === 0) {
+    onNoData?.()
+    return
+  }
+
+  // Sorting: Aktif di atas, lalu Selesai. Kemudian by Jatuh Tempo.
+  const sortedData = [...data].sort((a, b) => {
+    if (a.status !== b.status) return a.status === "aktif" ? -1 : 1;
+    return (a.tanggal_jatuh_tempo || "").localeCompare(b.tanggal_jatuh_tempo || "");
+  })
+
+  const border = {
+    top: { style: "thin", color: { rgb: "000000" } },
+    bottom: { style: "thin", color: { rgb: "000000" } },
+    left: { style: "thin", color: { rgb: "000000" } },
+    right: { style: "thin", color: { rgb: "000000" } }
+  }
+  const hStyle = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, alignment: { horizontal: "center", vertical: "center" }, border }
+
+  // SHEET 1: REKAPITULASI
+  const rekapHeader = [
+    { v: "No", t: "s", s: hStyle },
+    { v: "Status", t: "s", s: hStyle },
+    { v: "Tgl Distribusi", t: "s", s: hStyle },
+    { v: "Tgl Jatuh Tempo", t: "s", s: hStyle },
+    { v: "Tgl Selesai", t: "s", s: hStyle },
+    { v: "Sales", t: "s", s: hStyle },
+    { v: "Toko", t: "s", s: hStyle },
+    { v: "Kategori", t: "s", s: hStyle },
+    { v: "Total Nilai", t: "s", s: hStyle },
+    { v: "Total Setoran", t: "s", s: hStyle },
+    { v: "Selisih", t: "s", s: hStyle },
+  ]
+
+  const fmtD = (d) => { if (!d) return "-"; const [y, m, day] = d.split("-"); return `${day}/${m}/${y}` }
+  const currencyStyle = { numFmt: "_-Rp* #,##0_-;-Rp* #,##0_-;_-Rp* \"-\"_-;_-@_-", alignment: { horizontal: "right" }, border }
+  const cStyle = { alignment: { horizontal: "center" }, border }
+  const baseStyle = { border }
+
+  const rekapRows = sortedData.map((r, idx) => {
+    return [
+      { v: idx + 1, t: "n", s: cStyle },
+      { v: r.status === "aktif" ? "Aktif" : "Selesai", t: "s", s: { font: { bold: true, color: { rgb: r.status === "aktif" ? "B45309" : "15803D" } }, ...cStyle } },
+      { v: fmtD(r.tanggal_distribusi), t: "s", s: cStyle },
+      { v: fmtD(r.tanggal_jatuh_tempo), t: "s", s: cStyle },
+      { v: fmtD(r.tanggal_selesai), t: "s", s: cStyle },
+      { v: r.sales, t: "s", s: baseStyle },
+      { v: r.nama_toko, t: "s", s: baseStyle },
+      { v: r.kategori === "grosir" ? "Grosir" : "Toko", t: "s", s: cStyle },
+      { v: r.nilaiTotal || 0, t: "n", s: currencyStyle },
+      { v: r.totalSetoran || 0, t: "n", s: currencyStyle },
+      { v: Math.abs((r.nilaiTerjual || r.nilaiTotal) - (r.totalSetoran || 0)), t: "n", s: currencyStyle }
+    ]
+  })
+
+  const totalNilai = sortedData.reduce((acc, r) => acc + (r.nilaiTotal || 0), 0)
+  const totalSetoran = sortedData.reduce((acc, r) => acc + (r.totalSetoran || 0), 0)
+  const totalSelisih = sortedData.reduce((acc, r) => acc + Math.abs((r.nilaiTerjual || r.nilaiTotal) - (r.totalSetoran || 0)), 0)
+
+  const rekapTotalRow = [
+    { v: "", t: "s" }, { v: "", t: "s" }, { v: "", t: "s" }, { v: "", t: "s" },
+    { v: "", t: "s" }, { v: "", t: "s" }, { v: "", t: "s" },
+    { v: "TOTAL", t: "s", s: { font: { bold: true }, alignment: { horizontal: "center" }, border } },
+    { v: totalNilai, t: "n", s: { ...currencyStyle, font: { bold: true } } },
+    { v: totalSetoran, t: "n", s: { ...currencyStyle, font: { bold: true } } },
+    { v: totalSelisih, t: "n", s: { ...currencyStyle, font: { bold: true } } },
+  ]
+
+  const wsRekapData = [
+    [{ v: "LAPORAN REKAPITULASI TITIP JUAL", t: "s", s: { font: { bold: true, sz: 14 } } }],
+    [{ v: `Sales: ${filters.salesName || "Semua"} | Status: Aktif & Selesai`, t: "s" }],
+    [],
+    rekapHeader,
+    ...rekapRows,
+    rekapTotalRow
+  ]
+
+  const wsRekap = XLSX.utils.aoa_to_sheet(wsRekapData)
+  wsRekap["!cols"] = [{ wch: 5 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 25 }, { wch: 10 }, { wch: 18 }, { wch: 18 }, { wch: 18 }]
+
+  // SHEET 2: RINCIAN PRODUK
+  const rincianHeader = [
+    { v: "No", t: "s", s: hStyle },
+    { v: "Status", t: "s", s: hStyle },
+    { v: "Toko", t: "s", s: hStyle },
+    { v: "Sales", t: "s", s: hStyle },
+    { v: "Nama Produk", t: "s", s: hStyle },
+    { v: "Keluar", t: "s", s: hStyle },
+    { v: "Terjual", t: "s", s: hStyle },
+    { v: "Kembali", t: "s", s: hStyle },
+    { v: "Harga", t: "s", s: hStyle },
+    { v: "Nilai Terjual", t: "s", s: hStyle },
+  ]
+
+  let rincianNo = 1
+  const rincianRows = []
+  
+  for (const r of sortedData) {
+    for (const it of (r.items || [])) {
+      rincianRows.push([
+        { v: rincianNo++, t: "n", s: cStyle },
+        { v: r.status === "aktif" ? "Aktif" : "Selesai", t: "s", s: { font: { bold: true, color: { rgb: r.status === "aktif" ? "B45309" : "15803D" } }, ...cStyle } },
+        { v: r.nama_toko, t: "s", s: baseStyle },
+        { v: r.sales, t: "s", s: baseStyle },
+        { v: it.rokok, t: "s", s: baseStyle },
+        { v: it.qty_keluar || 0, t: "n", s: cStyle },
+        { v: it.qty_terjual || 0, t: "n", s: { font: { bold: true }, ...cStyle } },
+        { v: it.qty_kembali || 0, t: "n", s: cStyle },
+        { v: it.harga || 0, t: "n", s: currencyStyle },
+        { v: (it.qty_terjual || 0) * (it.harga || 0), t: "n", s: currencyStyle },
+      ])
+    }
+  }
+
+  const wsRincianData = [
+    [{ v: "RINCIAN PRODUK TITIP JUAL", t: "s", s: { font: { bold: true, sz: 14 } } }],
+    [{ v: `Sales: ${filters.salesName || "Semua"}`, t: "s" }],
+    [],
+    rincianHeader,
+    ...rincianRows
+  ]
+
+  const wsRincian = XLSX.utils.aoa_to_sheet(wsRincianData)
+  wsRincian["!cols"] = [{ wch: 5 }, { wch: 10 }, { wch: 25 }, { wch: 15 }, { wch: 25 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 15 }, { wch: 18 }]
+
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, wsRekap, "Rekap Titip Jual")
+  XLSX.utils.book_append_sheet(wb, wsRincian, "Rincian Produk")
+
+  const dateStr = new Date().toISOString().split("T")[0]
+  XLSX.writeFile(wb, `Titip_Jual_${dateStr}.xlsx`)
 }
 
 export default function KonsinyasiPage({ role, titipJualList, salesList }) {
@@ -165,109 +300,139 @@ export default function KonsinyasiPage({ role, titipJualList, salesList }) {
         subtitle="Daftar semua transaksi titip jual sales."
       />
 
-      {jatuhTempoHariIni.length > 0 && (
-        <div className="rounded-lg border border-red-200 bg-white overflow-hidden shadow-sm">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => setExpandedHariIni(!expandedHariIni)}
-            className="w-full h-auto flex items-center justify-between px-3 py-2 hover:bg-red-50/50 transition-colors rounded-none"
-          >
-            <div className="flex items-center gap-2.5">
-              <AlertCircle className="h-4 w-4 text-red-600" />
-              <span className="text-sm font-semibold text-neutral-900">Jatuh Tempo Hari Ini</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-bold text-white">{jatuhTempoHariIni.length}</span>
-              <ChevronDown className={`h-4 w-4 text-neutral-400 transition-transform ${expandedHariIni ? "rotate-180" : ""}`} />
-            </div>
-          </Button>
+      <div className="flex flex-col xl:flex-row justify-between items-start gap-4 w-full">
+        {(jatuhTempoHariIni.length > 0 || jatuhTempoSegera.length > 0) && (
+          <div className="flex flex-col md:flex-row gap-4 items-start w-full xl:w-auto">
+            {jatuhTempoHariIni.length > 0 && (
+              <div className="rounded-lg border border-red-200 bg-white overflow-hidden shadow-sm h-fit w-full md:w-[320px] lg:w-[380px] shrink-0">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setExpandedHariIni(!expandedHariIni)}
+                className="w-full h-auto flex items-center justify-between px-3 py-2 hover:bg-red-50/50 transition-colors rounded-none"
+              >
+                <div className="flex items-center gap-2.5">
+                  <AlertCircle className="h-4 w-4 text-red-600" />
+                  <span className="text-sm font-semibold text-neutral-900">Jatuh Tempo Hari Ini</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-bold text-white">{jatuhTempoHariIni.length}</span>
+                  <ChevronDown className={`h-4 w-4 text-neutral-400 transition-transform ${expandedHariIni ? "rotate-180" : ""}`} />
+                </div>
+              </Button>
 
-          {expandedHariIni && (
-            <div className="border-t border-red-100 p-3 bg-red-50/30">
-              <div className="space-y-1.5">
-                {visibleHariIni.map((k) => (
-                  <div key={k.id} className="flex items-center justify-between text-[11px] text-red-700">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="font-medium">{k.sales} → {k.nama_toko} ({k.kategori})</span>
-                      <span className="text-[10px] text-red-500 font-semibold">Jatuh Tempo: {fmtTanggal(k.tanggal_jatuh_tempo)}</span>
-                    </div>
-                    <span className="tabular-nums font-bold">{fmtIDR(k.nilaiTotal)}</span>
+              {expandedHariIni && (
+                <div className="border-t border-red-100 p-3 bg-red-50/30">
+                  <div className="space-y-1.5">
+                    {visibleHariIni.map((k) => (
+                      <div key={k.id} className="flex items-center justify-between text-[11px] text-red-700">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-medium">{k.sales} → {k.nama_toko} ({k.kategori})</span>
+                          <span className="text-[10px] text-red-500 font-semibold">Jatuh Tempo: {fmtTanggal(k.tanggal_jatuh_tempo)}</span>
+                        </div>
+                        <span className="tabular-nums font-bold">{fmtIDR(k.nilaiTotal)}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
 
-              {jatuhTempoHariIni.length > 5 && (
-                <div className="mt-3 border-t border-red-100/50 pt-2 flex justify-center">
-                  <button
-                    type="button"
-                    onClick={() => setShowAllHariIni(!showAllHariIni)}
-                    className="text-[11px] font-bold text-red-600 hover:text-red-800 transition-colors flex items-center gap-1 focus:outline-none"
-                  >
-                    {showAllHariIni ? (
-                      <span>− Sembunyikan sebagian</span>
-                    ) : (
-                      <span>+ Tampilkan {jatuhTempoHariIni.length - 5} data lainnya</span>
-                    )}
-                  </button>
+                  {jatuhTempoHariIni.length > 5 && (
+                    <div className="mt-3 border-t border-red-100/50 pt-2 flex justify-center">
+                      <button
+                        type="button"
+                        onClick={() => setShowAllHariIni(!showAllHariIni)}
+                        className="text-[11px] font-bold text-red-600 hover:text-red-800 transition-colors flex items-center gap-1 focus:outline-none"
+                      >
+                        {showAllHariIni ? (
+                          <span>− Sembunyikan sebagian</span>
+                        ) : (
+                          <span>+ Tampilkan {jatuhTempoHariIni.length - 5} data lainnya</span>
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
           )}
-        </div>
-      )}
 
-      {jatuhTempoSegera.length > 0 && (
-        <div className="rounded-lg border border-amber-200 bg-white overflow-hidden shadow-sm">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => setExpandedSegera(!expandedSegera)}
-            className="w-full h-auto flex items-center justify-between px-3 py-2 hover:bg-amber-50/50 transition-colors rounded-none"
-          >
-            <div className="flex items-center gap-2.5">
-              <Clock className="h-4 w-4 text-amber-600" />
-              <span className="text-sm font-semibold text-neutral-900">Jatuh Tempo Segera (3 Hari)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-600 px-1.5 text-[10px] font-bold text-white">{jatuhTempoSegera.length}</span>
-              <ChevronDown className={`h-4 w-4 text-neutral-400 transition-transform ${expandedSegera ? "rotate-180" : ""}`} />
-            </div>
-          </Button>
+            {jatuhTempoSegera.length > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-white overflow-hidden shadow-sm h-fit w-full md:w-[320px] lg:w-[380px] shrink-0">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setExpandedSegera(!expandedSegera)}
+                className="w-full h-auto flex items-center justify-between px-3 py-2 hover:bg-amber-50/50 transition-colors rounded-none"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Clock className="h-4 w-4 text-amber-600" />
+                  <span className="text-sm font-semibold text-neutral-900">Jatuh Tempo Segera (3 Hari)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-600 px-1.5 text-[10px] font-bold text-white">{jatuhTempoSegera.length}</span>
+                  <ChevronDown className={`h-4 w-4 text-neutral-400 transition-transform ${expandedSegera ? "rotate-180" : ""}`} />
+                </div>
+              </Button>
 
-          {expandedSegera && (
-            <div className="border-t border-amber-100 p-3 bg-amber-50/30">
-              <div className="space-y-1.5">
-                {visibleSegera.map((k) => (
-                  <div key={k.id} className="flex items-center justify-between text-[11px] text-amber-800">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="font-medium">{k.sales} → {k.nama_toko} ({k.kategori}) — {k.selisihHari} hari lagi</span>
-                      <span className="text-[10px] text-amber-600 font-semibold">Jatuh Tempo: {fmtTanggal(k.tanggal_jatuh_tempo)}</span>
-                    </div>
-                    <span className="tabular-nums font-bold">{fmtIDR(k.nilaiTotal)}</span>
+              {expandedSegera && (
+                <div className="border-t border-amber-100 p-3 bg-amber-50/30">
+                  <div className="space-y-1.5">
+                    {visibleSegera.map((k) => (
+                      <div key={k.id} className="flex items-center justify-between text-[11px] text-amber-800">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-medium">{k.sales} → {k.nama_toko} ({k.kategori}) — {k.selisihHari} hari lagi</span>
+                          <span className="text-[10px] text-amber-600 font-semibold">Jatuh Tempo: {fmtTanggal(k.tanggal_jatuh_tempo)}</span>
+                        </div>
+                        <span className="tabular-nums font-bold">{fmtIDR(k.nilaiTotal)}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
 
-              {jatuhTempoSegera.length > 5 && (
-                <div className="mt-3 border-t border-amber-100/50 pt-2 flex justify-center">
-                  <button
-                    type="button"
-                    onClick={() => setShowAllSegera(!showAllSegera)}
-                    className="text-[11px] font-bold text-amber-600 hover:text-amber-800 transition-colors flex items-center gap-1 focus:outline-none"
-                  >
-                    {showAllSegera ? (
-                      <span>− Sembunyikan sebagian</span>
-                    ) : (
-                      <span>+ Tampilkan {jatuhTempoSegera.length - 5} data lainnya</span>
-                    )}
-                  </button>
+                  {jatuhTempoSegera.length > 5 && (
+                    <div className="mt-3 border-t border-amber-100/50 pt-2 flex justify-center">
+                      <button
+                        type="button"
+                        onClick={() => setShowAllSegera(!showAllSegera)}
+                        className="text-[11px] font-bold text-amber-600 hover:text-amber-800 transition-colors flex items-center gap-1 focus:outline-none"
+                      >
+                        {showAllSegera ? (
+                          <span>− Sembunyikan sebagian</span>
+                        ) : (
+                          <span>+ Tampilkan {jatuhTempoSegera.length - 5} data lainnya</span>
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-          )}
+            )}
+          </div>
+        )}
+
+        <div className="flex justify-end w-full xl:w-auto ml-auto shrink-0">
+          <Button
+          type="button"
+          variant="ghost"
+          onClick={() => {
+            // Dapatkan semua data (aktif & selesai) tapi terapakan common filter (sales & search)
+            let temp = [...konsinyasiList]
+            if (salesFilter) temp = temp.filter((r) => r.sales_id === salesFilter)
+            if (search.trim()) {
+              const q = search.trim().toLowerCase()
+              temp = temp.filter(
+                (r) => r.sales.toLowerCase().includes(q) || r.nama_toko.toLowerCase().includes(q)
+              )
+            }
+            const sName = salesList.find((s) => s.id === salesFilter)?.nama || "Semua"
+            exportKonsinyasiToExcel(temp, dateRange, () => confirm("Tidak ada data untuk diekspor.", { title: "Export Excel", hideCancel: true }), { salesName: sName })
+          }}
+          className="flex items-center gap-2 h-8 px-3 text-sm font-semibold border border-neutral-200 bg-white hover:bg-neutral-50 shadow-sm"
+        >
+          <Download className="h-4 w-4 text-neutral-600" />
+          <span className="text-neutral-700">Export Excel</span>
+        </Button>
         </div>
-      )}
+      </div>
 
       <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] space-y-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-4">
