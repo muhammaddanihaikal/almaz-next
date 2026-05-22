@@ -59,12 +59,28 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}) {
     return
   }
 
-  // Sorting: Aktif di atas, lalu Selesai. Kemudian by Jatuh Tempo.
-  const sortedData = [...data].sort((a, b) => {
-    if (a.status !== b.status) return a.status === "aktif" ? -1 : 1;
-    return (a.tanggal_jatuh_tempo || "").localeCompare(b.tanggal_jatuh_tempo || "");
+  const fmtD = (d) => { if (!d) return "-"; const [y, m, day] = d.split("-"); return `${day}/${m}/${y}` }
+
+  // Dapatkan semua produk unik dari seluruh data titip jual
+  const productsSet = new Set()
+  data.forEach(r => {
+    (r.items || []).forEach(it => {
+      if (it.rokok) productsSet.add(it.rokok)
+    })
+  })
+  const products = Array.from(productsSet).sort()
+
+  // Kelompokkan data berdasarkan Sales
+  const salesMap = {} // { "Sales Name": [ titipJual1, titipJual2 ] }
+  data.forEach(r => {
+    const s = r.sales || "Tanpa Sales"
+    if (!salesMap[s]) salesMap[s] = []
+    salesMap[s].push(r)
   })
 
+  const wb = XLSX.utils.book_new()
+
+  // Styling (Header gelap teks putih, sel data border hitam)
   const border = {
     top: { style: "thin", color: { rgb: "000000" } },
     bottom: { style: "thin", color: { rgb: "000000" } },
@@ -72,116 +88,137 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}) {
     right: { style: "thin", color: { rgb: "000000" } }
   }
   const hStyle = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, alignment: { horizontal: "center", vertical: "center" }, border }
-
-  // SHEET 1: REKAPITULASI
-  const rekapHeader = [
-    { v: "No", t: "s", s: hStyle },
-    { v: "Status", t: "s", s: hStyle },
-    { v: "Tgl Distribusi", t: "s", s: hStyle },
-    { v: "Tgl Jatuh Tempo", t: "s", s: hStyle },
-    { v: "Tgl Selesai", t: "s", s: hStyle },
-    { v: "Sales", t: "s", s: hStyle },
-    { v: "Toko", t: "s", s: hStyle },
-    { v: "Kategori", t: "s", s: hStyle },
-    { v: "Total Nilai", t: "s", s: hStyle },
-    { v: "Total Setoran", t: "s", s: hStyle },
-    { v: "Selisih", t: "s", s: hStyle },
-  ]
-
-  const fmtD = (d) => { if (!d) return "-"; const [y, m, day] = d.split("-"); return `${day}/${m}/${y}` }
-  const currencyStyle = { numFmt: "_-Rp* #,##0_-;-Rp* #,##0_-;_-Rp* \"-\"_-;_-@_-", alignment: { horizontal: "right" }, border }
   const cStyle = { alignment: { horizontal: "center" }, border }
-  const baseStyle = { border }
+  const lStyle = { alignment: { horizontal: "left" }, border }
 
-  const rekapRows = sortedData.map((r, idx) => {
-    return [
-      { v: idx + 1, t: "n", s: cStyle },
-      { v: r.status === "aktif" ? "Aktif" : "Selesai", t: "s", s: { font: { bold: true, color: { rgb: r.status === "aktif" ? "B45309" : "15803D" } }, ...cStyle } },
-      { v: fmtD(r.tanggal_distribusi), t: "s", s: cStyle },
-      { v: fmtD(r.tanggal_jatuh_tempo), t: "s", s: cStyle },
-      { v: fmtD(r.tanggal_selesai), t: "s", s: cStyle },
-      { v: r.sales, t: "s", s: baseStyle },
-      { v: r.nama_toko, t: "s", s: baseStyle },
-      { v: r.kategori === "grosir" ? "Grosir" : "Toko", t: "s", s: cStyle },
-      { v: r.nilaiTotal || 0, t: "n", s: currencyStyle },
-      { v: r.totalSetoran || 0, t: "n", s: currencyStyle },
-      { v: Math.abs((r.nilaiTerjual || r.nilaiTotal) - (r.totalSetoran || 0)), t: "n", s: currencyStyle }
+  for (const sales of Object.keys(salesMap).sort()) {
+    const salesData = salesMap[sales]
+
+    // Urutkan berdasarkan tanggal jatuh tempo
+    salesData.sort((a, b) => (a.tanggal_jatuh_tempo || "").localeCompare(b.tanggal_jatuh_tempo || ""))
+
+    const header1 = [
+      { v: "TANGGAL", t: "s", s: hStyle },
+      { v: "JATUH TEMPO", t: "s", s: hStyle },
+      { v: "NAMA TOKO", t: "s", s: hStyle },
+      { v: "PRODUK", t: "s", s: hStyle }
     ]
-  })
-
-  const totalNilai = sortedData.reduce((acc, r) => acc + (r.nilaiTotal || 0), 0)
-  const totalSetoran = sortedData.reduce((acc, r) => acc + (r.totalSetoran || 0), 0)
-  const totalSelisih = sortedData.reduce((acc, r) => acc + Math.abs((r.nilaiTerjual || r.nilaiTotal) - (r.totalSetoran || 0)), 0)
-
-  const rekapTotalRow = [
-    { v: "", t: "s" }, { v: "", t: "s" }, { v: "", t: "s" }, { v: "", t: "s" },
-    { v: "", t: "s" }, { v: "", t: "s" }, { v: "", t: "s" },
-    { v: "TOTAL", t: "s", s: { font: { bold: true }, alignment: { horizontal: "center" }, border } },
-    { v: totalNilai, t: "n", s: { ...currencyStyle, font: { bold: true } } },
-    { v: totalSetoran, t: "n", s: { ...currencyStyle, font: { bold: true } } },
-    { v: totalSelisih, t: "n", s: { ...currencyStyle, font: { bold: true } } },
-  ]
-
-  const wsRekapData = [
-    [{ v: "LAPORAN REKAPITULASI TITIP JUAL", t: "s", s: { font: { bold: true, sz: 14 } } }],
-    [{ v: `Sales: ${filters.salesName || "Semua"} | Status: Aktif & Selesai`, t: "s" }],
-    [],
-    rekapHeader,
-    ...rekapRows,
-    rekapTotalRow
-  ]
-
-  const wsRekap = XLSX.utils.aoa_to_sheet(wsRekapData)
-  wsRekap["!cols"] = [{ wch: 5 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 25 }, { wch: 10 }, { wch: 18 }, { wch: 18 }, { wch: 18 }]
-
-  // SHEET 2: RINCIAN PRODUK
-  const rincianHeader = [
-    { v: "No", t: "s", s: hStyle },
-    { v: "Status", t: "s", s: hStyle },
-    { v: "Toko", t: "s", s: hStyle },
-    { v: "Sales", t: "s", s: hStyle },
-    { v: "Nama Produk", t: "s", s: hStyle },
-    { v: "Keluar", t: "s", s: hStyle },
-    { v: "Terjual", t: "s", s: hStyle },
-    { v: "Kembali", t: "s", s: hStyle },
-    { v: "Harga", t: "s", s: hStyle },
-    { v: "Nilai Terjual", t: "s", s: hStyle },
-  ]
-
-  let rincianNo = 1
-  const rincianRows = []
-  
-  for (const r of sortedData) {
-    for (const it of (r.items || [])) {
-      rincianRows.push([
-        { v: rincianNo++, t: "n", s: cStyle },
-        { v: r.status === "aktif" ? "Aktif" : "Selesai", t: "s", s: { font: { bold: true, color: { rgb: r.status === "aktif" ? "B45309" : "15803D" } }, ...cStyle } },
-        { v: r.nama_toko, t: "s", s: baseStyle },
-        { v: r.sales, t: "s", s: baseStyle },
-        { v: it.rokok, t: "s", s: baseStyle },
-        { v: it.qty_keluar || 0, t: "n", s: cStyle },
-        { v: it.qty_terjual || 0, t: "n", s: { font: { bold: true }, ...cStyle } },
-        { v: it.qty_kembali || 0, t: "n", s: cStyle },
-        { v: it.harga || 0, t: "n", s: currencyStyle },
-        { v: (it.qty_terjual || 0) * (it.harga || 0), t: "n", s: currencyStyle },
-      ])
+    for (let i = 1; i < products.length; i++) {
+      header1.push({ v: "", t: "s", s: hStyle })
     }
+    header1.push(
+      { v: "LUNAS", t: "s", s: hStyle },
+      { v: "RETUR", t: "s", s: hStyle },
+      { v: "SISA", t: "s", s: hStyle }
+    )
+
+    const header2 = [
+      { v: "", t: "s", s: hStyle },
+      { v: "", t: "s", s: hStyle },
+      { v: "", t: "s", s: hStyle }
+    ]
+    products.forEach(p => header2.push({ v: p.toUpperCase(), t: "s", s: hStyle }))
+    header2.push(
+      { v: "", t: "s", s: hStyle },
+      { v: "", t: "s", s: hStyle },
+      { v: "", t: "s", s: hStyle }
+    )
+
+    const wsData = [header1, header2]
+
+    const totals = { lunas: 0, retur: 0, sisa: 0 }
+    const productTotals = {}
+    products.forEach(p => productTotals[p] = 0)
+
+    salesData.forEach(r => {
+      const row = [
+        { v: fmtD(r.tanggal_distribusi), t: "s", s: cStyle },
+        { v: fmtD(r.tanggal_jatuh_tempo), t: "s", s: cStyle },
+        { v: r.nama_toko || "", t: "s", s: lStyle }
+      ]
+
+      let rowTotalKeluar = 0
+      let rowTotalTerjual = 0
+      let rowTotalKembali = 0
+
+      const itemMap = {}
+      ;(r.items || []).forEach(it => {
+        itemMap[it.rokok] = it
+      })
+
+      products.forEach(p => {
+        const it = itemMap[p]
+        if (it) {
+          const qty = it.qty_keluar || 0
+          row.push({ v: qty > 0 ? qty : "", t: qty > 0 ? "n" : "s", s: cStyle })
+          rowTotalKeluar += qty
+          rowTotalTerjual += (it.qty_terjual || 0)
+          rowTotalKembali += (it.qty_kembali || 0)
+          productTotals[p] += qty
+        } else {
+          row.push({ v: "", t: "s", s: cStyle })
+        }
+      })
+
+      const rowSisa = rowTotalKeluar - rowTotalTerjual - rowTotalKembali
+
+      row.push(
+        { v: rowTotalTerjual > 0 ? rowTotalTerjual : "", t: rowTotalTerjual > 0 ? "n" : "s", s: cStyle },
+        { v: rowTotalKembali > 0 ? rowTotalKembali : "", t: rowTotalKembali > 0 ? "n" : "s", s: cStyle },
+        { v: rowSisa, t: "n", s: cStyle }
+      )
+
+      totals.lunas += rowTotalTerjual
+      totals.retur += rowTotalKembali
+      totals.sisa += rowSisa
+
+      wsData.push(row)
+    })
+
+    // Baris TOTAL
+    const totalRow = [
+      { v: "TOTAL", t: "s", s: hStyle },
+      { v: "", t: "s", s: hStyle },
+      { v: "", t: "s", s: hStyle }
+    ]
+    products.forEach(p => totalRow.push({ v: productTotals[p] > 0 ? productTotals[p] : "", t: productTotals[p] > 0 ? "n" : "s", s: hStyle }))
+    totalRow.push(
+      { v: totals.lunas > 0 ? totals.lunas : "", t: totals.lunas > 0 ? "n" : "s", s: hStyle },
+      { v: totals.retur > 0 ? totals.retur : "", t: totals.retur > 0 ? "n" : "s", s: hStyle },
+      { v: totals.sisa, t: "n", s: hStyle }
+    )
+    wsData.push(totalRow)
+
+    const ws = XLSX.utils.aoa_to_sheet(wsData)
+
+    // Merges
+    ws["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } }, // TANGGAL
+      { s: { r: 0, c: 1 }, e: { r: 1, c: 1 } }, // JATUH TEMPO
+      { s: { r: 0, c: 2 }, e: { r: 1, c: 2 } }, // NAMA TOKO
+      { s: { r: 0, c: 3 }, e: { r: 0, c: 2 + products.length } }, // PRODUK
+      { s: { r: 0, c: 3 + products.length }, e: { r: 1, c: 3 + products.length } }, // LUNAS
+      { s: { r: 0, c: 4 + products.length }, e: { r: 1, c: 4 + products.length } }, // RETUR
+      { s: { r: 0, c: 5 + products.length }, e: { r: 1, c: 5 + products.length } }, // SISA
+      
+      // Merge sel TOTAL
+      { s: { r: wsData.length - 1, c: 0 }, e: { r: wsData.length - 1, c: 2 } }
+    ]
+
+    // Lebar kolom dinamis agar nama produk tidak terpotong
+    const cols = [
+      { wch: 12 }, { wch: 15 }, { wch: 25 }
+    ]
+    products.forEach(p => {
+      cols.push({ wch: Math.max(10, p.length + 2) })
+    })
+    cols.push({ wch: 10 }, { wch: 10 }, { wch: 10 })
+    ws["!cols"] = cols
+
+    // Batasi nama sheet max 31 karakter
+    const sheetName = sales.replace(/[\\/?*[\]:]/g, "").substring(0, 31)
+    XLSX.utils.book_append_sheet(wb, ws, sheetName)
   }
-
-  const wsRincianData = [
-    [{ v: "RINCIAN PRODUK TITIP JUAL", t: "s", s: { font: { bold: true, sz: 14 } } }],
-    [{ v: `Sales: ${filters.salesName || "Semua"}`, t: "s" }],
-    [],
-    rincianHeader,
-    ...rincianRows
-  ]
-
-  const wsRincian = XLSX.utils.aoa_to_sheet(wsRincianData)
-  wsRincian["!cols"] = [{ wch: 5 }, { wch: 10 }, { wch: 25 }, { wch: 15 }, { wch: 25 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 15 }, { wch: 18 }]
-
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, wsRekap, "Rekap Titip Jual")
-  XLSX.utils.book_append_sheet(wb, wsRincian, "Rincian Produk")
 
   const dateStr = new Date().toISOString().split("T")[0]
   XLSX.writeFile(wb, `Titip_Jual_${dateStr}.xlsx`)
