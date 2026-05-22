@@ -80,6 +80,10 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}) {
 
   const wb = XLSX.utils.book_new()
 
+  const start = dateRange?.start ? fmtD(dateRange.start) : ""
+  const end   = dateRange?.end   ? fmtD(dateRange.end)   : ""
+  const titleText = start && end ? `LAPORAN TITIP JUAL: ${start} - ${end}` : `LAPORAN TITIP JUAL`
+
   // Styling (Header gelap teks putih, sel data border hitam)
   const border = {
     top: { style: "thin", color: { rgb: "000000" } },
@@ -90,12 +94,18 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}) {
   const hStyle = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, alignment: { horizontal: "center", vertical: "center" }, border }
   const cStyle = { alignment: { horizontal: "center" }, border }
   const lStyle = { alignment: { horizontal: "left" }, border }
+  const titleStyle = { font: { bold: true, sz: 12, color: { rgb: "000000" } }, alignment: { horizontal: "center", vertical: "center" }, border }
 
   for (const sales of Object.keys(salesMap).sort()) {
     const salesData = salesMap[sales]
 
     // Urutkan berdasarkan tanggal jatuh tempo
     salesData.sort((a, b) => (a.tanggal_jatuh_tempo || "").localeCompare(b.tanggal_jatuh_tempo || ""))
+
+    const titleRow = [{ v: titleText, t: "s", s: titleStyle }]
+    for (let i = 1; i < 6 + products.length; i++) {
+      titleRow.push({ v: "", t: "s", s: titleStyle })
+    }
 
     const header1 = [
       { v: "TANGGAL", t: "s", s: hStyle },
@@ -124,7 +134,7 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}) {
       { v: "", t: "s", s: hStyle }
     )
 
-    const wsData = [header1, header2]
+    const wsData = [titleRow, header1, header2]
 
     const totals = { lunas: 0, retur: 0, sisa: 0 }
     const productTotals = {}
@@ -193,13 +203,14 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}) {
 
     // Merges
     ws["!merges"] = [
-      { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } }, // TANGGAL
-      { s: { r: 0, c: 1 }, e: { r: 1, c: 1 } }, // JATUH TEMPO
-      { s: { r: 0, c: 2 }, e: { r: 1, c: 2 } }, // NAMA TOKO
-      { s: { r: 0, c: 3 }, e: { r: 0, c: 2 + products.length } }, // PRODUK
-      { s: { r: 0, c: 3 + products.length }, e: { r: 1, c: 3 + products.length } }, // LUNAS
-      { s: { r: 0, c: 4 + products.length }, e: { r: 1, c: 4 + products.length } }, // RETUR
-      { s: { r: 0, c: 5 + products.length }, e: { r: 1, c: 5 + products.length } }, // SISA
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 5 + products.length } }, // Judul
+      { s: { r: 1, c: 0 }, e: { r: 2, c: 0 } }, // TANGGAL
+      { s: { r: 1, c: 1 }, e: { r: 2, c: 1 } }, // JATUH TEMPO
+      { s: { r: 1, c: 2 }, e: { r: 2, c: 2 } }, // NAMA TOKO
+      { s: { r: 1, c: 3 }, e: { r: 1, c: 2 + products.length } }, // PRODUK
+      { s: { r: 1, c: 3 + products.length }, e: { r: 2, c: 3 + products.length } }, // LUNAS
+      { s: { r: 1, c: 4 + products.length }, e: { r: 2, c: 4 + products.length } }, // RETUR
+      { s: { r: 1, c: 5 + products.length }, e: { r: 2, c: 5 + products.length } }, // SISA
       
       // Merge sel TOTAL
       { s: { r: wsData.length - 1, c: 0 }, e: { r: wsData.length - 1, c: 2 } }
