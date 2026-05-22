@@ -191,7 +191,30 @@ function exportToExcel(rows, rokokList, dateRange, onNoData, filters = {}) {
   // Produk unik (urut berdasarkan urutan rokokList) & tanggal unik (urut asc)
   const rokokOrderMap = Object.fromEntries(rokokList.map((r) => [r.nama, r.urutan ?? 0]))
   const products = [...new Set(allItems.map((it) => it.rokok))].sort((a, b) => (rokokOrderMap[a] ?? 0) - (rokokOrderMap[b] ?? 0))
-  const dates    = [...new Set(allItems.map((it) => it.tanggal))].sort()
+
+  const getDatesInRange = (startStr, endStr) => {
+    const arr = []
+    let current = new Date(startStr)
+    const end = new Date(endStr)
+    current.setUTCHours(0, 0, 0, 0)
+    end.setUTCHours(0, 0, 0, 0)
+    while (current <= end) {
+      const yyyy = current.getUTCFullYear()
+      const mm = String(current.getUTCMonth() + 1).padStart(2, '0')
+      const dd = String(current.getUTCDate()).padStart(2, '0')
+      arr.push(`${yyyy}-${mm}-${dd}`)
+      current.setUTCDate(current.getUTCDate() + 1)
+    }
+    return arr
+  }
+
+  const rawDates = [...new Set(allItems.map((it) => it.tanggal))].sort()
+  let dates = []
+  if (dateRange?.start && dateRange?.end) {
+    dates = getDatesInRange(dateRange.start, dateRange.end)
+  } else {
+    dates = rawDates
+  }
 
   // Map harga_beli per rokok_id
   const hargaBeli = Object.fromEntries(rokokList.map((r) => [r.id, r.harga_beli || 0]))
@@ -213,12 +236,12 @@ function exportToExcel(rows, rokokList, dateRange, onNoData, filters = {}) {
   const totalByProduct = {}
   for (const p of products) {
     totalByProduct[p] = {
-      grosir: dates.reduce((s, d) => s + (dateMap[d].byProduct[p]?.grosir || 0), 0),
-      toko: dates.reduce((s, d) => s + (dateMap[d].byProduct[p]?.toko || 0), 0)
+      grosir: dates.reduce((s, d) => s + (dateMap[d]?.byProduct?.[p]?.grosir || 0), 0),
+      toko: dates.reduce((s, d) => s + (dateMap[d]?.byProduct?.[p]?.toko || 0), 0)
     }
   }
-  const totalPenjualan = dates.reduce((s, d) => s + dateMap[d].penjualan, 0)
-  const totalProfit    = dates.reduce((s, d) => s + dateMap[d].profit, 0)
+  const totalPenjualan = dates.reduce((s, d) => s + (dateMap[d]?.penjualan || 0), 0)
+  const totalProfit    = dates.reduce((s, d) => s + (dateMap[d]?.profit || 0), 0)
 
   const fmtD = (d) => { const [y, m, day] = d.split("-"); return `${day}/${m}/${y}` }
 
@@ -291,7 +314,7 @@ function exportToExcel(rows, rokokList, dateRange, onNoData, filters = {}) {
     ],
     // Baris data
     ...dates.map((date, i) => {
-      const d = dateMap[date]
+      const d = dateMap[date] || { byProduct: {}, penjualan: 0, profit: 0 }
       return [
         { v: i + 1,       t: "n", s: sData },
         { v: fmtD(date),          s: sData },
@@ -352,8 +375,8 @@ function exportToExcel(rows, rokokList, dateRange, onNoData, filters = {}) {
     autoW(["NO", ...dates.map((_, i) => i + 1)]),                                            // NO
     autoW(["TANGGAL", ...dates.map(fmtD)]),                                                   // TANGGAL
     ...productCols,                                                                           // per produk (grosir & toko)
-    autoW(["PENJUALAN (RP)", fmtExcelMoney(totalPenjualan), ...dates.map((d) => fmtExcelMoney(dateMap[d].penjualan))]),     // PENJUALAN
-    autoW(["PROFIT (RP)",    fmtExcelMoney(totalProfit),    ...dates.map((d) => fmtExcelMoney(dateMap[d].profit))]),        // PROFIT
+    autoW(["PENJUALAN (RP)", fmtExcelMoney(totalPenjualan), ...dates.map((d) => fmtExcelMoney(dateMap[d]?.penjualan || 0))]),     // PENJUALAN
+    autoW(["PROFIT (RP)",    fmtExcelMoney(totalProfit),    ...dates.map((d) => fmtExcelMoney(dateMap[d]?.profit || 0))]),        // PROFIT
   ]
 
   const wb = XLSX.utils.book_new()
