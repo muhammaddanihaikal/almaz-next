@@ -450,6 +450,12 @@ export default function KonsinyasiPage({ role, titipJualList, salesList, rokokLi
 
     // Apply filters to Aktif
     let filteredAktif = [...listAktif]
+    if (dateRange?.start && dateRange?.end) {
+      filteredAktif = filteredAktif.filter((r) => {
+        const tgl = r.tanggal_jatuh_tempo
+        return tgl >= dateRange.start && tgl <= dateRange.end
+      })
+    }
     if (statusAktifFilter) {
       if (statusAktifFilter === "terlewat") filteredAktif = filteredAktif.filter(r => r.selisihHari < 0)
       else if (statusAktifFilter === "hari_ini") filteredAktif = filteredAktif.filter(r => r.selisihHari === 0)
