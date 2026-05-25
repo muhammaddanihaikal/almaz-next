@@ -93,19 +93,14 @@ export async function getTitipJualList(daysBack = 30) {
  * Dipakai oleh client saat filter berubah ke rentang yang lebih lama.
  */
 export async function getTitipJualListByDateRange(start, end) {
-  const where = {
-    OR: [
-      { status: "aktif" },
-      {
-        status: "selesai",
-        ...(start || end ? {
-          tanggal_selesai: {
-            ...(start ? { gte: new Date(start) } : {}),
-            ...(end   ? { lte: new Date(end)   } : {}),
-          }
-        } : {})
-      },
-    ]
+  const where = {}
+  if (start || end) {
+    where.sesi = {
+      tanggal: {
+        ...(start ? { gte: new Date(start) } : {}),
+        ...(end   ? { lte: new Date(end)   } : {}),
+      }
+    }
   }
   return _queryTitipJualList(where)
 }

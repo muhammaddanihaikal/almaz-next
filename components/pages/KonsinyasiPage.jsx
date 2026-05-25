@@ -452,8 +452,8 @@ export default function KonsinyasiPage({ role, titipJualList, salesList, rokokLi
     let filteredAktif = [...listAktif]
     if (dateRange?.start && dateRange?.end) {
       filteredAktif = filteredAktif.filter((r) => {
-        const tgl = r.tanggal_jatuh_tempo
-        return tgl >= dateRange.start && tgl <= dateRange.end
+        const tgl = r.tanggal_distribusi
+        return tgl && tgl >= dateRange.start && tgl <= dateRange.end
       })
     }
     if (statusAktifFilter) {
@@ -467,8 +467,8 @@ export default function KonsinyasiPage({ role, titipJualList, salesList, rokokLi
     let filteredSelesai = [...listSelesai]
     if (dateRange?.start && dateRange?.end) {
       filteredSelesai = filteredSelesai.filter((r) => {
-        const tgl = r.tanggal_selesai || r.tanggal_jatuh_tempo
-        return tgl >= dateRange.start && tgl <= dateRange.end
+        const tgl = r.tanggal_distribusi
+        return tgl && tgl >= dateRange.start && tgl <= dateRange.end
       })
     }
 
@@ -638,7 +638,7 @@ export default function KonsinyasiPage({ role, titipJualList, salesList, rokokLi
 
       <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] space-y-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-4">
-          <Field label="Jatuh Tempo" className="flex-1">
+          <Field label="Tgl Distribusi" className="flex-1">
             <div className="w-full">
               <DateFilter value={dateRange} onChange={setDateRange} />
             </div>
