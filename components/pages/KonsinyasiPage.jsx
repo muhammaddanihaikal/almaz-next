@@ -52,7 +52,7 @@ function SkeletonText({ w = "w-24" }) {
   return <div className={`h-3.5 ${w} animate-pulse rounded bg-neutral-200`} />
 }
 
-function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}) {
+function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokList = []) {
   const XLSX = require("xlsx-js-style")
   if (!data || data.length === 0) {
     onNoData?.()
@@ -107,7 +107,16 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}) {
         if (it.rokok) productsSet.add(it.rokok)
       })
     })
-    const products = Array.from(productsSet).sort()
+    const products = Array.from(productsSet).sort((a, b) => {
+      if (rokokList && rokokList.length > 0) {
+        const idxA = rokokList.findIndex(r => r.nama.toLowerCase() === a.toLowerCase())
+        const idxB = rokokList.findIndex(r => r.nama.toLowerCase() === b.toLowerCase())
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB
+        if (idxA !== -1) return -1
+        if (idxB !== -1) return 1
+      }
+      return a.localeCompare(b)
+    })
 
     // Sort by sales then by tanggal_jatuh_tempo
     const sortedData = [...data].sort((a, b) => {
@@ -374,7 +383,7 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}) {
 }
 
 
-export default function KonsinyasiPage({ role, titipJualList, salesList }) {
+export default function KonsinyasiPage({ role, titipJualList, salesList, rokokList = [] }) {
   const router = useRouter()
   const [localList, setLocalList] = useState(titipJualList)
   const [activeTab,    setActiveTab]    = useState("aktif")
@@ -611,7 +620,7 @@ export default function KonsinyasiPage({ role, titipJualList, salesList }) {
               )
             }
             const sName = salesList.find((s) => s.id === salesFilter)?.nama || "Semua"
-            exportKonsinyasiToExcel(temp, dateRange, () => confirm("Tidak ada data untuk diekspor.", { title: "Export Excel", hideCancel: true }), { salesName: sName })
+            exportKonsinyasiToExcel(temp, dateRange, () => confirm("Tidak ada data untuk diekspor.", { title: "Export Excel", hideCancel: true }), { salesName: sName }, rokokList)
           }}
           className="flex items-center gap-2 h-8 px-3 text-sm font-semibold border border-neutral-200 bg-white hover:bg-neutral-50 shadow-sm"
         >
