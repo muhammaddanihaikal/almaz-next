@@ -43,8 +43,8 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
   const hasPerpanjang   = itemsPerpanjang.length > 0
   const hasAllPerpanjang = itemsPerpanjang.length === items.length
 
-  const updateItem = (idx, field, val) =>
-    setItems(items.map((it, i) => {
+  const updateItem = (idx, field, val) => {
+    const newItems = items.map((it, i) => {
       if (i !== idx) return it
       const updated = { ...it, [field]: val }
       if (field === "qty_terjual") {
@@ -56,7 +56,15 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
         updated.qty_kembali = ""
       }
       return updated
-    }))
+    })
+    setItems(newItems)
+
+    // Kalau switch action (bayar <=> perpanjang), reset setoran dan setoranAuto
+    if (field === "action") {
+      setSetoran([{ metode: "cash", jumlah: "" }])
+      setSetoranAuto(false)
+    }
+  }
 
   const nilaiTerjual = itemsBayar.reduce((s, it) => s + (Number(it.qty_terjual) || 0) * it.harga, 0)
   const totalSetoran = setoran.reduce((s, it) => s + (Number(it.jumlah) || 0), 0)
@@ -68,7 +76,6 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
   const setoranValid = nilaiTerjual === 0 || hasSetoran
 
   const canSubmit = !hasError &&
-    !hasAllPerpanjang &&
     !!tanggal &&
     setoranValid &&
     (!hasPerpanjang || !!perpanjangTanggal)
@@ -276,9 +283,9 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
         )}
 
         {hasAllPerpanjang && (
-          <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-700">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            Semua barang diperpanjang. Minimal satu barang harus dibayar untuk menyelesaikan titip jual.
+          <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 p-2.5 text-xs text-blue-700">
+            <AlertCircle className="h-4 w-4 shrink-0 text-blue-600" />
+            Semua barang diperpanjang. Transaksi ini akan diselesaikan dengan nominal Rp 0 dan sisa barang dipindahkan ke jatuh tempo baru.
           </div>
         )}
       </div>
@@ -404,7 +411,7 @@ export default function SettlementForm({ konsinyasi, initialSetoran, onSubmit, o
           disabled={!canSubmit}
           loading={loading}
           className={`px-8 shadow-md transition-all ${
-            !tanggal 
+            !canSubmit 
               ? "bg-neutral-300 cursor-not-allowed opacity-50" 
               : "bg-blue-600 hover:bg-blue-700"
           }`}

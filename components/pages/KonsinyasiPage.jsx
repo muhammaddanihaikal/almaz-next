@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { AlertCircle, Clock, Search, CheckCircle, ChevronDown, Download } from "lucide-react"
+import { AlertCircle, Clock, Search, CheckCircle, ChevronDown, Download, RotateCcw } from "lucide-react"
 import { fmtIDR, fmtTanggal, defaultDateRange } from "@/lib/utils"
 import { settleTitipJual, partialSettleTitipJual, editSettlement, revertSettlement, editTitipJualDetail, deleteTitipJual, getTitipJualListByDateRange } from "@/actions/titip_jual"
 import { Card, PageHeader, SelectInput, Field, FormActions, inputCls, useConfirm, useConfirmWithReason, DateFilter, Button, IconButton } from "@/components/ui"
@@ -741,9 +741,16 @@ export default function KonsinyasiPage({ role, titipJualList, salesList, rokokLi
             { key: "no",              label: "No",              render: (_, idx) => idx + 1 },
             { key: "tgl_distribusi",  label: "Tgl Distribusi",  render: (r) => r._pending ? <SkeletonText w="w-20" /> : r.tanggal_distribusi ? fmtTanggal(r.tanggal_distribusi) : <span className="text-neutral-300">—</span> },
             { key: "jatuh_tempo", label: "Jatuh Tempo", render: (r) => r._pending ? <SkeletonText w="w-20" /> : (
-              <span className={r.status === "aktif" && r.selisihHari <= 0 ? "text-red-600 font-semibold" : r.status === "aktif" && r.selisihHari <= 3 ? "text-amber-600 font-semibold" : ""}>
-                {fmtTanggal(r.tanggal_jatuh_tempo)}
-              </span>
+              <div className="flex flex-col gap-0.5">
+                <span className={r.status === "aktif" && r.selisihHari <= 0 ? "text-red-600 font-semibold" : r.status === "aktif" && r.selisihHari <= 3 ? "text-amber-600 font-semibold" : ""}>
+                  {fmtTanggal(r.tanggal_jatuh_tempo)}
+                </span>
+                {r.is_extended && r.tanggal_jatuh_tempo_awal && (
+                  <span className="text-[10px] text-neutral-400 line-through">
+                    {fmtTanggal(r.tanggal_jatuh_tempo_awal)}
+                  </span>
+                )}
+              </div>
             )},
             { key: "sales",      label: "Sales",        render: (r) => r._pending ? <SkeletonText w="w-16" /> : r.sales },
             { key: "nama_toko",  label: "Toko",         render: (r) => r._pending ? <SkeletonText w="w-16" /> : r.nama_toko },
@@ -756,15 +763,24 @@ export default function KonsinyasiPage({ role, titipJualList, salesList, rokokLi
             ...(activeTab === "selesai" ? [{ key: "tgl_selesai", label: "Tgl Selesai", render: (r) => r._pending ? <SkeletonText w="w-20" /> : r.tanggal_selesai ? <span className="text-green-700 font-medium">{fmtTanggal(r.tanggal_selesai)}</span> : <span className="text-neutral-300">—</span> }] : []),
             {
               key: "flag", label: "",
-              render: (r) => r._pending ? null : r.flagSetoran ? (
-                <span className="flex items-center gap-1 text-xs text-red-600 whitespace-nowrap">
-                  <AlertCircle className="h-3 w-3" /> Selisih setoran
-                </span>
-              ) : r.status === "selesai" ? (
-                <span className="flex items-center gap-1 text-xs text-green-600 whitespace-nowrap">
-                  <CheckCircle className="h-3 w-3" /> Lunas
-                </span>
-              ) : null,
+              render: (r) => r._pending ? null : (
+                <div className="flex flex-col items-start gap-1">
+                  {r.is_extended && (
+                    <span className="flex items-center gap-1 text-xs text-orange-500 whitespace-nowrap font-medium">
+                      <RotateCcw className="h-3 w-3" /> Diperpanjang
+                    </span>
+                  )}
+                  {r.flagSetoran ? (
+                    <span className="flex items-center gap-1 text-xs text-red-600 whitespace-nowrap">
+                      <AlertCircle className="h-3 w-3" /> Selisih setoran
+                    </span>
+                  ) : r.status === "selesai" ? (
+                    <span className="flex items-center gap-1 text-xs text-green-600 whitespace-nowrap">
+                      <CheckCircle className="h-3 w-3" /> Lunas
+                    </span>
+                  ) : null}
+                </div>
+              ),
             },
             {
               key: "actions", label: "", align: "right",

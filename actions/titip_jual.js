@@ -24,8 +24,12 @@ function serialize(k) {
   const flagSetoran   = k.status === "selesai" && totalSetoran !== nilaiTerjual
   const today         = getJakartaToday()
   const jatuhTempo    = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(k.tanggal_jatuh_tempo)
+  const jatuhTempoAwal = k.tanggal_jatuh_tempo_awal
+    ? new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(k.tanggal_jatuh_tempo_awal)
+    : null
   const selisihHari   = Math.ceil((new Date(jatuhTempo) - new Date(today)) / 86400000)
   const flagJatuhTempo = k.status === "aktif" && selisihHari <= 3
+  const isExtended     = jatuhTempoAwal !== null && jatuhTempoAwal !== jatuhTempo
 
   return {
     id:                  k.id,
@@ -37,6 +41,8 @@ function serialize(k) {
     kategori:            k.kategori,
     tanggal_distribusi:  k.sesi?.tanggal ? new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(k.sesi.tanggal) : null,
     tanggal_jatuh_tempo: jatuhTempo,
+    tanggal_jatuh_tempo_awal: jatuhTempoAwal,
+    is_extended:         isExtended,
     tanggal_selesai:     k.tanggal_selesai ? new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(k.tanggal_selesai) : null,
     status:              k.status,
     flag_selisih_setoran: k.flag_selisih_setoran,
@@ -95,12 +101,18 @@ export async function getTitipJualList(daysBack = 30) {
 export async function getTitipJualListByDateRange(start, end) {
   const where = {}
   if (start || end) {
-    where.sesi = {
-      tanggal: {
-        ...(start ? { gte: new Date(start) } : {}),
-        ...(end   ? { lte: new Date(end)   } : {}),
+    where.OR = [
+      { status: "aktif" },
+      {
+        status: "selesai",
+        sesi: {
+          tanggal: {
+            ...(start ? { gte: new Date(start) } : {}),
+            ...(end   ? { lte: new Date(end)   } : {}),
+          }
+        }
       }
-    }
+    ]
   }
   return _queryTitipJualList(where)
 }
@@ -304,7 +316,8 @@ export async function createTitipJual(sesiId, salesId, k) {
         sales_id:            salesId,
         toko_id:             k.toko_id,
         kategori:            k.kategori,
-        tanggal_jatuh_tempo: new Date(k.tanggal_jatuh_tempo),
+        tanggal_jatuh_tempo:      new Date(k.tanggal_jatuh_tempo),
+        tanggal_jatuh_tempo_awal: new Date(k.tanggal_jatuh_tempo),
         catatan:             k.catatan || null,
         is_historical:       sesi?.is_historical || false,
         items: {
@@ -555,7 +568,6 @@ export async function partialSettleTitipJual(id, data) {
   const itemsBayar      = data.items.filter((it) => it.action === "bayar")
   const itemsPerpanjang = data.items.filter((it) => it.action === "perpanjang")
 
-  if (itemsBayar.length === 0) throw new Error("Minimal satu item harus diselesaikan (bayar).")
   if (itemsPerpanjang.length > 0 && !data.perpanjang_tanggal) throw new Error("Tanggal perpanjang wajib diisi.")
 
   const rolloverResult = await prisma.$transaction(async (tx) => {
@@ -630,6 +642,7 @@ export async function partialSettleTitipJual(id, data) {
           toko_id:             old.toko_id,
           kategori:            old.kategori,
           tanggal_jatuh_tempo: new Date(data.perpanjang_tanggal),
+          tanggal_jatuh_tempo_awal: old.tanggal_jatuh_tempo,
           catatan:             `[Rollover dari ${id}]${old.catatan ? ' ' + old.catatan : ''}`,
           is_historical:       old.is_historical,
           items: {

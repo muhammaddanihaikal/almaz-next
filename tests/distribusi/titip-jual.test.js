@@ -414,19 +414,25 @@ describe("partialSettleTitipJual", () => {
     expect(stokSesudah).toBe(stokSaatAktif)
   })
 
-  it("gagal jika semua item perpanjang", async () => {
+  it("berhasil jika semua item perpanjang", async () => {
     const sesi = await buatSesi()
     const titipJual = await buatTitipJual(sesi.id, { items: [{ rokok_id: testRokok.id, qty: 5 }] })
     const item = titipJual.items[0]
 
-    await expect(
-      partialSettleTitipJual(titipJual.id, {
-        tanggal:            TEST_DATE,
-        perpanjang_tanggal: "2099-12-10",
-        items:   [{ id: item.id, rokok_id: testRokok.id, action: "perpanjang", qty_terjual: 0, qty_kembali: 0 }],
-        setoran: [],
-      })
-    ).rejects.toThrow(/minimal satu item/i)
+    const rollover = await partialSettleTitipJual(titipJual.id, {
+      tanggal:            TEST_DATE,
+      perpanjang_tanggal: "2099-12-10",
+      items:   [{ id: item.id, rokok_id: testRokok.id, action: "perpanjang", qty_terjual: 0, qty_kembali: 0 }],
+      setoran: [],
+    })
+
+    expect(rollover).not.toBeNull()
+    expect(rollover.status).toBe("aktif")
+    expect(rollover.tanggal_jatuh_tempo).toBe("2099-12-10")
+    expect(rollover.items[0].qty_keluar).toBe(5)
+
+    const original = await prisma.titipJual.findUnique({ where: { id: titipJual.id } })
+    expect(original.status).toBe("selesai")
   })
 
   it("gagal jika perpanjang_tanggal kosong padahal ada item perpanjang", async () => {

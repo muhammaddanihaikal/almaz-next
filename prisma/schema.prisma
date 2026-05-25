@@ -211,19 +211,20 @@ model SampleCukaiKonversi {
 // ─── TITIP JUAL ───────────────────────────────────────────────────────────────
 
 model TitipJual {
-  id                   String    @id @default(cuid())
-  sesi_id              String
-  sales_id             String
-  toko_id              String
-  kategori             String // "grosir" | "toko"
-  tanggal_jatuh_tempo  DateTime  @db.Date
-  tanggal_selesai      DateTime? @db.Date
-  status               String    @default("aktif") // "aktif" | "selesai"
-  flag_selisih_setoran Boolean   @default(false)
-  is_historical        Boolean   @default(false)
-  catatan              String?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  id                      String    @id @default(cuid())
+  sesi_id                 String
+  sales_id                String
+  toko_id                 String
+  kategori                String // "grosir" | "toko"
+  tanggal_jatuh_tempo     DateTime  @db.Date
+  tanggal_jatuh_tempo_awal DateTime? @db.Date
+  tanggal_selesai         DateTime? @db.Date
+  status                  String    @default("aktif") // "aktif" | "selesai"
+  flag_selisih_setoran    Boolean   @default(false)
+  is_historical           Boolean   @default(false)
+  catatan                 String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
   sesi    SesiHarian         @relation(fields: [sesi_id], references: [id])
   sales   Sales              @relation(fields: [sales_id], references: [id])
