@@ -2156,6 +2156,18 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
   const flagSetoran  = nilaiPenjualan > 0 && totalSetoran !== nilaiPenjualan
   const setoranEmpty = nilaiPenjualan > 0 && totalSetoran === 0
 
+  // Auto-update setoran ketika nilai penjualan berubah jika setoranAuto diaktifkan
+  useEffect(() => {
+    if (setoranAuto) {
+      if (nilaiPenjualan > 0) {
+        setSetoran((prev) => [{ metode: prev[0]?.metode || "cash", jumlah: String(nilaiPenjualan) }])
+      } else {
+        setSetoran([{ metode: "cash", jumlah: "" }])
+        setSetoranAuto(false)
+      }
+    }
+  }, [nilaiPenjualan, setoranAuto])
+
   const [submitError, setSubmitError] = useState("")
   const preventFormSubmit = (e) => {
     e.preventDefault()
@@ -2764,12 +2776,7 @@ function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangL
                   <input
                     type="checkbox"
                     checked={setoranAuto}
-                    onChange={(e) => {
-                      setSetoranAuto(e.target.checked)
-                      if (e.target.checked && nilaiPenjualan > 0) {
-                        setSetoran([{ metode: setoran[0]?.metode || "cash", jumlah: String(nilaiPenjualan) }])
-                      }
-                    }}
+                    onChange={(e) => setSetoranAuto(e.target.checked)}
                     disabled={nilaiPenjualan === 0}
                     className="h-3.5 w-3.5 rounded border-neutral-300 text-blue-600 focus:ring-blue-500"
                   />
