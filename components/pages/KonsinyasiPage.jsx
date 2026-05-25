@@ -158,7 +158,7 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}) {
     const totalColsSheet3 = 12 + products.length
 
     const wsData = [
-      [{ v: "LAPORAN RINCIAN PER SALES", t: "s", s: titleLeftStyle }, ...Array(3).fill({ v: "", s: titleLeftStyle })],
+      [{ v: "LAPORAN TITIP JUAL RINCIAN PERSALES", t: "s", s: titleLeftStyle }, ...Array(3).fill({ v: "", s: titleLeftStyle })],
       [{ v: `Sales: ${filters.salesName || "Semua"} | Waktu: ${dateText}`, t: "s", s: subTitleStyle }, ...Array(3).fill({ v: "", s: subTitleStyle })],
       [],
       header1,
