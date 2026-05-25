@@ -60,7 +60,10 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}) {
   }
 
   const fmtD = (d) => { if (!d) return "-"; const [y, m, day] = d.split("-"); return `${day}/${m}/${y}` }
-  const fmtRp = (val) => val ? new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(val).replace(/\s/, "") : "-"
+  const fmtRp = (val) => {
+    if (val === null || val === undefined) return "-"
+    return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(val).replace(/\s/, "")
+  }
 
   const wb = XLSX.utils.book_new()
   const start = dateRange?.start ? fmtD(dateRange.start) : ""
