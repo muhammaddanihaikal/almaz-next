@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, Fragment } from "react"
+import { useEffect, useMemo, useState, Fragment, useRef } from "react"
 import { Plus, Trash2, AlertCircle, ChevronDown, ChevronUp, Download, X, History, Info } from "lucide-react"
 import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc, getJakartaToday } from "@/lib/utils"
 import { createSesi, updateSesiPagi, submitLaporanSore, editLaporanSore, deleteSesi, getSesiListByDateRange, getSesiListLightweight, getSesi } from "@/actions/distribusi"
@@ -588,7 +588,7 @@ export default function DistribusiPage({ role, rokokList, salesList, tokoList, s
   const [statusFilter, setStatusFilter] = useState("")
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [localSesiList, setLocalSesiList] = useState(initialSesiList)
-  const isFirstMount = React.useRef(true)
+  const isFirstMount = useRef(true)
   const [localRokokList, setLocalRokokList] = useState(rokokList)
   const [pendingIds, setPendingIds] = useState(new Set())
   const [isFetchingRange, setIsFetchingRange] = useState(false)
