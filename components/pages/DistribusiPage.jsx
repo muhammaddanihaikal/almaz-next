@@ -573,11 +573,11 @@ function exportToExcelBySales(rows, rokokList, dateRange, onNoData, filters = {}
   const filename = `laporan_motoris_${startFmt}_to_${endFmt}${suffix}.xlsx`
   XLSX.writeFile(wb, filename)
 }
-export default function DistribusiPage({ role, rokokList, salesList, tokoList, stockCutoffSetting }) {
+export default function DistribusiPage({ role, rokokList, salesList, tokoList, stockCutoffSetting, initialSesiList = [] }) {
   const stockCutoffDate = stockCutoffSetting?.value
   const { confirm, ConfirmModal } = useConfirm()
   const { confirmWithReason, ConfirmWithReasonModal } = useConfirmWithReason()
-
+  const router = useRouter()
   const [mode,      setMode]      = useState(null)
   const [editing,   setEditing]   = useState(null)
   const [detail,    setDetail]    = useState(null)
@@ -588,21 +588,24 @@ export default function DistribusiPage({ role, rokokList, salesList, tokoList, s
   const [rokokFilter, setRokokFilter] = useState([])
   const [statusFilter, setStatusFilter] = useState("")
   const [showExportMenu, setShowExportMenu] = useState(false)
-  // Dimulai kosong — diisi oleh useEffect saat dateRange mount pertama kali
-  const [localSesiList, setLocalSesiList] = useState([])
+  const [localSesiList, setLocalSesiList] = useState(initialSesiList)
+  const isFirstMount = React.useRef(true)
   const [localRokokList, setLocalRokokList] = useState(rokokList)
   const [pendingIds, setPendingIds] = useState(new Set())
   const [isFetchingRange, setIsFetchingRange] = useState(false)
-  // tukarBarang aktif per-sales, di-fetch lazy saat form laporan sore dibuka
   const [tukarBarangAktif, setTukarBarangAktif] = useState([])
 
   useEffect(() => {
     setLocalRokokList(rokokList)
   }, [rokokList])
 
-  // Setiap kali filter tanggal berubah (termasuk mount pertama), fetch sesi dari server.
-  // Data sesi tidak lagi di-load di server — halaman render dulu, data nyusul di sini.
+  // Setiap kali filter tanggal berubah, fetch sesi dari server.
+  // Data awal sudah diload dari server di page.js.
   useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false
+      return // skip fetch on first mount because we already have initialSesiList
+    }
     if (!dateRange?.start || !dateRange?.end) return
     setIsFetchingRange(true)
     getSesiListLightweight(dateRange.start, dateRange.end)

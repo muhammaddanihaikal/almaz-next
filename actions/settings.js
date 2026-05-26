@@ -13,11 +13,20 @@ async function checkSuperAdmin() {
   return session.user
 }
 
+import { unstable_cache, revalidateTag } from "next/cache"
+
+const _getAppSettingCached = unstable_cache(
+  async (key) => {
+    return await prisma.appSetting.findUnique({
+      where: { key }
+    })
+  },
+  ["app-setting"],
+  { tags: ["app-setting"] }
+)
+
 export async function getAppSetting(key) {
-  const setting = await prisma.appSetting.findUnique({
-    where: { key }
-  })
-  return setting
+  return _getAppSettingCached(key)
 }
 
 export async function setSetting(key, value) {
@@ -134,6 +143,7 @@ export async function setSetting(key, value) {
     }
   })
 
+  revalidateTag("app-setting")
   revalidatePath("/pengaturan")
   return { success: true }
 }
