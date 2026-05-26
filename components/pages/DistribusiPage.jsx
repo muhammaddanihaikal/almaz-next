@@ -702,18 +702,22 @@ export default function DistribusiPage({ role, rokokList, salesList, tokoList, s
       confirmLabel: "Ya, Hapus"
     })
     if (!alasan) return
-    syncLocalStockFromSessionChange(r, null)
+
     upsertLocalSesi({ ...r, _pending: true, _deleting: true })
-    deleteSesi(r.id, alasan)
-      .then((result) => {
-        if (result && result.success === false) throw new Error(result.error || "Gagal menghapus sesi.")
-        removeLocalSesi(r.id)
-      })
-      .catch(async (error) => {
-        syncLocalStockFromSessionChange(null, r)
-        upsertLocalSesi({ ...r, _pending: false, _deleting: false })
-        await confirm(error?.message || "Gagal menghapus sesi.", { title: "Gagal Hapus Sesi", hideCancel: true })
-      })
+    let fullSesi = null
+    try {
+      fullSesi = await getSesi(r.id)
+      syncLocalStockFromSessionChange(fullSesi, null)
+      
+      const result = await deleteSesi(fullSesi.id, alasan)
+      if (result && result.success === false) throw new Error(result.error || "Gagal menghapus sesi.")
+      
+      removeLocalSesi(fullSesi.id)
+    } catch (error) {
+      if (fullSesi) syncLocalStockFromSessionChange(null, fullSesi)
+      upsertLocalSesi({ ...r, _pending: false, _deleting: false })
+      await confirm(error?.message || "Gagal menghapus sesi.", { title: "Gagal Hapus Sesi", hideCancel: true })
+    }
   }
 
   return (

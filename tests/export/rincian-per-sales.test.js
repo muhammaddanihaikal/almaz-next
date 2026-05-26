@@ -117,14 +117,11 @@ describe("buildRincianPerSalesData", () => {
     expect(dataMap["r3"]["MAS BOBI"].tukarUang).toBe(36000)
   })
 
-  it("tukar barang uang = selisih (keluar - masuk), beda produk = offset bersama", () => {
+  it("tukar barang beda produk dihitung per produk (keluar positif, masuk negatif)", () => {
     const rows = [
       makeSesi("MAS BOBI", {
         tukarBarangSelesaiDiSesi: [
           {
-            // r2 masuk (dari customer) 5×10000 = 50000
-            // r1 keluar (pengganti)    3×11000 = 33000
-            // selisih = 33000 - 50000 = -17000 (sales kasih kembalian)
             itemsMasuk:  [{ rokok_id: "r2", qty: 5, harga_satuan: 10000 }],
             itemsKeluar: [{ rokok_id: "r1", qty: 3, harga_satuan: 11000 }],
           },
@@ -132,31 +129,35 @@ describe("buildRincianPerSalesData", () => {
       }),
     ]
     const { dataMap } = buildRincianPerSalesData(rows, rokokList)
+    
+    // r1 keluar (pengganti)
     expect(dataMap["r1"]["MAS BOBI"].tukarQty).toBe(3)
-    // selisih negatif: sales kasih kembalian ke toko
-    expect(dataMap["r1"]["MAS BOBI"].tukarUang).toBe(-17000)
-    expect(dataMap["r2"]).toBeUndefined()  // itemsMasuk beda produk → net qty negatif → tidak di-include
+    expect(dataMap["r1"]["MAS BOBI"].tukarUang).toBe(33000)
+    
+    // r2 masuk (dari customer) -> dihitung sebagai retur negatif
+    expect(dataMap["r2"]["MAS BOBI"].tukarQty).toBe(-5)
+    expect(dataMap["r2"]["MAS BOBI"].tukarUang).toBe(-50000)
   })
 
-  it("tukar barang setara nilai → tukarUang = 0", () => {
+  it("tukar barang setara nilai (produk sama) -> dihitung terpisah per keluar/masuk", () => {
     const rows = [
       makeSesi("PAK TROY", {
         tukarBarangSelesaiDiSesi: [
           {
-            // Tukar setara: keluar SCHIOSMAS x20 @ 9700 = 194000, masuk AL KRETEK x20 @ 9700 = 194000
-            // selisih = 0 → TB uang = 0 meski ada 20 unit yang bergerak
-            itemsMasuk:  [{ rokok_id: "r2", qty: 20, harga_satuan: 9700 }],
+            itemsMasuk:  [{ rokok_id: "r1", qty: 20, harga_satuan: 9700 }],
             itemsKeluar: [{ rokok_id: "r1", qty: 20, harga_satuan: 9700 }],
           },
         ],
       }),
     ]
     const { dataMap } = buildRincianPerSalesData(rows, rokokList)
-    // r1 keluar net=20, tapi selisih=0 → TB uang = 0
-    expect(dataMap["r1"]["PAK TROY"].tukarQty).toBe(20)
+    
+    // Karena r1 keluar 20 dan masuk 20 pada rokok_id yang SAMA, logic lama vs baru per-produk:
+    // addData(r1, tukarQty: 20, tukarUang: 194000)
+    // addData(r1, tukarQty: -20, tukarUang: -194000)
+    // Hasilnya net menjadi 0.
+    expect(dataMap["r1"]["PAK TROY"].tukarQty).toBe(0)
     expect(dataMap["r1"]["PAK TROY"].tukarUang).toBe(0)
-    // r2 hanya masuk (net negatif) → tidak di-include
-    expect(dataMap["r2"]?.["PAK TROY"]).toBeUndefined()
   })
 
   // ── 5. Kombinasi semua sumber ─────────────────────────────────────────────
