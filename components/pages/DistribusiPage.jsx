@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, Fragment } from "react"
 import { Plus, Trash2, AlertCircle, ChevronDown, ChevronUp, Download, X, History, Info } from "lucide-react"
 import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc, getJakartaToday } from "@/lib/utils"
-import { createSesi, updateSesiPagi, submitLaporanSore, editLaporanSore, deleteSesi, getSesiListByDateRange } from "@/actions/distribusi"
+import { createSesi, updateSesiPagi, submitLaporanSore, editLaporanSore, deleteSesi, getSesiListByDateRange, getSesiListLightweight, getSesi } from "@/actions/distribusi"
 import { getTukarBarangAktifBySalesId } from "@/actions/tukar-barang"
 import { settleTitipJual, createTitipJual, editSettlement, revertSettlement, editTitipJualDetail, deleteTitipJual } from "@/actions/titip_jual"
 import { addToko } from "@/actions/toko"
@@ -605,7 +605,7 @@ export default function DistribusiPage({ role, rokokList, salesList, tokoList, s
   useEffect(() => {
     if (!dateRange?.start || !dateRange?.end) return
     setIsFetchingRange(true)
-    getSesiListByDateRange(dateRange.start, dateRange.end)
+    getSesiListLightweight(dateRange.start, dateRange.end)
       .then((fresh) => {
         // Gabungkan dengan localSesiList yang sudah ada:
         // – Pertahankan semua sesi di luar range (agar operasi CRUD di range lain tidak hilang)
@@ -752,9 +752,35 @@ export default function DistribusiPage({ role, rokokList, salesList, tokoList, s
                     <Button
                       variant="ghost"
                       className="w-full justify-start gap-3 h-auto py-3 px-3"
-                      onClick={() => {
+                      onClick={async () => {
                         setShowExportMenu(false)
-                        exportToExcel(rows, rokokList, dateRange, () => confirm("Tidak ada data untuk diekspor.", { title: "Export Excel", hideCancel: true }), { salesFilter, rokokFilter, statusFilter, salesList, rokokList })
+                        try {
+                          const fullSesiList = await getSesiListByDateRange(dateRange.start, dateRange.end)
+                          let temp = fullSesiList
+                          if (salesFilter.length > 0) {
+                            const selectedSales = new Set(salesFilter.map(String))
+                            temp = temp.filter(s => selectedSales.has(String(s.sales_id)))
+                          }
+                          if (rokokFilter.length > 0) {
+                            const selectedRokok = rokokFilter.filter(v => v !== "" && v !== null && v !== undefined).map(String)
+                            if (selectedRokok.length > 0) {
+                              temp = temp.filter(s => {
+                                const ids = new Set()
+                                const add = (items = []) => items.forEach((it) => it?.rokok_id && ids.add(String(it.rokok_id)))
+                                add(s.barangKeluar)
+                                add(s.penjualan)
+                                return selectedRokok.every(id => ids.has(id))
+                              })
+                            }
+                          }
+                          if (statusFilter === "aktif") temp = temp.filter((s) => s.status === "aktif")
+                          if (statusFilter === "selesai") temp = temp.filter((s) => s.status === "selesai")
+                          if (statusFilter === "titip_jual_aktif") temp = temp.filter((s) => s.konsinyasi?.some((k) => k.status === "aktif"))
+                          
+                          exportToExcel(temp, rokokList, dateRange, () => confirm("Tidak ada data untuk diekspor.", { title: "Export Excel", hideCancel: true }), { salesFilter, rokokFilter, statusFilter, salesList, rokokList })
+                        } catch (err) {
+                          await confirm("Gagal mengambil data lengkap untuk export.", { title: "Gagal Export", hideCancel: true })
+                        }
                       }}
                     >
                       <Download className="h-4 w-4 shrink-0 text-blue-600" />
@@ -766,9 +792,35 @@ export default function DistribusiPage({ role, rokokList, salesList, tokoList, s
                     <Button
                       variant="ghost"
                       className="w-full justify-start gap-3 h-auto py-3 px-3 mt-0.5"
-                      onClick={() => {
+                      onClick={async () => {
                         setShowExportMenu(false)
-                        exportToExcelBySales(rows, rokokList, dateRange, () => confirm("Tidak ada data untuk diekspor.", { title: "Export Excel", hideCancel: true }), { salesFilter, rokokFilter, statusFilter, salesList, rokokList })
+                        try {
+                          const fullSesiList = await getSesiListByDateRange(dateRange.start, dateRange.end)
+                          let temp = fullSesiList
+                          if (salesFilter.length > 0) {
+                            const selectedSales = new Set(salesFilter.map(String))
+                            temp = temp.filter(s => selectedSales.has(String(s.sales_id)))
+                          }
+                          if (rokokFilter.length > 0) {
+                            const selectedRokok = rokokFilter.filter(v => v !== "" && v !== null && v !== undefined).map(String)
+                            if (selectedRokok.length > 0) {
+                              temp = temp.filter(s => {
+                                const ids = new Set()
+                                const add = (items = []) => items.forEach((it) => it?.rokok_id && ids.add(String(it.rokok_id)))
+                                add(s.barangKeluar)
+                                add(s.penjualan)
+                                return selectedRokok.every(id => ids.has(id))
+                              })
+                            }
+                          }
+                          if (statusFilter === "aktif") temp = temp.filter((s) => s.status === "aktif")
+                          if (statusFilter === "selesai") temp = temp.filter((s) => s.status === "selesai")
+                          if (statusFilter === "titip_jual_aktif") temp = temp.filter((s) => s.konsinyasi?.some((k) => k.status === "aktif"))
+                          
+                          exportToExcelBySales(temp, rokokList, dateRange, () => confirm("Tidak ada data untuk diekspor.", { title: "Export Excel", hideCancel: true }), { salesFilter, rokokFilter, statusFilter, salesList, rokokList })
+                        } catch (err) {
+                          await confirm("Gagal mengambil data lengkap untuk export.", { title: "Gagal Export", hideCancel: true })
+                        }
                       }}
                     >
                       <Download className="h-4 w-4 shrink-0 text-green-600" />
@@ -908,9 +960,17 @@ export default function DistribusiPage({ role, rokokList, salesList, tokoList, s
                         size="sm"
                         variant="secondary"
                         onClick={async () => {
-                          const list = await getTukarBarangAktifBySalesId(r.sales_id)
-                          setTukarBarangAktif(list)
-                          setLaporanSesi(r)
+                          upsertLocalSesi({ ...r, _pending: true })
+                          try {
+                            const [list, fullSesi] = await Promise.all([
+                              getTukarBarangAktifBySalesId(r.sales_id),
+                              getSesi(r.id)
+                            ])
+                            setTukarBarangAktif(list)
+                            setLaporanSesi(fullSesi)
+                          } finally {
+                            upsertLocalSesi({ ...r, _pending: false })
+                          }
                         }}
                       >
                         Input Laporan
@@ -922,17 +982,41 @@ export default function DistribusiPage({ role, rokokList, salesList, tokoList, s
                         variant="ghost"
                         className="border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
                         onClick={async () => {
-                          const list = await getTukarBarangAktifBySalesId(r.sales_id)
-                          setTukarBarangAktif(list)
-                          setEditLaporan(r)
+                          upsertLocalSesi({ ...r, _pending: true })
+                          try {
+                            const [list, fullSesi] = await Promise.all([
+                              getTukarBarangAktifBySalesId(r.sales_id),
+                              getSesi(r.id)
+                            ])
+                            setTukarBarangAktif(list)
+                            setEditLaporan(fullSesi)
+                          } finally {
+                            upsertLocalSesi({ ...r, _pending: false })
+                          }
                         }}
                       >
                         Edit Laporan
                       </Button>
                     )}
                     <RowActions
-                      onDetail={() => setDetail(r)}
-                      onEdit={role !== "staff" && r.status === "aktif" ? () => { setEditing(r); setMode("edit") } : null}
+                      onDetail={async () => {
+                        upsertLocalSesi({ ...r, _pending: true })
+                        try {
+                          const fullSesi = await getSesi(r.id)
+                          setDetail(fullSesi)
+                        } finally {
+                          upsertLocalSesi({ ...r, _pending: false })
+                        }
+                      }}
+                      onEdit={role !== "staff" && r.status === "aktif" ? async () => { 
+                        upsertLocalSesi({ ...r, _pending: true })
+                        try {
+                          const fullSesi = await getSesi(r.id)
+                          setEditing(fullSesi); setMode("edit") 
+                        } finally {
+                          upsertLocalSesi({ ...r, _pending: false })
+                        }
+                      } : null}
                       onDelete={role !== "staff" ? () => { handleDelete(r) } : null}
                     />
                   </div>

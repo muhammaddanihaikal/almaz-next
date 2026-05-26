@@ -232,6 +232,44 @@ export async function getSesiListByDateRange(start, end) {
   return _querySesiList(where)
 }
 
+/**
+ * Lightweight version of getSesiListByDateRange for fast table rendering.
+ * Only fetches fields strictly required by the initial table view and filters.
+ */
+export async function getSesiListLightweight(start, end) {
+  const where = {}
+  if (start) where.tanggal = { ...(where.tanggal || {}), gte: new Date(start) }
+  if (end)   where.tanggal = { ...(where.tanggal || {}), lte: new Date(end) }
+
+  const rows = await prisma.sesiHarian.findMany({
+    where,
+    include: {
+      sales: { select: { nama: true } },
+      barangKeluar: { select: { qty: true, rokok_id: true, rokok: { select: { nama: true } } } },
+      penjualan: { select: { rokok_id: true } }, // needed for rokokFilter
+      titipJual: { select: { status: true } }, // needed for hasAktifKonsinyasi badge
+    },
+    orderBy: [{ tanggal: "desc" }, { createdAt: "desc" }],
+  })
+
+  return rows.map((r) => ({
+    id: r.id,
+    tanggal: r.tanggal.toISOString().split("T")[0],
+    sales_id: r.sales_id,
+    sales: r.sales?.nama || "???",
+    status: r.status,
+    is_historical: r.is_historical,
+    createdAt: r.createdAt.toISOString(),
+    barangKeluar: r.barangKeluar.map((bk) => ({
+      rokok_id: bk.rokok_id,
+      rokok: bk.rokok?.nama || "???",
+      qty: bk.qty,
+    })),
+    penjualan: r.penjualan.map((p) => ({ rokok_id: p.rokok_id })),
+    konsinyasi: r.titipJual.map((tj) => ({ status: tj.status })),
+  }))
+}
+
 async function _querySesiList(where) {
   const rows = await prisma.sesiHarian.findMany({
     where,
