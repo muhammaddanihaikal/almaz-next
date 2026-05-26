@@ -10,11 +10,11 @@ import { nowJakarta, getJakartaToday } from "@/lib/utils"
 const TX_OPTIONS = { maxWait: 10000, timeout: 30000 }
 
 const include = {
-  sales:   true,
-  toko:    true,
+  sales:   { select: { nama: true } },
+  toko:    { select: { nama: true } },
   sesi:    { select: { tanggal: true } },
-  items:   { include: { rokok: true } },
-  setoran: true,
+  items:   { include: { rokok: { select: { nama: true, urutan: true } } } },
+  setoran: { select: { id: true, metode: true, jumlah: true, tanggal: true } },
 }
 
 function serialize(k) {

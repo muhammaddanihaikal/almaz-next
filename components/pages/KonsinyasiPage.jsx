@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { AlertCircle, Clock, Search, CheckCircle, ChevronDown, Download, RotateCcw } from "lucide-react"
 import { fmtIDR, fmtTanggal, defaultDateRange } from "@/lib/utils"
@@ -403,11 +403,17 @@ export default function KonsinyasiPage({ role, titipJualList, salesList, rokokLi
   const [detail,            setDetail]            = useState(null)
   const [isFetchingRange,   setIsFetchingRange]   = useState(false)
 
+  const isFirstMount = useRef(true)
+
   useEffect(() => { setLocalList(titipJualList) }, [titipJualList])
 
   // Fetch ulang dari server ketika filter tanggal berubah,
   // agar data historical (selesai > 30 hari lalu) ikut masuk.
   useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false
+      return
+    }
     if (!dateRange?.start || !dateRange?.end) return
     setIsFetchingRange(true)
     getTitipJualListByDateRange(dateRange.start, dateRange.end)
