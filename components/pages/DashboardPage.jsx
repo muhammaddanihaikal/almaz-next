@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, useRef } from "react"
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -817,12 +817,18 @@ export default function DashboardPage({ sesiList, titipJualList, rokokList }) {
   const [localTitipJualList, setLocalTitipJualList] = useState(titipJualList || [])
   const [isFetchingRange,   setIsFetchingRange]   = useState(false)
 
+  const isFirstMount = useRef(true)
+
   // Sync jika server push data baru (revalidate)
   useEffect(() => { setLocalSesiList(sesiList || []) }, [sesiList])
   useEffect(() => { setLocalTitipJualList(titipJualList || []) }, [titipJualList])
 
   // Fetch ulang data ketika filter tanggal berubah
   useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false
+      return
+    }
     if (!dateRange?.start || !dateRange?.end) return
     setIsFetchingRange(true)
     
