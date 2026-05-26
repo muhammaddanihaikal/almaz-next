@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, Fragment } from "react"
 import { Plus, Trash2, AlertCircle, ChevronDown, ChevronUp, Download, X, History, Info } from "lucide-react"
 import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc, getJakartaToday } from "@/lib/utils"
 import { createSesi, updateSesiPagi, submitLaporanSore, editLaporanSore, deleteSesi, getSesiListByDateRange } from "@/actions/distribusi"
+import { getTukarBarangAktifBySalesId } from "@/actions/tukar-barang"
 import { settleTitipJual, createTitipJual, editSettlement, revertSettlement, editTitipJualDetail, deleteTitipJual } from "@/actions/titip_jual"
 import { addToko } from "@/actions/toko"
 import SettlementForm from "@/components/SettlementForm"
@@ -572,7 +573,7 @@ function exportToExcelBySales(rows, rokokList, dateRange, onNoData, filters = {}
   const filename = `laporan_motoris_${startFmt}_to_${endFmt}${suffix}.xlsx`
   XLSX.writeFile(wb, filename)
 }
-export default function DistribusiPage({ role, sesiList, rokokList, salesList, tokoList, tukarBarangList = [], stockCutoffSetting }) {
+export default function DistribusiPage({ role, rokokList, salesList, tokoList, stockCutoffSetting }) {
   const stockCutoffDate = stockCutoffSetting?.value
   const { confirm, ConfirmModal } = useConfirm()
   const { confirmWithReason, ConfirmWithReasonModal } = useConfirmWithReason()
@@ -587,21 +588,20 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
   const [rokokFilter, setRokokFilter] = useState([])
   const [statusFilter, setStatusFilter] = useState("")
   const [showExportMenu, setShowExportMenu] = useState(false)
-  const [localSesiList, setLocalSesiList] = useState(sesiList)
+  // Dimulai kosong — diisi oleh useEffect saat dateRange mount pertama kali
+  const [localSesiList, setLocalSesiList] = useState([])
   const [localRokokList, setLocalRokokList] = useState(rokokList)
   const [pendingIds, setPendingIds] = useState(new Set())
   const [isFetchingRange, setIsFetchingRange] = useState(false)
-
-  useEffect(() => {
-    setLocalSesiList(sesiList)
-  }, [sesiList])
+  // tukarBarang aktif per-sales, di-fetch lazy saat form laporan sore dibuka
+  const [tukarBarangAktif, setTukarBarangAktif] = useState([])
 
   useEffect(() => {
     setLocalRokokList(rokokList)
   }, [rokokList])
 
-  // Jika filter tanggal berubah, fetch ulang dari server agar data historical ikut masuk.
-  // Server hanya pre-load 30 hari terakhir; sesi lama harus di-fetch on demand.
+  // Setiap kali filter tanggal berubah (termasuk mount pertama), fetch sesi dari server.
+  // Data sesi tidak lagi di-load di server — halaman render dulu, data nyusul di sini.
   useEffect(() => {
     if (!dateRange?.start || !dateRange?.end) return
     setIsFetchingRange(true)
@@ -864,7 +864,7 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
               render: (r) => {
                 if (r._pending) return <SkeletonBadge />
                 const hasAktifKonsinyasi = r.konsinyasi?.some((k) => k.status === "aktif")
-                const tukarAktifSales = tukarBarangList.filter((t) => t.status === "aktif" && t.sales_id === r.sales_id).length
+                const tukarAktifSales = tukarBarangAktif.filter((t) => t.sales_id === r.sales_id).length
                 return (
                   <div className="flex flex-col gap-1 items-start">
                     <div className="flex items-center gap-1.5 flex-wrap">
@@ -907,7 +907,11 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
                       <Button
                         size="sm"
                         variant="secondary"
-                        onClick={() => setLaporanSesi(r)}
+                        onClick={async () => {
+                          const list = await getTukarBarangAktifBySalesId(r.sales_id)
+                          setTukarBarangAktif(list)
+                          setLaporanSesi(r)
+                        }}
                       >
                         Input Laporan
                       </Button>
@@ -917,7 +921,11 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
                         size="sm"
                         variant="ghost"
                         className="border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
-                        onClick={() => setEditLaporan(r)}
+                        onClick={async () => {
+                          const list = await getTukarBarangAktifBySalesId(r.sales_id)
+                          setTukarBarangAktif(list)
+                          setEditLaporan(r)
+                        }}
                       >
                         Edit Laporan
                       </Button>
@@ -1029,7 +1037,7 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
             sesi={laporanSesi}
             rokokList={localRokokList}
             tokoList={tokoList}
-            tukarBarangList={tukarBarangList}
+            tukarBarangAktif={tukarBarangAktif}
             onSessionChange={upsertLocalSesi}
             onSubmit={(data) => {
               const captured = laporanSesi
@@ -1057,7 +1065,7 @@ export default function DistribusiPage({ role, sesiList, rokokList, salesList, t
             sesi={editLaporan}
             rokokList={localRokokList}
             tokoList={tokoList}
-            tukarBarangList={tukarBarangList}
+            tukarBarangAktif={tukarBarangAktif}
             isEdit
             onSessionChange={upsertLocalSesi}
             onSubmit={async (data, alasan) => {
@@ -2039,18 +2047,15 @@ function SesiPagiForm({ initial, rokokList, salesList, sesiList, stockCutoffDate
 
 // ─── Form Laporan Sore ────────────────────────────────────────────────────────
 
-function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangList = [], isEdit = false, onSessionChange, onSubmit, onCancel }) {
+function LaporanSoreForm({ sesi, rokokList, tokoList: tokoListProp, tukarBarangAktif = [], isEdit = false, onSessionChange, onSubmit, onCancel }) {
   const { confirmWithReason, ConfirmWithReasonModal: LaporanConfirmModal } = useConfirmWithReason()
   const [step, setStep] = useState(1)
   const [activeTab, setActiveTab] = useState("penjualan")
   const [tokoList, setTokoList]   = useState(tokoListProp ?? [])
 
   // ─── Tukar Barang ──────────────────────────────────────────────────────
-  // Daftar tukar aktif untuk sales ini (semua sesi sebelumnya), bisa diselesaikan di sesi ini
-  const tukarAktifSales = useMemo(
-    () => tukarBarangList.filter((t) => t.status === "aktif" && t.sales_id === sesi.sales_id),
-    [tukarBarangList, sesi.sales_id]
-  )
+  // tukarBarangAktif sudah di-filter untuk sales ini sebelum form dibuka
+  const tukarAktifSales = tukarBarangAktif
   // Form input tukar baru di sesi ini
   const emptyItems = () => [{ rokok_id: "", qty: "", harga_satuan: "" }]
   const mapItems   = (items, kategori = "grosir") => items.length > 0
