@@ -1290,3 +1290,203 @@ export async function deleteSesi(id, alasan) {
     return { success: false, error: error.message || "Gagal menghapus sesi." }
   }
 }
+
+export async function getSesiListDashboard(start, end) {
+  const where = {}
+  if (start) where.tanggal = { ...(where.tanggal || {}), gte: new Date(start) }
+  if (end)   where.tanggal = { ...(where.tanggal || {}), lte: new Date(end) }
+
+  const rows = await prisma.sesiHarian.findMany({
+    where,
+    select: {
+      id: true,
+      tanggal: true,
+      sales_id: true,
+      status: true,
+      is_historical: true,
+      catatan: true,
+      createdAt: true,
+      updatedAt: true,
+      sales: { select: { nama: true, kategori: true } },
+      barangKeluar: { select: { id: true, rokok_id: true, qty: true } },
+      penjualan: { select: { id: true, rokok_id: true, kategori: true, qty: true, harga: true } },
+      setoran: { select: { id: true, metode: true, jumlah: true } },
+      barangKembali: { select: { id: true, rokok_id: true, qty: true } },
+      titipJual: {
+        select: {
+          items: { select: { rokok_id: true, qty_keluar: true } }
+        }
+      },
+      tukarBarang: {
+        select: {
+          id: true,
+          tanggal: true,
+          tanggal_selesai: true,
+          status: true,
+          kategori: true,
+          itemsMasuk: { select: { id: true, rokok_id: true, qty: true, harga_satuan: true } },
+          itemsKeluar: { select: { id: true, rokok_id: true, qty: true, harga_satuan: true } }
+        }
+      },
+      tukarBarangSelesai: {
+        select: {
+          id: true,
+          tanggal: true,
+          tanggal_selesai: true,
+          status: true,
+          kategori: true,
+          itemsMasuk: { select: { id: true, rokok_id: true, qty: true, harga_satuan: true } },
+          itemsKeluar: { select: { id: true, rokok_id: true, qty: true, harga_satuan: true } }
+        }
+      },
+      retur: {
+        select: {
+          id: true,
+          alasan: true,
+          items: { select: { rokok_id: true, qty: true } }
+        }
+      },
+      sample: {
+        select: {
+          id: true,
+          rokok_id: true,
+          type: true,
+          qty_keluar: true,
+          qty_kembali: true
+        }
+      }
+    },
+    orderBy: [{ tanggal: "desc" }, { createdAt: "desc" }]
+  })
+
+  // Kumpulkan pasangan (tanggal, sales_id) dari semua sesi untuk lookup settled TJ
+  const tanggalList = [...new Set(rows.map(r => dateOnly(r.tanggal)))]
+  const settledTitipJual = tanggalList.length > 0 ? await prisma.titipJual.findMany({
+    where: {
+      status: "selesai",
+      tanggal_selesai: { in: tanggalList.map(d => new Date(d)) }
+    },
+    select: {
+      id: true,
+      sales_id: true,
+      toko_id: true,
+      kategori: true,
+      tanggal_jatuh_tempo: true,
+      tanggal_selesai: true,
+      status: true,
+      sesi_id: true,
+      toko: { select: { nama: true } },
+      items: {
+        select: {
+          id: true,
+          rokok_id: true,
+          qty_keluar: true,
+          qty_terjual: true,
+          qty_kembali: true,
+          harga: true
+        }
+      },
+      setoran: {
+        select: {
+          id: true,
+          metode: true,
+          jumlah: true,
+          tanggal: true
+        }
+      }
+    }
+  }) : []
+
+  // Create key lookup to map settled TJ to their matching sessions
+  const sesiByKey = {}
+  for (const row of rows) {
+    const key = `${dateOnly(row.tanggal)}|${row.sales_id}`
+    if (!sesiByKey[key]) sesiByKey[key] = []
+    sesiByKey[key].push(row)
+  }
+
+  const settledTjBySesiId = {}
+  for (const tj of settledTitipJual) {
+    const tjTanggal = dateOnly(tj.tanggal_selesai)
+    const key = `${tjTanggal}|${tj.sales_id}`
+    const matchingSesi = sesiByKey[key] || []
+    for (const sesi of matchingSesi) {
+      if (tj.sesi_id === sesi.id) continue
+      if (!settledTjBySesiId[sesi.id]) settledTjBySesiId[sesi.id] = {}
+      settledTjBySesiId[sesi.id][tj.id] = tj
+    }
+  }
+
+  return rows.map((s) => {
+    const tanggal = s.tanggal.toISOString().split("T")[0]
+    
+    const mapTukar = (list) => (list || []).map(t => ({
+      id: t.id,
+      tanggal: t.tanggal.toISOString().split("T")[0],
+      tanggal_selesai: t.tanggal_selesai ? t.tanggal_selesai.toISOString().split("T")[0] : null,
+      status: t.status,
+      kategori: t.kategori || "grosir",
+      itemsMasuk: (t.itemsMasuk || []).map(it => ({
+        id: it.id, rokok_id: it.rokok_id, qty: it.qty, harga_satuan: it.harga_satuan
+      })),
+      itemsKeluar: (t.itemsKeluar || []).map(it => ({
+        id: it.id, rokok_id: it.rokok_id, qty: it.qty, harga_satuan: it.harga_satuan
+      }))
+    }))
+
+    const settledTj = Object.values(settledTjBySesiId[s.id] || {})
+
+    return {
+      id: s.id,
+      tanggal,
+      sales_id: s.sales_id,
+      sales: s.sales?.nama || "???",
+      sales_kategori: s.sales?.kategori || "grosir",
+      status: s.status,
+      is_historical: s.is_historical,
+      catatan: s.catatan,
+      createdAt: s.createdAt.toISOString(),
+      updatedAt: s.updatedAt.toISOString(),
+      barangKeluar: (s.barangKeluar || []).map(it => ({
+        id: it.id, rokok_id: it.rokok_id, qty: it.qty
+      })),
+      penjualan: (s.penjualan || []).map(it => ({
+        id: it.id, rokok_id: it.rokok_id, kategori: it.kategori, qty: it.qty, harga: it.harga
+      })),
+      setoran: (s.setoran || []).map(it => ({
+        id: it.id, metode: it.metode, jumlah: it.jumlah
+      })),
+      barangKembali: (s.barangKembali || []).map(it => ({
+        id: it.id, rokok_id: it.rokok_id, qty: it.qty
+      })),
+      tukarBarang: mapTukar(s.tukarBarang || []),
+      tukarBarangSelesaiDiSesi: mapTukar(s.tukarBarangSelesai || []),
+      returDiSesi: (s.retur || []).map(r => ({
+        id: r.id,
+        alasan: r.alasan,
+        items: (r.items || []).map(it => ({ rokok_id: it.rokok_id, qty: it.qty }))
+      })),
+      sample: (s.sample || []).map(sm => ({
+        id: sm.id, rokok_id: sm.rokok_id, type: sm.type, qty_keluar: sm.qty_keluar, qty_kembali: sm.qty_kembali
+      })),
+      konsinyasiSelesaiDiSesi: settledTj.map(k => ({
+        id: k.id,
+        toko_id: k.toko_id,
+        nama_toko: k.toko?.nama || "???",
+        kategori: k.kategori,
+        tanggal_jatuh_tempo: k.tanggal_jatuh_tempo.toISOString().split("T")[0],
+        tanggal_selesai: k.tanggal_selesai ? k.tanggal_selesai.toISOString().split("T")[0] : null,
+        status: k.status,
+        items: (k.items || []).map(it => ({
+          id: it.id, rokok_id: it.rokok_id, qty_keluar: it.qty_keluar, qty_terjual: it.qty_terjual, qty_kembali: it.qty_kembali, harga: it.harga
+        })),
+        setoran: (k.setoran || []).map(it => ({
+          id: it.id, metode: it.metode, jumlah: it.jumlah, tanggal: it.tanggal.toISOString().split("T")[0]
+        }))
+      })),
+      konsinyasi: (s.titipJual || []).map(k => ({
+        items: (k.items || []).map(it => ({ rokok_id: it.rokok_id, qty_keluar: it.qty_keluar }))
+      }))
+    }
+  })
+}

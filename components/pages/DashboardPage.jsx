@@ -36,8 +36,8 @@ import {
   getTitipReturQty,
 } from "@/lib/dashboard-utils"
 import { defaultDateRange, filterByDateRange, fmtIDR, fmtTanggal, getDateRanges } from "@/lib/utils"
-import { getSesiListByDateRange } from "@/actions/distribusi"
-import { getTitipJualListByDateRange } from "@/actions/titip_jual"
+import { getSesiListDashboard } from "@/actions/distribusi"
+import { getTitipJualListDashboard } from "@/actions/titip_jual"
 import { DateFilter } from "@/components/ui"
 
 const CARD_CLS = "rounded-xl border border-neutral-200 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
@@ -839,8 +839,8 @@ export default function DashboardPage({ sesiList, titipJualList, rokokList }) {
     const fetchEnd = dateRange.end
 
     Promise.all([
-      getSesiListByDateRange(fetchStart, fetchEnd),
-      getTitipJualListByDateRange(fetchStart, fetchEnd),
+      getSesiListDashboard(fetchStart, fetchEnd),
+      getTitipJualListDashboard(fetchStart, fetchEnd),
     ])
       .then(([freshSesi, freshTitip]) => {
         setLocalSesiList(freshSesi)

@@ -1,6 +1,6 @@
 import { getRokokList } from "@/actions/rokok"
-import { getSesiListByDateRange } from "@/actions/distribusi"
-import { getTitipJualListByDateRange } from "@/actions/titip_jual"
+import { getSesiListDashboard } from "@/actions/distribusi"
+import { getTitipJualListDashboard } from "@/actions/titip_jual"
 import { defaultDateRange } from "@/lib/utils"
 import DashboardPage from "@/components/pages/DashboardPage"
 
@@ -45,8 +45,8 @@ export default async function Page() {
 
   const [rokokList, sesiList, titipJualList] = await Promise.all([
     getRokokList(),
-    getSesiListByDateRange(fetchStart, fetchEnd),
-    getTitipJualListByDateRange(fetchStart, fetchEnd),
+    getSesiListDashboard(fetchStart, fetchEnd),
+    getTitipJualListDashboard(fetchStart, fetchEnd),
   ])
 
   return (

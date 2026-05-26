@@ -710,3 +710,67 @@ export async function getTitipJualNotificationCounts() {
 
   return { red, yellow, neutral }
 }
+
+export async function getTitipJualListDashboard(start, end) {
+  const where = {}
+  if (start || end) {
+    where.OR = [
+      { status: "aktif" },
+      {
+        status: "selesai",
+        sesi: {
+          tanggal: {
+            ...(start ? { gte: new Date(start) } : {}),
+            ...(end   ? { lte: new Date(end)   } : {}),
+          }
+        }
+      }
+    ]
+  }
+
+  const rows = await prisma.titipJual.findMany({
+    where,
+    select: {
+      id: true,
+      status: true,
+      tanggal_selesai: true,
+      items: {
+        select: {
+          rokok_id: true,
+          qty_terjual: true,
+          qty_kembali: true,
+          harga: true
+        }
+      },
+      setoran: {
+        select: {
+          metode: true,
+          jumlah: true,
+          tanggal: true
+        }
+      }
+    },
+    orderBy: { tanggal_jatuh_tempo: "asc" },
+  })
+
+  return rows.map((k) => {
+    const tanggalSelesai = k.tanggal_selesai ? k.tanggal_selesai.toISOString().split("T")[0] : null
+    
+    return {
+      id: k.id,
+      status: k.status,
+      tanggal_selesai: tanggalSelesai,
+      items: (k.items || []).map(it => ({
+        rokok_id: it.rokok_id,
+        qty_terjual: it.qty_terjual,
+        qty_kembali: it.qty_kembali,
+        harga: it.harga
+      })),
+      setoran: (k.setoran || []).map(it => ({
+        metode: it.metode,
+        jumlah: it.jumlah,
+        tanggal: it.tanggal.toISOString().split("T")[0]
+      }))
+    }
+  })
+}
