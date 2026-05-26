@@ -1,7 +1,4 @@
-import { getSesiList } from "@/actions/distribusi"
-import { getTitipJualList } from "@/actions/titip_jual"
 import { getRokokList } from "@/actions/rokok"
-import { getPengeluaran } from "@/actions/pengeluaran"
 import DashboardPage from "@/components/pages/DashboardPage"
 
 export const dynamic = "force-dynamic"
@@ -12,18 +9,12 @@ export const metadata = {
 }
 
 export default async function Page() {
-  const [sesiList, titipJualList, rokokList, pengeluaranList] = await Promise.all([
-    getSesiList(),
-    getTitipJualList(),
-    getRokokList(),
-    getPengeluaran(),
-  ])
+  const rokokList = await getRokokList()
   return (
     <DashboardPage
-      sesiList={sesiList}
-      titipJualList={titipJualList}
+      sesiList={[]}
+      titipJualList={[]}
       rokokList={rokokList}
-      pengeluaranList={pengeluaranList}
     />
   )
 }

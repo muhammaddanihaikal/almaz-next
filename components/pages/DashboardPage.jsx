@@ -156,7 +156,7 @@ function buildQtyPerRokok(sesiRows, titipRows, rokokList) {
   }))
 }
 
-function buildDailySummary(sesiRows, titipProfitRows, titipSetoranRows, pengeluaranRows, rokokById, range) {
+function buildDailySummary(sesiRows, titipProfitRows, titipSetoranRows, rokokById, range) {
   const rows = new Map()
   const ensure = (tanggal) => {
     if (!tanggal) return null
@@ -195,13 +195,6 @@ function buildDailySummary(sesiRows, titipProfitRows, titipSetoranRows, pengelua
     if (!row) continue
     row.profit += getTitipProfit(titip, rokokById)
     row.qty -= getTitipReturQty(titip)
-  }
-
-  for (const pengeluaran of pengeluaranRows || []) {
-    if (pengeluaran.sumber !== "penjualan") continue
-    const row = ensure(pengeluaran.tanggal)
-    if (!row) continue
-    row.expenses += toNumber(pengeluaran.jumlah)
   }
 
   return [...rows.values()].sort((a, b) => a.tanggal.localeCompare(b.tanggal))
@@ -881,7 +874,7 @@ function DailyLine({ data, rangeLabel }) {
   )
 }
 
-export default function DashboardPage({ sesiList, titipJualList, rokokList, pengeluaranList }) {
+export default function DashboardPage({ sesiList, titipJualList, rokokList }) {
   const [dateRange, setDateRange] = useState(defaultDateRange("minggu_ini"))
   const [localSesiList,     setLocalSesiList]     = useState(sesiList || [])
   const [localTitipJualList, setLocalTitipJualList] = useState(titipJualList || [])
@@ -891,13 +884,20 @@ export default function DashboardPage({ sesiList, titipJualList, rokokList, peng
   useEffect(() => { setLocalSesiList(sesiList || []) }, [sesiList])
   useEffect(() => { setLocalTitipJualList(titipJualList || []) }, [titipJualList])
 
-  // Fetch ulang kedua sumber data ketika filter tanggal berubah
+  // Fetch ulang data ketika filter tanggal berubah
   useEffect(() => {
     if (!dateRange?.start || !dateRange?.end) return
     setIsFetchingRange(true)
+    
+    // Fetch rentang waktu dari previousRange.start sampai dateRange.end 
+    // agar perhitungan delta vs periode sebelumnya tidak error
+    const prevRange = getPreviousRange(dateRange)
+    const fetchStart = prevRange?.start || dateRange.start
+    const fetchEnd = dateRange.end
+
     Promise.all([
-      getSesiListByDateRange(dateRange.start, dateRange.end),
-      getTitipJualListByDateRange(dateRange.start, dateRange.end),
+      getSesiListByDateRange(fetchStart, fetchEnd),
+      getTitipJualListByDateRange(fetchStart, fetchEnd),
     ])
       .then(([freshSesi, freshTitip]) => {
         setLocalSesiList(freshSesi)
@@ -912,27 +912,25 @@ export default function DashboardPage({ sesiList, titipJualList, rokokList, peng
   const previousRange = useMemo(() => getPreviousRange(dateRange), [dateRange])
 
   const sesiF = useMemo(() => filterByDateRange(localSesiList, dateRange), [localSesiList, dateRange])
-  const pengeluaranF = useMemo(() => filterByDateRange(pengeluaranList || [], dateRange), [pengeluaranList, dateRange])
   const titipJualF = useMemo(() => filterTitipSelesaiByRange(localTitipJualList, dateRange), [localTitipJualList, dateRange])
 
   const previousSesiF = useMemo(() => previousRange ? filterByDateRange(localSesiList, previousRange) : [], [localSesiList, previousRange])
-  const previousPengeluaranF = useMemo(() => previousRange ? filterByDateRange(pengeluaranList || [], previousRange) : [], [pengeluaranList, previousRange])
   const previousTitipJualF = useMemo(() => previousRange ? filterTitipSelesaiByRange(localTitipJualList, previousRange) : [], [localTitipJualList, previousRange])
 
   const stats = useMemo(
-    () => calculateStats(sesiF, titipJualF, localTitipJualList, pengeluaranF, rokokById, dateRange, isDateInRange),
-    [sesiF, titipJualF, localTitipJualList, pengeluaranF, rokokById, dateRange]
+    () => calculateStats(sesiF, titipJualF, localTitipJualList, rokokById, dateRange, isDateInRange),
+    [sesiF, titipJualF, localTitipJualList, rokokById, dateRange]
   )
   const previousStats = useMemo(
-    () => calculateStats(previousSesiF, previousTitipJualF, localTitipJualList, previousPengeluaranF, rokokById, previousRange, isDateInRange),
-    [previousSesiF, previousTitipJualF, localTitipJualList, previousPengeluaranF, rokokById, previousRange]
+    () => calculateStats(previousSesiF, previousTitipJualF, localTitipJualList, rokokById, previousRange, isDateInRange),
+    [previousSesiF, previousTitipJualF, localTitipJualList, rokokById, previousRange]
   )
 
   const qtyPerRokok = useMemo(() => buildQtyPerRokok(sesiF, titipJualF, rokokList || []), [sesiF, titipJualF, rokokList])
   const qtyPositive = useMemo(() => qtyPerRokok.filter((item) => item.qty > 0).sort((a, b) => b.qty - a.qty), [qtyPerRokok])
   const dailySummary = useMemo(
-    () => buildDailySummary(sesiF, titipJualF, localTitipJualList, pengeluaranF, rokokById, dateRange),
-    [sesiF, titipJualF, localTitipJualList, pengeluaranF, rokokById, dateRange]
+    () => buildDailySummary(sesiF, titipJualF, localTitipJualList, rokokById, dateRange),
+    [sesiF, titipJualF, localTitipJualList, rokokById, dateRange]
   )
 
   const rangeLabel = dateRange?.start && dateRange?.end ? `${fmtTanggal(dateRange.start)} s/d ${fmtTanggal(dateRange.end)}` : "Semua Waktu"
