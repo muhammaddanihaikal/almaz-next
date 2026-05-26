@@ -577,7 +577,6 @@ export default function DistribusiPage({ role, rokokList, salesList, tokoList, s
   const stockCutoffDate = stockCutoffSetting?.value
   const { confirm, ConfirmModal } = useConfirm()
   const { confirmWithReason, ConfirmWithReasonModal } = useConfirmWithReason()
-  const router = useRouter()
   const [mode,      setMode]      = useState(null)
   const [editing,   setEditing]   = useState(null)
   const [detail,    setDetail]    = useState(null)
