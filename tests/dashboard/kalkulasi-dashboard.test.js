@@ -38,7 +38,7 @@ describe("Dashboard Calculation Logic", () => {
   ]
 
   it("calculates Qty Breakdown correctly", () => {
-    const stats = calculateStats(mockSesi, [], [], [], mockRokokById, mockRange, mockIsDateInRange)
+    const stats = calculateStats(mockSesi, [], [], mockRokokById, mockRange, mockIsDateInRange)
 
     expect(stats.qtyBreakdown.langsung).toBe(10)
     expect(stats.qtyBreakdown.titipJual).toBe(20)
@@ -47,7 +47,7 @@ describe("Dashboard Calculation Logic", () => {
   })
 
   it("calculates Revenue Breakdown correctly", () => {
-    const stats = calculateStats(mockSesi, [], [], [], mockRokokById, mockRange, mockIsDateInRange)
+    const stats = calculateStats(mockSesi, [], [], mockRokokById, mockRange, mockIsDateInRange)
 
     expect(stats.penjualanBreakdown.langsung).toBe(120000)
     expect(stats.penjualanBreakdown.titipJual).toBe(0) // 0 because second arg (titipProfitRows) is empty
@@ -56,17 +56,17 @@ describe("Dashboard Calculation Logic", () => {
   })
 
   it("calculates Total Setoran correctly", () => {
-    const stats = calculateStats(mockSesi, [], [], [], mockRokokById, mockRange, mockIsDateInRange)
+    const stats = calculateStats(mockSesi, [], [], mockRokokById, mockRange, mockIsDateInRange)
     expect(stats.totalSetoran).toBe(500000)
   })
 
   it("calculates Total Net Keluar correctly", () => {
-    const stats = calculateStats(mockSesi, [], [], [], mockRokokById, mockRange, mockIsDateInRange)
+    const stats = calculateStats(mockSesi, [], [], mockRokokById, mockRange, mockIsDateInRange)
     expect(stats.totalKeluar).toBe(32)
   })
 
   it("calculates Total Profit (including Tukar Barang) correctly", () => {
-    const stats = calculateStats(mockSesi, [], [], [], mockRokokById, mockRange, mockIsDateInRange)
+    const stats = calculateStats(mockSesi, [], [], mockRokokById, mockRange, mockIsDateInRange)
     // Direct profit: 10 * (12000 - 10000) = 20000
     // Tukar Barang net profit: (5 * (12000 - 10000)) - (2 * (12000 - 10000)) = 10000 - 4000 = 6000
     // Total profit: 20000 + 6000 = 26000

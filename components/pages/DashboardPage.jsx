@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react"
 import {
   ArrowDownRight,
   ArrowUpRight,
-  CalendarDays,
   Package,
   ReceiptText,
   TrendingUp,
@@ -39,17 +38,12 @@ import {
 import { defaultDateRange, filterByDateRange, fmtIDR, fmtTanggal, getDateRanges } from "@/lib/utils"
 import { getSesiListByDateRange } from "@/actions/distribusi"
 import { getTitipJualListByDateRange } from "@/actions/titip_jual"
+import { DateFilter } from "@/components/ui"
 
 const CARD_CLS = "rounded-xl border border-neutral-200 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
 const CHIP_CLS = "inline-flex items-center rounded-lg border border-neutral-200 bg-white px-2.5 py-1 text-xs font-medium text-neutral-600"
 const CHART_COLORS = ["#171717", "#C97B2A", "#3F6B4A", "#5C7A8C", "#8A6A2B", "#9C5A5A", "#475569", "#A89A7A"]
 
-const DATE_PRESETS = [
-  { value: "hari_ini", label: "Hari Ini" },
-  { value: "minggu_ini", label: "Minggu Ini" },
-  { value: "bulan_ini", label: "Bulan Ini" },
-  { value: "custom", label: "Custom" },
-]
 
 const toNumber = (value) => Number(value) || 0
 const sumBy = (items, getter) => (items || []).reduce((sum, item) => sum + toNumber(getter(item)), 0)
@@ -225,63 +219,6 @@ function formatSetoranGap(totalSetoran, totalPenjualan) {
   return `Lebih setor ${fmtIDR(selisih)}`
 }
 
-function DateFilterNew({ value, onChange }) {
-  const handlePreset = (preset) => {
-    if (preset === "custom") {
-      onChange({ preset, start: value?.start || "", end: value?.end || "" })
-      return
-    }
-
-    const ranges = getDateRanges()
-    onChange({ preset, ...ranges[preset] })
-  }
-
-  const handleCustomDate = (field, date) => {
-    onChange({ preset: "custom", start: value?.start || "", end: value?.end || "", [field]: date })
-  }
-
-  return (
-    <div className="flex w-full flex-col gap-2 lg:w-auto lg:flex-row lg:items-center">
-      <div className="grid grid-cols-2 gap-1 rounded-xl border border-neutral-200 bg-white p-1 sm:flex">
-        {DATE_PRESETS.map((preset) => (
-          <button
-            key={preset.value}
-            type="button"
-            onClick={() => handlePreset(preset.value)}
-            className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-              value?.preset === preset.value ? "bg-neutral-900 text-white" : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
-            }`}
-          >
-            {preset.label}
-          </button>
-        ))}
-      </div>
-
-      <div
-        className={`flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-xs transition-colors ${
-          value?.preset === "custom" ? "border-neutral-400 ring-1 ring-neutral-900/10" : "border-neutral-200"
-        }`}
-      >
-        <CalendarDays className="h-4 w-4 shrink-0 text-neutral-400" strokeWidth={2} />
-        <input
-          type="date"
-          value={value?.start || ""}
-          disabled={value?.preset !== "custom"}
-          onChange={(event) => handleCustomDate("start", event.target.value)}
-          className="w-full bg-transparent font-mono text-xs text-neutral-700 outline-none disabled:cursor-default sm:w-[118px]"
-        />
-        <span className="text-neutral-300">-</span>
-        <input
-          type="date"
-          value={value?.end || ""}
-          disabled={value?.preset !== "custom"}
-          onChange={(event) => handleCustomDate("end", event.target.value)}
-          className="w-full bg-transparent font-mono text-xs text-neutral-700 outline-none disabled:cursor-default sm:w-[118px]"
-        />
-      </div>
-    </div>
-  )
-}
 
 function DeltaBadge({ value, compareLabel }) {
   if (value === null) {
@@ -985,7 +922,9 @@ export default function DashboardPage({ sesiList, titipJualList, rokokList }) {
             Ringkasan distribusi - <span className="font-medium text-neutral-700">{rangeLabel}</span>
           </p>
         </div>
-        <DateFilterNew value={dateRange} onChange={setDateRange} />
+        <div className="w-full sm:w-[380px] shrink-0">
+          <DateFilter value={dateRange} onChange={setDateRange} />
+        </div>
       </header>
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
