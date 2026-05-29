@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useMemo } from "react"
-import { Plus, CheckCircle, AlertCircle, History } from "lucide-react"
+import { useState, useMemo, useEffect, useRef } from "react"
+import { Plus, CheckCircle, AlertCircle, History, Loader2 } from "lucide-react"
 import { fmtTanggal, getJakartaToday, defaultDateRange } from "@/lib/utils"
 import {
   createSampleHarian,
@@ -9,6 +9,7 @@ import {
   closeSampleHarian,
   deleteSampleHarian,
   updateSampleHarianReport,
+  getSampleHarianListByRange,
 } from "@/actions/sample-harian"
 import {
   Card, PageHeader, PrimaryButton, Button, inputCls, useConfirm, useConfirmWithReason, RowActions,
@@ -694,33 +695,46 @@ function DetailModal({ session, onClose }) {
   )
 }
 
-export default function SampleHarianPage({ list: initialList, rokokList, sampleCutoffDate }) {
+export default function SampleHarianPage({ initialList, initialRange, rokokList, sampleCutoffDate }) {
   const [list, setList] = useState(initialList)
   const [showBuat, setShowBuat] = useState(false)
   const [tutupTarget, setTutupTarget] = useState(null)
   const [editTarget, setEditTarget] = useState(null)
   const [detailTarget, setDetailTarget] = useState(null)
-  const [dateRange, setDateRange] = useState(() => defaultDateRange("bulan_ini"))
+  const [dateRange, setDateRange] = useState(() => initialRange || defaultDateRange("bulan_ini"))
   const [statusFilter, setStatusFilter] = useState("")
   const [rokokFilter, setRokokFilter] = useState([])
-  
+  const [isFetchingRange, setIsFetchingRange] = useState(false)
+  const isFirstMount = useRef(true)
+
   const { confirm, ConfirmModal } = useConfirm()
   const { confirmWithReason, ConfirmWithReasonModal } = useConfirmWithReason()
+
+  // Setiap kali filter tanggal berubah, fetch data dari server.
+  // Data awal sudah diload dari server di page.js — skip fetch pertama.
+  useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false
+      return
+    }
+    if (!dateRange?.start || !dateRange?.end) return
+    setIsFetchingRange(true)
+    getSampleHarianListByRange(dateRange.start, dateRange.end)
+      .then((fresh) => setList(fresh))
+      .catch((err) => console.error("[SampleHarianPage] fetch range error", err))
+      .finally(() => setIsFetchingRange(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRange?.start, dateRange?.end])
 
   const filteredList = useMemo(() => {
     let temp = list || []
     
-    // 1. Filter by Date Range
-    if (dateRange?.start && dateRange?.end) {
-      temp = temp.filter((r) => r.tanggal >= dateRange.start && r.tanggal <= dateRange.end)
-    }
-    
-    // 2. Filter by Status
+    // 1. Filter by Status
     if (statusFilter) {
       temp = temp.filter((r) => r.status === statusFilter)
     }
     
-    // 3. Filter by Multiple Products (AND Logic - session must have ALL selected products)
+    // 2. Filter by Multiple Products (AND Logic - session must have ALL selected products)
     if (rokokFilter && rokokFilter.length > 0) {
       const selectedRokok = rokokFilter.filter(v => v !== "" && v !== null && v !== undefined).map(String)
       if (selectedRokok.length > 0) {
@@ -731,15 +745,23 @@ export default function SampleHarianPage({ list: initialList, rokokList, sampleC
       }
     }
     
-    // 4. Mark Historical
+    // 3. Mark Historical
     return temp.map(r => ({
         ...r,
         is_historical: sampleCutoffDate && r.tanggal < sampleCutoffDate
     }))
-  }, [list, dateRange, statusFilter, rokokFilter, sampleCutoffDate])
+  }, [list, statusFilter, rokokFilter, sampleCutoffDate])
 
   function refresh() {
-    window.location.reload()
+    if (!dateRange?.start || !dateRange?.end) {
+      window.location.reload()
+      return
+    }
+    setIsFetchingRange(true)
+    getSampleHarianListByRange(dateRange.start, dateRange.end)
+      .then((fresh) => setList(fresh))
+      .catch(() => window.location.reload())
+      .finally(() => setIsFetchingRange(false))
   }
 
   async function handleDelete(item) {
@@ -872,6 +894,12 @@ export default function SampleHarianPage({ list: initialList, rokokList, sampleC
             />
           </Field>
         </div>
+        {isFetchingRange && (
+          <div className="flex items-center gap-2 text-xs text-neutral-400">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <span>Memuat data...</span>
+          </div>
+        )}
       </div>
 
       <Card>

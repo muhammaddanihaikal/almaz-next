@@ -495,7 +495,33 @@ export async function getSampleHarianList() {
       },
     },
   })
-  return rows.map((sh) => ({
+  return rows.map(_serializeSampleHarian)
+}
+
+/**
+ * Fetch sample harian dalam rentang tanggal tertentu (YYYY-MM-DD).
+ * Dipakai oleh client saat filter tanggal berubah.
+ */
+export async function getSampleHarianListByRange(start, end) {
+  const where = {}
+  if (start) where.tanggal = { ...(where.tanggal || {}), gte: new Date(start) }
+  if (end)   where.tanggal = { ...(where.tanggal || {}), lte: new Date(end) }
+
+  const rows = await prisma.sampleHarian.findMany({
+    where,
+    orderBy: { tanggal: "desc" },
+    include: {
+      items: {
+        include: { rokok: { select: { nama: true } } },
+        orderBy: { rokok: { urutan: "asc" } },
+      },
+    },
+  })
+  return rows.map(_serializeSampleHarian)
+}
+
+function _serializeSampleHarian(sh) {
+  return {
     id:            sh.id,
     tanggal:       sh.tanggal.toISOString().split("T")[0],
     status:        sh.status,
@@ -509,7 +535,7 @@ export async function getSampleHarianList() {
       qty_keluar:  i.qty_keluar,
       qty_kembali: i.qty_kembali,
     })),
-  }))
+  }
 }
 
 /**
