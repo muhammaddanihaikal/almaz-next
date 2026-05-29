@@ -966,7 +966,6 @@ export default function DistribusiPage({ role, rokokList, salesList, tokoList, s
                         size="sm"
                         variant="secondary"
                         onClick={async () => {
-                          upsertLocalSesi({ ...r, _pending: true })
                           try {
                             const [list, fullSesi] = await Promise.all([
                               getTukarBarangAktifBySalesId(r.sales_id),
@@ -974,8 +973,8 @@ export default function DistribusiPage({ role, rokokList, salesList, tokoList, s
                             ])
                             setTukarBarangAktif(list)
                             setLaporanSesi(fullSesi)
-                          } finally {
-                            upsertLocalSesi({ ...r, _pending: false })
+                          } catch (err) {
+                            console.error(err)
                           }
                         }}
                       >
@@ -988,7 +987,6 @@ export default function DistribusiPage({ role, rokokList, salesList, tokoList, s
                         variant="ghost"
                         className="border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
                         onClick={async () => {
-                          upsertLocalSesi({ ...r, _pending: true })
                           try {
                             const [list, fullSesi] = await Promise.all([
                               getTukarBarangAktifBySalesId(r.sales_id),
@@ -996,8 +994,8 @@ export default function DistribusiPage({ role, rokokList, salesList, tokoList, s
                             ])
                             setTukarBarangAktif(list)
                             setEditLaporan(fullSesi)
-                          } finally {
-                            upsertLocalSesi({ ...r, _pending: false })
+                          } catch (err) {
+                            console.error(err)
                           }
                         }}
                       >
@@ -1006,21 +1004,19 @@ export default function DistribusiPage({ role, rokokList, salesList, tokoList, s
                     )}
                     <RowActions
                       onDetail={async () => {
-                        upsertLocalSesi({ ...r, _pending: true })
                         try {
                           const fullSesi = await getSesi(r.id)
                           setDetail(fullSesi)
-                        } finally {
-                          upsertLocalSesi({ ...r, _pending: false })
+                        } catch (err) {
+                          console.error(err)
                         }
                       }}
                       onEdit={role !== "staff" && r.status === "aktif" ? async () => { 
-                        upsertLocalSesi({ ...r, _pending: true })
                         try {
                           const fullSesi = await getSesi(r.id)
                           setEditing(fullSesi); setMode("edit") 
-                        } finally {
-                          upsertLocalSesi({ ...r, _pending: false })
+                        } catch (err) {
+                          console.error(err)
                         }
                       } : null}
                       onDelete={role !== "staff" ? () => { handleDelete(r) } : null}
