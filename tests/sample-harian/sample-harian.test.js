@@ -19,6 +19,7 @@ const {
   closeSampleHarian,
   deleteSampleHarian,
   getSampleHarianList,
+  getSampleHarianListByRange,
   updateSampleHarianReport,
 } = await import("@/actions/sample-harian")
 
@@ -445,6 +446,35 @@ describe("getSampleHarianList", () => {
     expect(found.items[0].rokok).toBeDefined()
     expect(typeof found.items[0].rokok).toBe("string")
     expect(found.status).toBe("buka")
+  })
+})
+
+// ─── getSampleHarianListByRange ───────────────────────────────────────────────
+
+describe("getSampleHarianListByRange", () => {
+  it("mengembalikan list dalam range tanggal yang ditentukan", async () => {
+    await buatSesi(1)
+
+    // Format target date as string (TEST_DATE is in format YYYY-MM-DD)
+    const list = await getSampleHarianListByRange(TEST_DATE, TEST_DATE)
+    const found = list.find((sh) => sh.id === createdId)
+
+    expect(found).toBeDefined()
+    expect(found.tanggal).toBe(TEST_DATE)
+  })
+
+  it("tidak mengembalikan data di luar range tanggal yang ditentukan", async () => {
+    await buatSesi(1)
+
+    // Sesi dibuat pada TEST_DATE, jadi test jika filter di luar TEST_DATE
+    const d = new Date(TEST_DATE)
+    d.setDate(d.getDate() - 1)
+    const prevDate = d.toISOString().split("T")[0]
+
+    const list = await getSampleHarianListByRange(prevDate, prevDate)
+    const found = list.find((sh) => sh.id === createdId)
+
+    expect(found).toBeUndefined()
   })
 })
 
