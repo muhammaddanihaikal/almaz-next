@@ -149,20 +149,23 @@ function exportToExcel(rows, rokokList, dateRange, onNoData, filters = {}) {
 
   // Kumpulkan semua item penjualan (langsung + konsinyasi selesai + tukar barang)
   const allItems = []
+  const processedKonsinyasiIds = new Set() // Deduplikasi konsinyasi antar sesi
+  const processedTukarIds = new Set()       // Deduplikasi tukar barang antar sesi
   for (const sesi of rows) {
     for (const it of (sesi.penjualan || [])) {
       allItems.push({ tanggal: sesi.tanggal, rokok_id: it.rokok_id, rokok: it.rokok, qty: it.qty, harga: it.harga, kategori: it.kategori || "toko" })
     }
     const completedKonsinyasi = new Map()
     for (const k of (sesi.konsinyasiSelesaiDiSesi || [])) {
-      if (k.status === "selesai") completedKonsinyasi.set(k.id, k)
+      if (k.status === "selesai" && !processedKonsinyasiIds.has(k.id)) completedKonsinyasi.set(k.id, k)
     }
     for (const k of (sesi.konsinyasi || [])) {
-      if (k.status === "selesai" && (!k.tanggal_selesai || !sesi.tanggal || k.tanggal_selesai === sesi.tanggal)) {
+      if (k.status === "selesai" && !processedKonsinyasiIds.has(k.id) && (!k.tanggal_selesai || !sesi.tanggal || k.tanggal_selesai === sesi.tanggal)) {
         completedKonsinyasi.set(k.id, k)
       }
     }
     for (const k of completedKonsinyasi.values()) {
+      processedKonsinyasiIds.add(k.id)
       const tanggal = k.tanggal_selesai || sesi.tanggal
       for (const it of k.items) {
         if (it.qty_terjual > 0) {
@@ -173,9 +176,10 @@ function exportToExcel(rows, rokokList, dateRange, onNoData, filters = {}) {
     // Tukar Barang
     const completedTukar = new Map()
     for (const t of (sesi.tukarBarangSelesaiDiSesi || [])) {
-      if (t.status === "selesai") completedTukar.set(t.id, t)
+      if (t.status === "selesai" && !processedTukarIds.has(t.id)) completedTukar.set(t.id, t)
     }
     for (const t of completedTukar.values()) {
+      processedTukarIds.add(t.id)
       const tanggal = t.tanggal_selesai || sesi.tanggal
       for (const it of t.itemsKeluar || []) {
         const rokokNama = it.rokok?.nama || it.rokok || rokokList.find(r => r.id === it.rokok_id)?.nama || ""
@@ -257,12 +261,17 @@ function exportToExcel(rows, rokokList, dateRange, onNoData, filters = {}) {
   const border = { top: bThin, bottom: bThin, left: bThin, right: bThin }
   const ctr = { horizontal: "center", vertical: "center" }
 
-  // Styles (Monochrome / Black & White)
+  // Styles (Monochrome / Black & White / Colored for GR and TK)
   const sH     = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1F2937" } }, alignment: ctr, border }
   const sSub   = sH
   const sProdHeader = sH
-  const sGR    = sH
-  const sTK    = sH
+  
+  // Custom colored styles for GR and TK
+  const sGR    = { font: { bold: true, color: { rgb: "975A16" } }, fill: { fgColor: { rgb: "FEFCBF" } }, alignment: ctr, border } // Light Yellow bg, dark yellowish text
+  const sTK    = { font: { bold: true, color: { rgb: "2C5282" } }, fill: { fgColor: { rgb: "EBF8FF" } }, alignment: ctr, border } // Light Blue bg, dark blueish text
+  const sGRData = { font: { color: { rgb: "975A16" } }, fill: { fgColor: { rgb: "FEFCBF" } }, alignment: ctr, border }
+  const sTKData = { font: { color: { rgb: "2C5282" } }, fill: { fgColor: { rgb: "EBF8FF" } }, alignment: ctr, border }
+
   const sData  = { alignment: ctr, border }
   const sNum   = { alignment: ctr, border }
   const sMoney = { alignment: { horizontal: "left", vertical: "center" }, border }
@@ -270,10 +279,6 @@ function exportToExcel(rows, rokokList, dateRange, onNoData, filters = {}) {
   const sTotalNum = sTotal
   const sTotalMoney = { ...sTotal, alignment: { horizontal: "left", vertical: "center" } }
   const sTitle = { font: { bold: true, sz: 14 }, alignment: { horizontal: "center", vertical: "center" } }
-  
-  // Data column styles to flow all the way down
-  const sGRData = sData
-  const sTKData = sData
 
   const fmtExcelMoney = (v) => "Rp. " + (v || 0).toLocaleString("id-ID")
 

@@ -100,6 +100,8 @@ describe("buildRincianPerSalesData", () => {
       makeSesi("MAS BOBI", {
         tukarBarangSelesaiDiSesi: [
           {
+            id: "tb1",
+            status: "selesai",
             // Tidak ada itemsMasuk → selisih = gross keluar
             itemsMasuk:  [],
             itemsKeluar: [{ rokok_id: "r1", qty: 7, harga_satuan: 11000 }, { rokok_id: "r3", qty: 4, harga_satuan: 9000 }],
@@ -122,6 +124,8 @@ describe("buildRincianPerSalesData", () => {
       makeSesi("MAS BOBI", {
         tukarBarangSelesaiDiSesi: [
           {
+            id: "tb2",
+            status: "selesai",
             itemsMasuk:  [{ rokok_id: "r2", qty: 5, harga_satuan: 10000 }],
             itemsKeluar: [{ rokok_id: "r1", qty: 3, harga_satuan: 11000 }],
           },
@@ -144,6 +148,8 @@ describe("buildRincianPerSalesData", () => {
       makeSesi("PAK TROY", {
         tukarBarangSelesaiDiSesi: [
           {
+            id: "tb3",
+            status: "selesai",
             itemsMasuk:  [{ rokok_id: "r1", qty: 20, harga_satuan: 9700 }],
             itemsKeluar: [{ rokok_id: "r1", qty: 20, harga_satuan: 9700 }],
           },
@@ -166,10 +172,10 @@ describe("buildRincianPerSalesData", () => {
       makeSesi("DANDI", {
         penjualan: [{ rokok_id: "r1", qty: 10, harga: 11000 }],
         konsinyasi: [
-          { status: "selesai", items: [{ rokok_id: "r1", qty_terjual: 5, harga: 11000 }] },
+          { id: "k1", status: "selesai", items: [{ rokok_id: "r1", qty_terjual: 5, harga: 11000 }] },
         ],
         tukarBarangSelesaiDiSesi: [
-          { itemsKeluar: [{ rokok_id: "r1", qty: 3, harga_satuan: 11000 }] },
+          { id: "tb4", status: "selesai", itemsKeluar: [{ rokok_id: "r1", qty: 3, harga_satuan: 11000 }] },
         ],
       }),
     ]
@@ -186,11 +192,11 @@ describe("buildRincianPerSalesData", () => {
     const rows = [
       makeSesi("DANDI", {
         penjualan:  [{ rokok_id: "r1", qty: 6, harga: 11000 }],
-        konsinyasi: [{ status: "selesai", items: [{ rokok_id: "r2", qty_terjual: 4, harga: 10000 }] }],
+        konsinyasi: [{ id: "k2", status: "selesai", items: [{ rokok_id: "r2", qty_terjual: 4, harga: 10000 }] }],
       }),
       makeSesi("PAK YAHMIN", {
         penjualan:               [{ rokok_id: "r1", qty: 8, harga: 11000 }],
-        tukarBarangSelesaiDiSesi: [{ itemsKeluar: [{ rokok_id: "r3", qty: 2, harga_satuan: 9000 }] }],
+        tukarBarangSelesaiDiSesi: [{ id: "tb5", status: "selesai", itemsKeluar: [{ rokok_id: "r3", qty: 2, harga_satuan: 9000 }] }],
       }),
     ]
     const { dataMap, activeSales } = buildRincianPerSalesData(rows, rokokList)

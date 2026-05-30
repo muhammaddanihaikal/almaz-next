@@ -27,6 +27,7 @@ describe("Dashboard Calculation Logic", () => {
       tukarBarang: [
         {
           id: "tukar-1",
+          status: "selesai",
           itemsKeluar: [{ rokok_id: "rokok-1", qty: 5, harga_satuan: 12000 }], // Qty: 5, Nilai: 60.000
           itemsMasuk: [{ rokok_id: "rokok-1", qty: 2, harga_satuan: 12000 }], // Qty: 2, Nilai: 24.000
         },
@@ -72,4 +73,28 @@ describe("Dashboard Calculation Logic", () => {
     // Total profit: 20000 + 6000 = 26000
     expect(stats.profit).toBe(26000)
   })
+
+  it("excludes aktif tukar barang from omzet and profit", () => {
+    const sesiWithAktifTukar = [
+      {
+        ...mockSesi[0],
+        tukarBarang: [
+          {
+            id: "tukar-aktif",
+            status: "aktif",
+            itemsKeluar: [],
+            itemsMasuk: [{ rokok_id: "rokok-1", qty: 3, harga_satuan: 12000 }],
+          },
+        ],
+      },
+    ]
+    const stats = calculateStats(sesiWithAktifTukar, [], [], mockRokokById, mockRange, mockIsDateInRange)
+
+    // Tukar barang aktif should NOT count towards omzet or profit
+    expect(stats.penjualanBreakdown.tukarBarang).toBe(0)
+    expect(stats.penjualanBreakdown.total).toBe(120000) // Only langsung
+    // Profit should only be from penjualan langsung
+    expect(stats.profit).toBe(20000) // 10 * (12000 - 10000)
+  })
 })
+

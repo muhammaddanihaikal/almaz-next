@@ -128,6 +128,11 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
 
     const titleText = dateText === "Semua Waktu" ? "LAPORAN TITIP JUAL" : `LAPORAN TITIP JUAL: ${dateText}`
 
+    const sTJHeader = { font: { bold: true, color: { rgb: "975A16" } }, fill: { fgColor: { rgb: "FEFCBF" } }, alignment: { horizontal: "center", vertical: "center" }, border }
+    const sKBHeader = { font: { bold: true, color: { rgb: "2C5282" } }, fill: { fgColor: { rgb: "EBF8FF" } }, alignment: { horizontal: "center", vertical: "center" }, border }
+    const sTJData = { font: { color: { rgb: "975A16" } }, fill: { fgColor: { rgb: "FEFCBF" } }, alignment: { horizontal: "center" }, border }
+    const sKBData = { font: { color: { rgb: "2C5282" } }, fill: { fgColor: { rgb: "EBF8FF" } }, alignment: { horizontal: "center" }, border }
+
     const header1 = [
       { v: "MOTORIS", t: "s", s: hStyle },
       { v: "TGL DISTRIBUSI", t: "s", s: hStyle },
@@ -137,12 +142,12 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
       { v: "KATEGORI", t: "s", s: hStyle },
       { v: "PRODUK", t: "s", s: hStyle }
     ]
-    for (let i = 1; i < products.length; i++) {
+    for (let i = 1; i < products.length * 2; i++) {
       header1.push({ v: "", t: "s", s: hStyle })
     }
     header1.push(
-      { v: "LUNAS", t: "s", s: hStyle },
-      { v: "RETUR", t: "s", s: hStyle },
+      { v: "TERJUAL", t: "s", s: hStyle },
+      { v: "KEMBALI", t: "s", s: hStyle },
       { v: "SISA", t: "s", s: hStyle },
       { v: "TOTAL PENJUALAN", t: "s", s: hStyle },
       { v: "SETORAN", t: "s", s: hStyle },
@@ -157,7 +162,10 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
       { v: "", t: "s", s: hStyle },
       { v: "", t: "s", s: hStyle }
     ]
-    products.forEach(p => header2.push({ v: p.toUpperCase(), t: "s", s: hStyle }))
+    products.forEach(p => {
+      header2.push({ v: p.toUpperCase(), t: "s", s: hStyle })
+      header2.push({ v: "", t: "s", s: hStyle })
+    })
     header2.push(
       { v: "", t: "s", s: hStyle },
       { v: "", t: "s", s: hStyle },
@@ -167,44 +175,65 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
       { v: "", t: "s", s: hStyle }
     )
 
-    const totalColsSheet3 = 12 + products.length
+    const header3 = [
+      { v: "", t: "s", s: hStyle },
+      { v: "", t: "s", s: hStyle },
+      { v: "", t: "s", s: hStyle },
+      { v: "", t: "s", s: hStyle },
+      { v: "", t: "s", s: hStyle },
+      { v: "", t: "s", s: hStyle }
+    ]
+    products.forEach(p => {
+      header3.push({ v: "TJ", t: "s", s: sTJHeader })
+      header3.push({ v: "KB", t: "s", s: sKBHeader })
+    })
+    header3.push(
+      { v: "", t: "s", s: hStyle },
+      { v: "", t: "s", s: hStyle },
+      { v: "", t: "s", s: hStyle },
+      { v: "", t: "s", s: hStyle },
+      { v: "", t: "s", s: hStyle },
+      { v: "", t: "s", s: hStyle }
+    )
 
     const wsData = [
       [{ v: "LAPORAN TITIP JUAL RINCIAN PERSALES", t: "s", s: titleLeftStyle }, ...Array(3).fill({ v: "", s: titleLeftStyle })],
       [{ v: `Sales: ${filters.salesName || "Semua"} | Waktu: ${dateText}`, t: "s", s: subTitleStyle }, ...Array(3).fill({ v: "", s: subTitleStyle })],
       [],
       header1,
-      header2
+      header2,
+      header3
     ]
 
-    const overallTotals = { lunas: 0, retur: 0, sisa: 0 }
+    const overallTotals = { terjual: 0, kembali: 0, sisa: 0 }
     const overallMoney = { nilai: 0, setoran: 0, selisih: 0 }
     const overallProductTotals = {}
-    products.forEach(p => overallProductTotals[p] = 0)
+    products.forEach(p => overallProductTotals[p] = { tj: 0, kb: 0 })
 
     let currentSales = null
     let motorisStartRow = -1
-    let salesTotals = { lunas: 0, retur: 0, sisa: 0 }
+    let salesTotals = { terjual: 0, kembali: 0, sisa: 0 }
     let salesMoney = { nilai: 0, setoran: 0, selisih: 0 }
     let salesProductTotals = {}
-    products.forEach(p => salesProductTotals[p] = 0)
+    products.forEach(p => salesProductTotals[p] = { tj: 0, kb: 0 })
 
     const mergeCells = [
       { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } },
       { s: { r: 1, c: 0 }, e: { r: 1, c: 3 } },
-      { s: { r: 3, c: 0 }, e: { r: 4, c: 0 } }, // MOTORIS
-      { s: { r: 3, c: 1 }, e: { r: 4, c: 1 } }, // TGL DISTRIBUSI
-      { s: { r: 3, c: 2 }, e: { r: 4, c: 2 } }, // JATUH TEMPO
-      { s: { r: 3, c: 3 }, e: { r: 4, c: 3 } }, // TGL SELESAI
-      { s: { r: 3, c: 4 }, e: { r: 4, c: 4 } }, // NAMA TOKO
-      { s: { r: 3, c: 5 }, e: { r: 4, c: 5 } }, // KATEGORI
-      { s: { r: 3, c: 6 }, e: { r: 3, c: 5 + products.length } }, // PRODUK
-      { s: { r: 3, c: 6 + products.length }, e: { r: 4, c: 6 + products.length } }, // LUNAS
-      { s: { r: 3, c: 7 + products.length }, e: { r: 4, c: 7 + products.length } }, // RETUR
-      { s: { r: 3, c: 8 + products.length }, e: { r: 4, c: 8 + products.length } }, // SISA
-      { s: { r: 3, c: 9 + products.length }, e: { r: 4, c: 9 + products.length } }, // TOTAL PENJUALAN
-      { s: { r: 3, c: 10 + products.length }, e: { r: 4, c: 10 + products.length } }, // SETORAN
-      { s: { r: 3, c: 11 + products.length }, e: { r: 4, c: 11 + products.length } } // SELISIH
+      { s: { r: 3, c: 0 }, e: { r: 5, c: 0 } }, // MOTORIS
+      { s: { r: 3, c: 1 }, e: { r: 5, c: 1 } }, // TGL DISTRIBUSI
+      { s: { r: 3, c: 2 }, e: { r: 5, c: 2 } }, // JATUH TEMPO
+      { s: { r: 3, c: 3 }, e: { r: 5, c: 3 } }, // TGL SELESAI
+      { s: { r: 3, c: 4 }, e: { r: 5, c: 4 } }, // NAMA TOKO
+      { s: { r: 3, c: 5 }, e: { r: 5, c: 5 } }, // KATEGORI
+      { s: { r: 3, c: 6 }, e: { r: 3, c: 5 + products.length * 2 } }, // PRODUK
+      ...products.map((p, i) => ({ s: { r: 4, c: 6 + i * 2 }, e: { r: 4, c: 6 + i * 2 + 1 } })),
+      { s: { r: 3, c: 6 + products.length * 2 }, e: { r: 5, c: 6 + products.length * 2 } }, // TERJUAL
+      { s: { r: 3, c: 7 + products.length * 2 }, e: { r: 5, c: 7 + products.length * 2 } }, // KEMBALI
+      { s: { r: 3, c: 8 + products.length * 2 }, e: { r: 5, c: 8 + products.length * 2 } }, // SISA
+      { s: { r: 3, c: 9 + products.length * 2 }, e: { r: 5, c: 9 + products.length * 2 } }, // TOTAL PENJUALAN
+      { s: { r: 3, c: 10 + products.length * 2 }, e: { r: 5, c: 10 + products.length * 2 } }, // SETORAN
+      { s: { r: 3, c: 11 + products.length * 2 }, e: { r: 5, c: 11 + products.length * 2 } } // SELISIH
     ]
 
     const pushSubTotal = () => {
@@ -217,11 +246,12 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
         { v: "", t: "s", s: hStyle }
       ]
       products.forEach(p => {
-        row.push({ v: salesProductTotals[p] > 0 ? salesProductTotals[p] : "-", t: salesProductTotals[p] > 0 ? "n" : "s", s: hStyle })
+        row.push({ v: salesProductTotals[p].tj > 0 ? salesProductTotals[p].tj : "-", t: salesProductTotals[p].tj > 0 ? "n" : "s", s: hStyle })
+        row.push({ v: salesProductTotals[p].kb > 0 ? salesProductTotals[p].kb : "-", t: salesProductTotals[p].kb > 0 ? "n" : "s", s: hStyle })
       })
       row.push(
-        { v: salesTotals.lunas > 0 ? salesTotals.lunas : "-", t: salesTotals.lunas > 0 ? "n" : "s", s: hStyle },
-        { v: salesTotals.retur > 0 ? salesTotals.retur : "-", t: salesTotals.retur > 0 ? "n" : "s", s: hStyle },
+        { v: salesTotals.terjual > 0 ? salesTotals.terjual : "-", t: salesTotals.terjual > 0 ? "n" : "s", s: hStyle },
+        { v: salesTotals.kembali > 0 ? salesTotals.kembali : "-", t: salesTotals.kembali > 0 ? "n" : "s", s: hStyle },
         { v: salesTotals.sisa, t: "n", s: hStyle },
         { v: fmtRp(salesMoney.nilai), t: "s", s: hStyle },
         { v: fmtRp(salesMoney.setoran), t: "s", s: hStyle },
@@ -247,9 +277,9 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
           wsData.push([]) // Empty row
           
           // Reset sales totals
-          salesTotals = { lunas: 0, retur: 0, sisa: 0 }
+          salesTotals = { terjual: 0, kembali: 0, sisa: 0 }
           salesMoney = { nilai: 0, setoran: 0, selisih: 0 }
-          products.forEach(p => salesProductTotals[p] = 0)
+          products.forEach(p => salesProductTotals[p] = { tj: 0, kb: 0 })
           motorisStartRow = -1
         }
         
@@ -284,15 +314,20 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
         products.forEach(p => {
           const it = itemMap[p]
           if (it) {
-            const qty = it.qty_keluar || 0
-            row.push({ v: qty > 0 ? qty : "-", t: qty > 0 ? "n" : "s", s: cStyle })
-            rowTotalKeluar += qty
-            rowTotalTerjual += (it.qty_terjual || 0)
-            rowTotalKembali += (it.qty_kembali || 0)
-            salesProductTotals[p] += qty
-            overallProductTotals[p] += qty
+            const tj = it.qty_terjual || 0
+            const kb = it.qty_kembali || 0
+            row.push({ v: tj > 0 ? tj : "-", t: tj > 0 ? "n" : "s", s: sTJData })
+            row.push({ v: kb > 0 ? kb : "-", t: kb > 0 ? "n" : "s", s: sKBData })
+            rowTotalKeluar += (it.qty_keluar || 0)
+            rowTotalTerjual += tj
+            rowTotalKembali += kb
+            salesProductTotals[p].tj += tj
+            salesProductTotals[p].kb += kb
+            overallProductTotals[p].tj += tj
+            overallProductTotals[p].kb += kb
           } else {
-            row.push({ v: "-", t: "s", s: cStyle })
+            row.push({ v: "-", t: "s", s: sTJData })
+            row.push({ v: "-", t: "s", s: sKBData })
           }
         })
 
@@ -311,16 +346,16 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
           { v: fmtRp(rowSelisih), t: "s", s: moneySelisihStyle }
         )
 
-        salesTotals.lunas += rowTotalTerjual
-        salesTotals.retur += rowTotalKembali
+        salesTotals.terjual += rowTotalTerjual
+        salesTotals.kembali += rowTotalKembali
         salesTotals.sisa += rowSisa
         
         salesMoney.nilai += rowNilaiTerjual
         salesMoney.setoran += rowSetoran
         salesMoney.selisih += rowSelisih
 
-        overallTotals.lunas += rowTotalTerjual
-        overallTotals.retur += rowTotalKembali
+        overallTotals.terjual += rowTotalTerjual
+        overallTotals.kembali += rowTotalKembali
         overallTotals.sisa += rowSisa
         
         overallMoney.nilai += rowNilaiTerjual
@@ -348,11 +383,12 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
         { v: "", t: "s", s: grandTotalStyle }
       ]
       products.forEach(p => {
-        grandTotalRow.push({ v: overallProductTotals[p] > 0 ? overallProductTotals[p] : "-", t: overallProductTotals[p] > 0 ? "n" : "s", s: grandTotalStyle })
+        grandTotalRow.push({ v: overallProductTotals[p].tj > 0 ? overallProductTotals[p].tj : "-", t: overallProductTotals[p].tj > 0 ? "n" : "s", s: grandTotalStyle })
+        grandTotalRow.push({ v: overallProductTotals[p].kb > 0 ? overallProductTotals[p].kb : "-", t: overallProductTotals[p].kb > 0 ? "n" : "s", s: grandTotalStyle })
       })
       grandTotalRow.push(
-        { v: overallTotals.lunas > 0 ? overallTotals.lunas : "-", t: overallTotals.lunas > 0 ? "n" : "s", s: grandTotalStyle },
-        { v: overallTotals.retur > 0 ? overallTotals.retur : "-", t: overallTotals.retur > 0 ? "n" : "s", s: grandTotalStyle },
+        { v: overallTotals.terjual > 0 ? overallTotals.terjual : "-", t: overallTotals.terjual > 0 ? "n" : "s", s: grandTotalStyle },
+        { v: overallTotals.kembali > 0 ? overallTotals.kembali : "-", t: overallTotals.kembali > 0 ? "n" : "s", s: grandTotalStyle },
         { v: overallTotals.sisa, t: "n", s: grandTotalStyle },
         { v: fmtRp(overallMoney.nilai), t: "s", s: grandTotalStyle },
         { v: fmtRp(overallMoney.setoran), t: "s", s: grandTotalStyle },
@@ -370,7 +406,9 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
       { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 25 }, { wch: 15 }
     ]
     products.forEach(p => {
-      cols.push({ wch: Math.max(10, p.length + 2) })
+      const w = Math.max(6, Math.ceil((p.length + 4) / 2))
+      cols.push({ wch: w })
+      cols.push({ wch: w })
     })
     cols.push({ wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 20 }, { wch: 20 }, { wch: 20 })
     ws["!cols"] = cols

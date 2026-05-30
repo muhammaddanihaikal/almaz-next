@@ -105,11 +105,9 @@ export async function getTitipJualListByDateRange(start, end) {
       { status: "aktif" },
       {
         status: "selesai",
-        sesi: {
-          tanggal: {
-            ...(start ? { gte: new Date(start) } : {}),
-            ...(end   ? { lte: new Date(end)   } : {}),
-          }
+        tanggal_selesai: {
+          ...(start ? { gte: new Date(start) } : {}),
+          ...(end   ? { lte: new Date(end)   } : {}),
         }
       }
     ]
@@ -718,11 +716,9 @@ export async function getTitipJualListDashboard(start, end) {
       { status: "aktif" },
       {
         status: "selesai",
-        sesi: {
-          tanggal: {
-            ...(start ? { gte: new Date(start) } : {}),
-            ...(end   ? { lte: new Date(end)   } : {}),
-          }
+        tanggal_selesai: {
+          ...(start ? { gte: new Date(start) } : {}),
+          ...(end   ? { lte: new Date(end)   } : {}),
         }
       }
     ]
