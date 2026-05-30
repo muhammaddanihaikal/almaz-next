@@ -428,6 +428,7 @@ export default function KonsinyasiPage({ role, titipJualList, salesList, rokokLi
   const [search,       setSearch]       = useState("")
   const [salesFilter,  setSalesFilter]  = useState("")
   const [statusAktifFilter, setStatusAktifFilter] = useState("")
+  const [isExporting, setIsExporting] = useState(false)
   const [dateRange, setDateRange] = useState(defaultDateRange("minggu_ini"))
   const [expandedHariIni, setExpandedHariIni] = useState(false)
   const [expandedSegera,  setExpandedSegera]  = useState(false)
@@ -659,22 +660,36 @@ export default function KonsinyasiPage({ role, titipJualList, salesList, rokokLi
           <Button
           type="button"
           variant="ghost"
+          disabled={isExporting}
           onClick={() => {
-            // Dapatkan semua data (aktif & selesai) tapi terapakan common filter (sales & search)
-            let temp = [...konsinyasiList]
-            if (salesFilter) temp = temp.filter((r) => r.sales_id === salesFilter)
-            if (search.trim()) {
-              const q = search.trim().toLowerCase()
-              temp = temp.filter(
-                (r) => r.sales.toLowerCase().includes(q) || r.nama_toko.toLowerCase().includes(q)
-              )
-            }
-            const sName = salesList.find((s) => s.id === salesFilter)?.nama || "Semua"
-            exportKonsinyasiToExcel(temp, dateRange, () => confirm("Tidak ada data untuk diekspor.", { title: "Export Excel", hideCancel: true }), { salesName: sName }, rokokList)
+            (async () => {
+              setIsExporting(true)
+              // Wait briefly to allow UI to update and render spinner
+              await new Promise(r => setTimeout(r, 50))
+              try {
+                // Dapatkan semua data (aktif & selesai) tapi terapakan common filter (sales & search)
+                let temp = [...konsinyasiList]
+                if (salesFilter) temp = temp.filter((r) => r.sales_id === salesFilter)
+                if (search.trim()) {
+                  const q = search.trim().toLowerCase()
+                  temp = temp.filter(
+                    (r) => r.sales.toLowerCase().includes(q) || r.nama_toko.toLowerCase().includes(q)
+                  )
+                }
+                const sName = salesList.find((s) => s.id === salesFilter)?.nama || "Semua"
+                exportKonsinyasiToExcel(temp, dateRange, () => confirm("Tidak ada data untuk diekspor.", { title: "Export Excel", hideCancel: true }), { salesName: sName }, rokokList)
+              } finally {
+                setIsExporting(false)
+              }
+            })()
           }}
           className="flex items-center gap-2 h-8 px-3 text-sm font-semibold border border-neutral-200 bg-white hover:bg-neutral-50 shadow-sm"
         >
-          <Download className="h-4 w-4 text-neutral-600" />
+          {isExporting ? (
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-neutral-600 border-t-transparent" />
+          ) : (
+            <Download className="h-4 w-4 text-neutral-600" />
+          )}
           <span className="text-neutral-700">Export Excel</span>
         </Button>
         </div>

@@ -592,6 +592,8 @@ export default function DistribusiPage({ role, rokokList, salesList, tokoList, s
   const [rokokFilter, setRokokFilter] = useState([])
   const [statusFilter, setStatusFilter] = useState("")
   const [showExportMenu, setShowExportMenu] = useState(false)
+  const [isExportingRekap, setIsExportingRekap] = useState(false)
+  const [isExportingRincian, setIsExportingRincian] = useState(false)
   const [localSesiList, setLocalSesiList] = useState(initialSesiList)
   const isFirstMount = useRef(true)
   const [localRokokList, setLocalRokokList] = useState(rokokList)
@@ -763,38 +765,48 @@ export default function DistribusiPage({ role, rokokList, salesList, tokoList, s
                     <Button
                       variant="ghost"
                       className="w-full justify-start gap-3 h-auto py-3 px-3"
-                      onClick={async () => {
-                        setShowExportMenu(false)
-                        try {
-                          const fullSesiList = await getSesiListByDateRange(dateRange.start, dateRange.end)
-                          let temp = fullSesiList
-                          if (salesFilter.length > 0) {
-                            const selectedSales = new Set(salesFilter.map(String))
-                            temp = temp.filter(s => selectedSales.has(String(s.sales_id)))
-                          }
-                          if (rokokFilter.length > 0) {
-                            const selectedRokok = rokokFilter.filter(v => v !== "" && v !== null && v !== undefined).map(String)
-                            if (selectedRokok.length > 0) {
-                              temp = temp.filter(s => {
-                                const ids = new Set()
-                                const add = (items = []) => items.forEach((it) => it?.rokok_id && ids.add(String(it.rokok_id)))
-                                add(s.barangKeluar)
-                                add(s.penjualan)
-                                return selectedRokok.every(id => ids.has(id))
-                              })
+                      disabled={isExportingRekap || isExportingRincian}
+                      onClick={() => {
+                        (async () => {
+                          setIsExportingRekap(true)
+                          try {
+                            const fullSesiList = await getSesiListByDateRange(dateRange.start, dateRange.end)
+                            let temp = fullSesiList
+                            if (salesFilter.length > 0) {
+                              const selectedSales = new Set(salesFilter.map(String))
+                              temp = temp.filter(s => selectedSales.has(String(s.sales_id)))
                             }
+                            if (rokokFilter.length > 0) {
+                              const selectedRokok = rokokFilter.filter(v => v !== "" && v !== null && v !== undefined).map(String)
+                              if (selectedRokok.length > 0) {
+                                temp = temp.filter(s => {
+                                  const ids = new Set()
+                                  const add = (items = []) => items.forEach((it) => it?.rokok_id && ids.add(String(it.rokok_id)))
+                                  add(s.barangKeluar)
+                                  add(s.penjualan)
+                                  return selectedRokok.every(id => ids.has(id))
+                                })
+                              }
+                            }
+                            if (statusFilter === "aktif") temp = temp.filter((s) => s.status === "aktif")
+                            if (statusFilter === "selesai") temp = temp.filter((s) => s.status === "selesai")
+                            if (statusFilter === "titip_jual_aktif") temp = temp.filter((s) => s.konsinyasi?.some((k) => k.status === "aktif"))
+                            
+                            exportToExcel(temp, rokokList, dateRange, () => confirm("Tidak ada data untuk diekspor.", { title: "Export Excel", hideCancel: true }), { salesFilter, rokokFilter, statusFilter, salesList, rokokList })
+                          } catch (err) {
+                            await confirm("Gagal mengambil data lengkap untuk export.", { title: "Gagal Export", hideCancel: true })
+                          } finally {
+                            setIsExportingRekap(false)
+                            setShowExportMenu(false)
                           }
-                          if (statusFilter === "aktif") temp = temp.filter((s) => s.status === "aktif")
-                          if (statusFilter === "selesai") temp = temp.filter((s) => s.status === "selesai")
-                          if (statusFilter === "titip_jual_aktif") temp = temp.filter((s) => s.konsinyasi?.some((k) => k.status === "aktif"))
-                          
-                          exportToExcel(temp, rokokList, dateRange, () => confirm("Tidak ada data untuk diekspor.", { title: "Export Excel", hideCancel: true }), { salesFilter, rokokFilter, statusFilter, salesList, rokokList })
-                        } catch (err) {
-                          await confirm("Gagal mengambil data lengkap untuk export.", { title: "Gagal Export", hideCancel: true })
-                        }
+                        })()
                       }}
                     >
-                      <Download className="h-4 w-4 shrink-0 text-blue-600" />
+                      {isExportingRekap ? (
+                        <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+                      ) : (
+                        <Download className="h-4 w-4 shrink-0 text-blue-600" />
+                      )}
                       <div className="text-left">
                          <p className="text-sm font-semibold text-neutral-900">Rekap Harian</p>
                          <p className="text-xs text-neutral-500">Ringkasan per tanggal</p>
@@ -803,38 +815,48 @@ export default function DistribusiPage({ role, rokokList, salesList, tokoList, s
                     <Button
                       variant="ghost"
                       className="w-full justify-start gap-3 h-auto py-3 px-3 mt-0.5"
-                      onClick={async () => {
-                        setShowExportMenu(false)
-                        try {
-                          const fullSesiList = await getSesiListByDateRange(dateRange.start, dateRange.end)
-                          let temp = fullSesiList
-                          if (salesFilter.length > 0) {
-                            const selectedSales = new Set(salesFilter.map(String))
-                            temp = temp.filter(s => selectedSales.has(String(s.sales_id)))
-                          }
-                          if (rokokFilter.length > 0) {
-                            const selectedRokok = rokokFilter.filter(v => v !== "" && v !== null && v !== undefined).map(String)
-                            if (selectedRokok.length > 0) {
-                              temp = temp.filter(s => {
-                                const ids = new Set()
-                                const add = (items = []) => items.forEach((it) => it?.rokok_id && ids.add(String(it.rokok_id)))
-                                add(s.barangKeluar)
-                                add(s.penjualan)
-                                return selectedRokok.every(id => ids.has(id))
-                              })
+                      disabled={isExportingRekap || isExportingRincian}
+                      onClick={() => {
+                        (async () => {
+                          setIsExportingRincian(true)
+                          try {
+                            const fullSesiList = await getSesiListByDateRange(dateRange.start, dateRange.end)
+                            let temp = fullSesiList
+                            if (salesFilter.length > 0) {
+                              const selectedSales = new Set(salesFilter.map(String))
+                              temp = temp.filter(s => selectedSales.has(String(s.sales_id)))
                             }
+                            if (rokokFilter.length > 0) {
+                              const selectedRokok = rokokFilter.filter(v => v !== "" && v !== null && v !== undefined).map(String)
+                              if (selectedRokok.length > 0) {
+                                temp = temp.filter(s => {
+                                  const ids = new Set()
+                                  const add = (items = []) => items.forEach((it) => it?.rokok_id && ids.add(String(it.rokok_id)))
+                                  add(s.barangKeluar)
+                                  add(s.penjualan)
+                                  return selectedRokok.every(id => ids.has(id))
+                                })
+                              }
+                            }
+                            if (statusFilter === "aktif") temp = temp.filter((s) => s.status === "aktif")
+                            if (statusFilter === "selesai") temp = temp.filter((s) => s.status === "selesai")
+                            if (statusFilter === "titip_jual_aktif") temp = temp.filter((s) => s.konsinyasi?.some((k) => k.status === "aktif"))
+                            
+                            exportToExcelBySales(temp, rokokList, dateRange, () => confirm("Tidak ada data untuk diekspor.", { title: "Export Excel", hideCancel: true }), { salesFilter, rokokFilter, statusFilter, salesList, rokokList })
+                          } catch (err) {
+                            await confirm("Gagal mengambil data lengkap untuk export.", { title: "Gagal Export", hideCancel: true })
+                          } finally {
+                            setIsExportingRincian(false)
+                            setShowExportMenu(false)
                           }
-                          if (statusFilter === "aktif") temp = temp.filter((s) => s.status === "aktif")
-                          if (statusFilter === "selesai") temp = temp.filter((s) => s.status === "selesai")
-                          if (statusFilter === "titip_jual_aktif") temp = temp.filter((s) => s.konsinyasi?.some((k) => k.status === "aktif"))
-                          
-                          exportToExcelBySales(temp, rokokList, dateRange, () => confirm("Tidak ada data untuk diekspor.", { title: "Export Excel", hideCancel: true }), { salesFilter, rokokFilter, statusFilter, salesList, rokokList })
-                        } catch (err) {
-                          await confirm("Gagal mengambil data lengkap untuk export.", { title: "Gagal Export", hideCancel: true })
-                        }
+                        })()
                       }}
                     >
-                      <Download className="h-4 w-4 shrink-0 text-green-600" />
+                      {isExportingRincian ? (
+                        <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-green-600 border-t-transparent" />
+                      ) : (
+                        <Download className="h-4 w-4 shrink-0 text-green-600" />
+                      )}
                       <div className="text-left">
                         <p className="text-sm font-semibold text-neutral-900">Rincian per Sales</p>
                         <p className="text-xs text-neutral-500">Detail per produk & motoris</p>
