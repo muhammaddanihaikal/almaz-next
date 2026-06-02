@@ -146,9 +146,9 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
       header1.push({ v: "", t: "s", s: hStyle })
     }
     header1.push(
+      { v: "TITIP", t: "s", s: hStyle },
       { v: "TERJUAL", t: "s", s: hStyle },
       { v: "KEMBALI", t: "s", s: hStyle },
-      { v: "SISA", t: "s", s: hStyle },
       { v: "TOTAL PENJUALAN", t: "s", s: hStyle },
       { v: "SETORAN", t: "s", s: hStyle },
       { v: "SELISIH", t: "s", s: hStyle }
@@ -228,9 +228,9 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
       { s: { r: 3, c: 5 }, e: { r: 5, c: 5 } }, // KATEGORI
       { s: { r: 3, c: 6 }, e: { r: 3, c: 5 + products.length * 2 } }, // PRODUK
       ...products.map((p, i) => ({ s: { r: 4, c: 6 + i * 2 }, e: { r: 4, c: 6 + i * 2 + 1 } })),
-      { s: { r: 3, c: 6 + products.length * 2 }, e: { r: 5, c: 6 + products.length * 2 } }, // TERJUAL
-      { s: { r: 3, c: 7 + products.length * 2 }, e: { r: 5, c: 7 + products.length * 2 } }, // KEMBALI
-      { s: { r: 3, c: 8 + products.length * 2 }, e: { r: 5, c: 8 + products.length * 2 } }, // SISA
+      { s: { r: 3, c: 6 + products.length * 2 }, e: { r: 5, c: 6 + products.length * 2 } }, // TITIP
+      { s: { r: 3, c: 7 + products.length * 2 }, e: { r: 5, c: 7 + products.length * 2 } }, // TERJUAL
+      { s: { r: 3, c: 8 + products.length * 2 }, e: { r: 5, c: 8 + products.length * 2 } }, // KEMBALI
       { s: { r: 3, c: 9 + products.length * 2 }, e: { r: 5, c: 9 + products.length * 2 } }, // TOTAL PENJUALAN
       { s: { r: 3, c: 10 + products.length * 2 }, e: { r: 5, c: 10 + products.length * 2 } }, // SETORAN
       { s: { r: 3, c: 11 + products.length * 2 }, e: { r: 5, c: 11 + products.length * 2 } } // SELISIH
@@ -250,9 +250,9 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
         row.push({ v: salesProductTotals[p].kb > 0 ? salesProductTotals[p].kb : "-", t: salesProductTotals[p].kb > 0 ? "n" : "s", s: hStyle })
       })
       row.push(
+        { v: salesTotals.sisa, t: "n", s: hStyle },
         { v: salesTotals.terjual > 0 ? salesTotals.terjual : "-", t: salesTotals.terjual > 0 ? "n" : "s", s: hStyle },
         { v: salesTotals.kembali > 0 ? salesTotals.kembali : "-", t: salesTotals.kembali > 0 ? "n" : "s", s: hStyle },
-        { v: salesTotals.sisa, t: "n", s: hStyle },
         { v: fmtRp(salesMoney.nilai), t: "s", s: hStyle },
         { v: fmtRp(salesMoney.setoran), t: "s", s: hStyle },
         { v: fmtRp(salesMoney.selisih), t: "s", s: hStyle }
@@ -338,9 +338,9 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
         const rowSelisih = rowNilaiTerjual - rowSetoran
 
         row.push(
+          { v: rowSisa, t: "n", s: cStyle },
           { v: rowTotalTerjual > 0 ? rowTotalTerjual : "-", t: rowTotalTerjual > 0 ? "n" : "s", s: cStyle },
           { v: rowTotalKembali > 0 ? rowTotalKembali : "-", t: rowTotalKembali > 0 ? "n" : "s", s: cStyle },
-          { v: rowSisa, t: "n", s: cStyle },
           { v: fmtRp(rowNilaiTerjual), t: "s", s: moneyNilaiStyle },
           { v: fmtRp(rowSetoran), t: "s", s: moneySetoranStyle },
           { v: fmtRp(rowSelisih), t: "s", s: moneySelisihStyle }
@@ -387,9 +387,9 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
         grandTotalRow.push({ v: overallProductTotals[p].kb > 0 ? overallProductTotals[p].kb : "-", t: overallProductTotals[p].kb > 0 ? "n" : "s", s: grandTotalStyle })
       })
       grandTotalRow.push(
+        { v: overallTotals.sisa, t: "n", s: grandTotalStyle },
         { v: overallTotals.terjual > 0 ? overallTotals.terjual : "-", t: overallTotals.terjual > 0 ? "n" : "s", s: grandTotalStyle },
         { v: overallTotals.kembali > 0 ? overallTotals.kembali : "-", t: overallTotals.kembali > 0 ? "n" : "s", s: grandTotalStyle },
-        { v: overallTotals.sisa, t: "n", s: grandTotalStyle },
         { v: fmtRp(overallMoney.nilai), t: "s", s: grandTotalStyle },
         { v: fmtRp(overallMoney.setoran), t: "s", s: grandTotalStyle },
         { v: fmtRp(overallMoney.selisih), t: "s", s: grandTotalStyle }
