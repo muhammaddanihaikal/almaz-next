@@ -205,14 +205,14 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
       header3
     ]
 
-    const overallTotals = { terjual: 0, kembali: 0, sisa: 0 }
+    const overallTotals = { terjual: 0, kembali: 0, titip: 0 }
     const overallMoney = { nilai: 0, setoran: 0, selisih: 0 }
     const overallProductTotals = {}
     products.forEach(p => overallProductTotals[p] = { tj: 0, kb: 0 })
 
     let currentSales = null
     let motorisStartRow = -1
-    let salesTotals = { terjual: 0, kembali: 0, sisa: 0 }
+    let salesTotals = { terjual: 0, kembali: 0, titip: 0 }
     let salesMoney = { nilai: 0, setoran: 0, selisih: 0 }
     let salesProductTotals = {}
     products.forEach(p => salesProductTotals[p] = { tj: 0, kb: 0 })
@@ -250,7 +250,7 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
         row.push({ v: salesProductTotals[p].kb > 0 ? salesProductTotals[p].kb : "-", t: salesProductTotals[p].kb > 0 ? "n" : "s", s: hStyle })
       })
       row.push(
-        { v: salesTotals.sisa > 0 ? salesTotals.sisa : "-", t: salesTotals.sisa > 0 ? "n" : "s", s: hStyle },
+        { v: salesTotals.titip, t: "n", s: hStyle },
         { v: salesTotals.terjual > 0 ? salesTotals.terjual : "-", t: salesTotals.terjual > 0 ? "n" : "s", s: hStyle },
         { v: salesTotals.kembali > 0 ? salesTotals.kembali : "-", t: salesTotals.kembali > 0 ? "n" : "s", s: hStyle },
         { v: fmtRp(salesMoney.nilai), t: "s", s: hStyle },
@@ -277,7 +277,7 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
           wsData.push([]) // Empty row
           
           // Reset sales totals
-          salesTotals = { terjual: 0, kembali: 0, sisa: 0 }
+          salesTotals = { terjual: 0, kembali: 0, titip: 0 }
           salesMoney = { nilai: 0, setoran: 0, selisih: 0 }
           products.forEach(p => salesProductTotals[p] = { tj: 0, kb: 0 })
           motorisStartRow = -1
@@ -331,14 +331,14 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
           }
         })
 
-        const rowSisa = rowTotalKeluar - rowTotalTerjual - rowTotalKembali
+        const rowTitip = rowTotalKeluar
 
         const rowNilaiTerjual = typeof r.nilaiTerjual === "number" ? r.nilaiTerjual : 0
         const rowSetoran = typeof r.totalSetoran === "number" ? r.totalSetoran : 0
         const rowSelisih = rowNilaiTerjual - rowSetoran
 
         row.push(
-          { v: rowSisa > 0 ? rowSisa : "-", t: rowSisa > 0 ? "n" : "s", s: cStyle },
+          { v: rowTitip, t: "n", s: cStyle },
           { v: rowTotalTerjual > 0 ? rowTotalTerjual : "-", t: rowTotalTerjual > 0 ? "n" : "s", s: cStyle },
           { v: rowTotalKembali > 0 ? rowTotalKembali : "-", t: rowTotalKembali > 0 ? "n" : "s", s: cStyle },
           { v: fmtRp(rowNilaiTerjual), t: "s", s: moneyNilaiStyle },
@@ -348,7 +348,7 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
 
         salesTotals.terjual += rowTotalTerjual
         salesTotals.kembali += rowTotalKembali
-        salesTotals.sisa += rowSisa
+        salesTotals.titip += rowTitip
         
         salesMoney.nilai += rowNilaiTerjual
         salesMoney.setoran += rowSetoran
@@ -356,7 +356,7 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
 
         overallTotals.terjual += rowTotalTerjual
         overallTotals.kembali += rowTotalKembali
-        overallTotals.sisa += rowSisa
+        overallTotals.titip += rowTitip
         
         overallMoney.nilai += rowNilaiTerjual
         overallMoney.setoran += rowSetoran
@@ -387,7 +387,7 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
         grandTotalRow.push({ v: overallProductTotals[p].kb > 0 ? overallProductTotals[p].kb : "-", t: overallProductTotals[p].kb > 0 ? "n" : "s", s: grandTotalStyle })
       })
       grandTotalRow.push(
-        { v: overallTotals.sisa > 0 ? overallTotals.sisa : "-", t: overallTotals.sisa > 0 ? "n" : "s", s: grandTotalStyle },
+        { v: overallTotals.titip, t: "n", s: grandTotalStyle },
         { v: overallTotals.terjual > 0 ? overallTotals.terjual : "-", t: overallTotals.terjual > 0 ? "n" : "s", s: grandTotalStyle },
         { v: overallTotals.kembali > 0 ? overallTotals.kembali : "-", t: overallTotals.kembali > 0 ? "n" : "s", s: grandTotalStyle },
         { v: fmtRp(overallMoney.nilai), t: "s", s: grandTotalStyle },
