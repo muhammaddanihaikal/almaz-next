@@ -250,7 +250,7 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
         row.push({ v: salesProductTotals[p].kb > 0 ? salesProductTotals[p].kb : "-", t: salesProductTotals[p].kb > 0 ? "n" : "s", s: hStyle })
       })
       row.push(
-        { v: salesTotals.sisa, t: "n", s: hStyle },
+        { v: salesTotals.sisa > 0 ? salesTotals.sisa : "-", t: salesTotals.sisa > 0 ? "n" : "s", s: hStyle },
         { v: salesTotals.terjual > 0 ? salesTotals.terjual : "-", t: salesTotals.terjual > 0 ? "n" : "s", s: hStyle },
         { v: salesTotals.kembali > 0 ? salesTotals.kembali : "-", t: salesTotals.kembali > 0 ? "n" : "s", s: hStyle },
         { v: fmtRp(salesMoney.nilai), t: "s", s: hStyle },
@@ -338,7 +338,7 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
         const rowSelisih = rowNilaiTerjual - rowSetoran
 
         row.push(
-          { v: rowSisa, t: "n", s: cStyle },
+          { v: rowSisa > 0 ? rowSisa : "-", t: rowSisa > 0 ? "n" : "s", s: cStyle },
           { v: rowTotalTerjual > 0 ? rowTotalTerjual : "-", t: rowTotalTerjual > 0 ? "n" : "s", s: cStyle },
           { v: rowTotalKembali > 0 ? rowTotalKembali : "-", t: rowTotalKembali > 0 ? "n" : "s", s: cStyle },
           { v: fmtRp(rowNilaiTerjual), t: "s", s: moneyNilaiStyle },
@@ -387,7 +387,7 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
         grandTotalRow.push({ v: overallProductTotals[p].kb > 0 ? overallProductTotals[p].kb : "-", t: overallProductTotals[p].kb > 0 ? "n" : "s", s: grandTotalStyle })
       })
       grandTotalRow.push(
-        { v: overallTotals.sisa, t: "n", s: grandTotalStyle },
+        { v: overallTotals.sisa > 0 ? overallTotals.sisa : "-", t: overallTotals.sisa > 0 ? "n" : "s", s: grandTotalStyle },
         { v: overallTotals.terjual > 0 ? overallTotals.terjual : "-", t: overallTotals.terjual > 0 ? "n" : "s", s: grandTotalStyle },
         { v: overallTotals.kembali > 0 ? overallTotals.kembali : "-", t: overallTotals.kembali > 0 ? "n" : "s", s: grandTotalStyle },
         { v: fmtRp(overallMoney.nilai), t: "s", s: grandTotalStyle },
