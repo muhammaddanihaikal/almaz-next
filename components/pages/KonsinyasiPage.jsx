@@ -489,7 +489,7 @@ export default function KonsinyasiPage({ role, titipJualList, salesList, rokokLi
   const visibleHariIni = showAllHariIni ? jatuhTempoHariIni : jatuhTempoHariIni.slice(0, 5)
   const visibleSegera  = showAllSegera ? jatuhTempoSegera : jatuhTempoSegera.slice(0, 5)
 
-  const { rows, countAktif, countSelesai } = useMemo(() => {
+  const { rows, countAktif, countSelesai, finalAktif, finalSelesai } = useMemo(() => {
     const listAktif   = konsinyasiList.filter(r => r.status === "aktif")
     const listSelesai = konsinyasiList.filter(r => r.status === "selesai")
 
@@ -535,6 +535,8 @@ export default function KonsinyasiPage({ role, titipJualList, salesList, rokokLi
 
     return {
       rows: activeTab === "aktif" ? finalAktif : finalSelesai,
+      finalAktif,
+      finalSelesai,
       countAktif: finalAktif.length,
       countSelesai: finalSelesai.length
     }
@@ -667,15 +669,8 @@ export default function KonsinyasiPage({ role, titipJualList, salesList, rokokLi
               // Wait briefly to allow UI to update and render spinner
               await new Promise(r => setTimeout(r, 50))
               try {
-                // Dapatkan semua data (aktif & selesai) tapi terapakan common filter (sales & search)
-                let temp = [...konsinyasiList]
-                if (salesFilter) temp = temp.filter((r) => r.sales_id === salesFilter)
-                if (search.trim()) {
-                  const q = search.trim().toLowerCase()
-                  temp = temp.filter(
-                    (r) => r.sales.toLowerCase().includes(q) || r.nama_toko.toLowerCase().includes(q)
-                  )
-                }
+                // Gunakan data yang sudah difilter (gabungan aktif & selesai)
+                let temp = [...finalAktif, ...finalSelesai]
                 const sName = salesList.find((s) => s.id === salesFilter)?.nama || "Semua"
                 exportKonsinyasiToExcel(temp, dateRange, () => confirm("Tidak ada data untuk diekspor.", { title: "Export Excel", hideCancel: true }), { salesName: sName }, rokokList)
               } finally {
