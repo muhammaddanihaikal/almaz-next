@@ -429,9 +429,24 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
     XLSX.utils.book_append_sheet(wb, ws, "Rincian Per Sales")
   }
 
-  const salesText = (filters.salesName || "Semua").replace(/[^a-zA-Z0-9]/g, "_")
-  const dateRangeText = (dateRange?.start && dateRange?.end) 
-    ? `${dateRange.start}_sd_${dateRange.end}` 
+  let salesNameText = filters.salesName || "Semua"
+  if (salesNameText === "Semua") {
+    salesNameText = "Semua_Sales"
+  }
+  const salesText = salesNameText.replace(/[^a-zA-Z0-9]/g, "_")
+
+  let startVal = dateRange?.start
+  let endVal = dateRange?.end
+  if (!startVal || !endVal) {
+    const dates = data.map(r => r.tanggal_distribusi).filter(Boolean)
+    if (dates.length > 0) {
+      dates.sort()
+      if (!startVal) startVal = dates[0]
+      if (!endVal) endVal = dates[dates.length - 1]
+    }
+  }
+  const dateRangeText = (startVal && endVal) 
+    ? `${startVal}_sd_${endVal}` 
     : "Semua_Waktu"
   XLSX.writeFile(wb, `Titip_Jual_${salesText}_${dateRangeText}.xlsx`)
 }
