@@ -66,9 +66,28 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
   }
 
   const wb = XLSX.utils.book_new()
-  const start = dateRange?.start ? fmtD(dateRange.start) : ""
-  const end   = dateRange?.end   ? fmtD(dateRange.end)   : ""
-  const dateText = start && end ? `${start} - ${end}` : "Semua Waktu"
+
+  let salesNameText = filters.salesName || "Semua"
+  if (salesNameText === "Semua") {
+    salesNameText = "Semua Sales"
+  }
+  const salesText = salesNameText.replace(/[^a-zA-Z0-9]/g, "_")
+
+  let startVal = dateRange?.start
+  let endVal = dateRange?.end
+  if (!startVal || !endVal) {
+    const dates = data.map(r => r.tanggal_distribusi).filter(Boolean)
+    if (dates.length > 0) {
+      dates.sort()
+      if (!startVal) startVal = dates[0]
+      if (!endVal) endVal = dates[dates.length - 1]
+    }
+  }
+
+  const start = startVal ? fmtD(startVal) : ""
+  const end   = endVal ? fmtD(endVal) : ""
+  const dateText = start && end ? `${start} - ${end}` : "-"
+  const dateRangeText = startVal && endVal ? `${startVal}_sd_${endVal}` : "Semua_Waktu"
   
   const border = {
     top: { style: "thin", color: { rgb: "000000" } },
@@ -202,7 +221,7 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
 
     const wsData = [
       [{ v: "LAPORAN TITIP JUAL RINCIAN PERSALES", t: "s", s: titleLeftStyle }, ...Array(3).fill({ v: "", s: titleLeftStyle })],
-      [{ v: `Sales: ${filters.salesName || "Semua"} | Waktu: ${dateText}`, t: "s", s: subTitleStyle }, ...Array(3).fill({ v: "", s: subTitleStyle })],
+      [{ v: `Sales: ${salesNameText} | Waktu: ${dateText}`, t: "s", s: subTitleStyle }, ...Array(3).fill({ v: "", s: subTitleStyle })],
       [],
       header1,
       header2,
@@ -429,25 +448,6 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
     XLSX.utils.book_append_sheet(wb, ws, "Rincian Per Sales")
   }
 
-  let salesNameText = filters.salesName || "Semua"
-  if (salesNameText === "Semua") {
-    salesNameText = "Semua_Sales"
-  }
-  const salesText = salesNameText.replace(/[^a-zA-Z0-9]/g, "_")
-
-  let startVal = dateRange?.start
-  let endVal = dateRange?.end
-  if (!startVal || !endVal) {
-    const dates = data.map(r => r.tanggal_distribusi).filter(Boolean)
-    if (dates.length > 0) {
-      dates.sort()
-      if (!startVal) startVal = dates[0]
-      if (!endVal) endVal = dates[dates.length - 1]
-    }
-  }
-  const dateRangeText = (startVal && endVal) 
-    ? `${startVal}_sd_${endVal}` 
-    : "Semua_Waktu"
   XLSX.writeFile(wb, `Titip_Jual_${salesText}_${dateRangeText}.xlsx`)
 }
 
