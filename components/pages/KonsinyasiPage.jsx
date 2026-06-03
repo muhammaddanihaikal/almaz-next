@@ -118,12 +118,12 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
       return a.localeCompare(b)
     })
 
-    // Sort by sales then by tanggal_jatuh_tempo
+    // Sort by sales then by tanggal_distribusi
     const sortedData = [...data].sort((a, b) => {
       const sA = a.sales || ""
       const sB = b.sales || ""
       if (sA !== sB) return sA.localeCompare(sB)
-      return (a.tanggal_jatuh_tempo || "").localeCompare(b.tanggal_jatuh_tempo || "")
+      return (a.tanggal_distribusi || "").localeCompare(b.tanggal_distribusi || "")
     })
 
     const titleText = dateText === "Semua Waktu" ? "LAPORAN TITIP JUAL" : `LAPORAN TITIP JUAL: ${dateText}`
