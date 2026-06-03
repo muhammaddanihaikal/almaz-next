@@ -322,7 +322,8 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
             const tp = it.qty_keluar || 0
             const tj = it.qty_terjual || 0
             const kb = it.qty_kembali || 0
-            row.push({ v: tp > 0 ? tp : "-", t: tp > 0 ? "n" : "s", s: sTPData })
+            const displayTp = r.status === "selesai" ? "-" : (tp > 0 ? tp : "-")
+            row.push({ v: displayTp, t: typeof displayTp === "number" ? "n" : "s", s: sTPData })
             row.push({ v: tj > 0 ? tj : "-", t: tj > 0 ? "n" : "s", s: sTJData })
             row.push({ v: kb > 0 ? kb : "-", t: kb > 0 ? "n" : "s", s: sKBData })
             rowTotalKeluar += tp
