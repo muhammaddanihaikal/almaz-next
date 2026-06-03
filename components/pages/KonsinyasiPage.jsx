@@ -348,10 +348,12 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
             rowTotalKeluar += tp
             rowTotalTerjual += tj
             rowTotalKembali += kb
-            salesProductTotals[p].tp += tp
+            if (r.status !== "selesai") {
+              salesProductTotals[p].tp += tp
+              overallProductTotals[p].tp += tp
+            }
             salesProductTotals[p].tj += tj
             salesProductTotals[p].kb += kb
-            overallProductTotals[p].tp += tp
             overallProductTotals[p].tj += tj
             overallProductTotals[p].kb += kb
           } else {
