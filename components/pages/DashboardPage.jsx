@@ -8,6 +8,8 @@ import {
   ReceiptText,
   TrendingUp,
   Wallet,
+  Info,
+  AlertTriangle,
 } from "lucide-react"
 import {
   Bar,
@@ -628,7 +630,7 @@ function CompositionCard({ data }) {
     <section className={`${CARD_CLS} flex h-full min-h-[360px] flex-col p-5`}>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-sm font-semibold text-neutral-950">Komposisi Penjualan</h2>
+          <h2 className="text-sm font-semibold text-neutral-950">Komposisi Barang Keluar</h2>
           <p className="mt-0.5 text-xs text-neutral-500">Berdasarkan jumlah unit keluar</p>
         </div>
         <span className={CHIP_CLS}>{data.filter((item) => item.qty > 0).length} produk</span>
@@ -744,7 +746,14 @@ function ProductOutgoingTable({ data }) {
                   <td className="py-3 text-center tabular-nums text-neutral-600">{row.langsung || "-"}</td>
                   <td className="py-3 text-center tabular-nums text-neutral-600">{row.titipJual || "-"}</td>
                   <td className="py-3 text-center tabular-nums text-neutral-600">{row.tukarBarang || "-"}</td>
-                  <td className="py-3 text-center tabular-nums font-medium text-orange-600 bg-orange-50/30">{row.sisa || "-"}</td>
+                  <td className="py-3 text-center tabular-nums font-medium text-orange-600 bg-orange-50/30">
+                    {row.sisa < 0 ? (
+                      <span className="flex items-center justify-center gap-1 text-amber-600" title="Ada indikasi data tidak sinkron (retur melebihi keluar)">
+                        <AlertTriangle className="h-3 w-3" />
+                        <span>0</span>
+                      </span>
+                    ) : (row.sisa || "-")}
+                  </td>
                   <td className="py-3 pr-1 text-center tabular-nums font-bold text-neutral-950 bg-neutral-50/50">{row.total}</td>
                 </tr>
               ))
@@ -765,6 +774,13 @@ function ProductOutgoingTable({ data }) {
             </tfoot>
           )}
         </table>
+      </div>
+      
+      <div className="mt-4 flex items-start gap-2 rounded-md bg-neutral-50 p-3 text-xs text-neutral-500">
+        <Info className="h-4 w-4 shrink-0 mt-0.5 text-neutral-400" />
+        <p>
+          Angka <strong className="font-medium text-neutral-700">Titip Jual</strong> sudah dikurangi barang yang dikembalikan toko.
+        </p>
       </div>
     </section>
   )
