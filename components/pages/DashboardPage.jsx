@@ -1243,17 +1243,6 @@ export default function DashboardPage({ sesiList, titipJualList, rokokList }) {
         />
         <KpiCardNew
           icon={Package}
-          label="Barang Keluar"
-          value={`${stats.totalKeluar} pcs`}
-          subtitle={`${qtyPositive.length} produk aktif bergerak`}
-          delta={getDelta(stats.totalKeluar, previousStats.totalKeluar)}
-          compareLabel={compareLabel}
-          sparkValues={sparkQty}
-          color="#C97B2A"
-          tooltipItems={qtyPositive}
-        />
-        <KpiCardNew
-          icon={Package}
           label="Barang Terjual"
           value={`${stats.totalTerjual} pcs`}
           subtitle={`${terjualPositive.length} produk laku terjual`}
@@ -1262,6 +1251,17 @@ export default function DashboardPage({ sesiList, titipJualList, rokokList }) {
           sparkValues={sparkQty}
           color="#3F6B4A"
           tooltipItems={terjualPositive}
+        />
+        <KpiCardNew
+          icon={Package}
+          label="Barang Keluar"
+          value={`${stats.totalKeluar} pcs`}
+          subtitle={`${qtyPositive.length} produk aktif bergerak`}
+          delta={getDelta(stats.totalKeluar, previousStats.totalKeluar)}
+          compareLabel={compareLabel}
+          sparkValues={sparkQty}
+          color="#C97B2A"
+          tooltipItems={qtyPositive}
         />
       </section>
 
