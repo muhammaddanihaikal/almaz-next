@@ -98,19 +98,46 @@ export async function getTitipJualList(daysBack = 30) {
  *  - Titip jual SELESAI yang tanggal_selesai-nya dalam range
  * Dipakai oleh client saat filter berubah ke rentang yang lebih lama.
  */
-export async function getTitipJualListByDateRange(start, end) {
+export async function getTitipJualListByDateRange(start, end, type = "tanggal_distribusi") {
   const where = {}
   if (start || end) {
-    where.OR = [
-      { status: "aktif" },
-      {
-        status: "selesai",
-        tanggal_selesai: {
-          ...(start ? { gte: new Date(start) } : {}),
-          ...(end   ? { lte: new Date(end)   } : {}),
+    if (type === "tanggal_selesai") {
+      where.OR = [
+        { status: "aktif" },
+        {
+          status: "selesai",
+          tanggal_selesai: {
+            ...(start ? { gte: new Date(start) } : {}),
+            ...(end   ? { lte: new Date(end)   } : {}),
+          }
         }
-      }
-    ]
+      ]
+    } else if (type === "tanggal_jatuh_tempo") {
+      where.OR = [
+        { status: "aktif" },
+        {
+          status: "selesai",
+          tanggal_jatuh_tempo: {
+            ...(start ? { gte: new Date(start) } : {}),
+            ...(end   ? { lte: new Date(end)   } : {}),
+          }
+        }
+      ]
+    } else {
+      // Default: tanggal_distribusi
+      where.OR = [
+        { status: "aktif" },
+        {
+          status: "selesai",
+          sesi: {
+            tanggal: {
+              ...(start ? { gte: new Date(start) } : {}),
+              ...(end   ? { lte: new Date(end)   } : {}),
+            }
+          }
+        }
+      ]
+    }
   }
   return _queryTitipJualList(where)
 }

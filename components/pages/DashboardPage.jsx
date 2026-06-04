@@ -29,6 +29,7 @@ import {
 } from "recharts"
 import {
   buildProductQtyBreakdown,
+  buildProductTerjualBreakdown,
   calculateStats,
   getSesiNetKeluar,
   getSesiPenjualanBreakdown,
@@ -152,6 +153,40 @@ function buildQtyPerRokok(sesiRows, titipRows, rokokList) {
   }))
 }
 
+function buildTerjualPerRokok(sesiRows, titipRows, rokokList) {
+  const qtyMap = new Map((rokokList || []).map((rokok) => [rokok.id, 0]))
+
+  for (const sesi of sesiRows || []) {
+    // Penjualan langsung
+    for (const item of sesi.penjualan || []) {
+      qtyMap.set(item.rokok_id, (qtyMap.get(item.rokok_id) || 0) + toNumber(item.qty))
+    }
+    // Tukar barang SELESAI (net)
+    for (const tukar of (sesi.tukarBarangSelesaiDiSesi || [])) {
+      if (tukar.status !== "selesai") continue
+      for (const item of tukar.itemsKeluar || []) {
+        qtyMap.set(item.rokok_id, (qtyMap.get(item.rokok_id) || 0) + toNumber(item.qty))
+      }
+      for (const item of tukar.itemsMasuk || []) {
+        qtyMap.set(item.rokok_id, (qtyMap.get(item.rokok_id) || 0) - toNumber(item.qty))
+      }
+    }
+  }
+
+  // Titip jual LUNAS (qty_terjual)
+  for (const titip of titipRows || []) {
+    for (const item of titip.items || []) {
+      qtyMap.set(item.rokok_id, (qtyMap.get(item.rokok_id) || 0) + toNumber(item.qty_terjual))
+    }
+  }
+
+  return (rokokList || []).map((rokok) => ({
+    id: rokok.id,
+    rokok: rokok.nama,
+    qty: qtyMap.get(rokok.id) || 0,
+  }))
+}
+
 function buildDailySummary(sesiRows, titipProfitRows, titipSetoranRows, rokokById, range) {
   const rows = new Map()
   const ensure = (tanggal) => {
@@ -221,6 +256,38 @@ function formatSetoranGap(totalSetoran, totalPenjualan) {
   return `Lebih setor ${fmtIDR(selisih)}`
 }
 
+
+function AccordionSection({ title, subtitle, badge, defaultOpen = false, children }) {
+  const [open, setOpen] = useState(defaultOpen)
+
+  return (
+    <div className={`${CARD_CLS} overflow-hidden`}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-4 px-4 py-2.5 text-left hover:bg-neutral-50/70 transition-colors"
+      >
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-neutral-900">{title}</span>
+            {badge && <span className="inline-flex items-center rounded-full bg-neutral-100 px-2 py-0.5 text-[9px] font-medium text-neutral-600">{badge}</span>}
+          </div>
+          {subtitle && <p className="mt-0.5 text-[10px] text-neutral-500">{subtitle}</p>}
+        </div>
+        <span className={`shrink-0 text-neutral-400 transition-transform duration-200 ${open ? "rotate-180" : ""}`}>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+            <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+      </button>
+      {open && (
+        <div className="border-t border-neutral-100">
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function DeltaBadge({ value, compareLabel }) {
   if (value === null) {
@@ -620,6 +687,137 @@ function BarangKeluarChart({ data, rangeLabel }) {
   )
 }
 
+function BarangTerjualChart({ data, rangeLabel }) {
+  const chartData = data.filter((item) => item.qty > 0).sort((a, b) => b.qty - a.qty).slice(0, 8)
+
+  return (
+    <section className={`${CARD_CLS} flex h-full min-h-[360px] flex-col p-5`}>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-sm font-semibold text-neutral-950">Barang Terjual per Rokok</h2>
+          <p className="mt-0.5 text-xs text-neutral-500">Produk yang benar-benar laku terjual</p>
+        </div>
+        <span className={CHIP_CLS}>{rangeLabel}</span>
+      </div>
+
+      <div className="mt-4 flex-1 min-w-0">
+        {chartData.length === 0 ? (
+          <EmptyChart />
+        ) : (
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={chartData} margin={{ top: 24, right: 8, left: -18, bottom: 8 }}>
+              <CartesianGrid stroke="#f1f1f1" strokeDasharray="3 4" vertical={false} />
+              <XAxis
+                dataKey="rokok"
+                interval={0}
+                tick={{ fontSize: 10, fill: "#737373" }}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(value) => String(value).split(" ").slice(0, 2).join(" ")}
+              />
+              <YAxis tick={{ fontSize: 11, fill: "#737373" }} tickLine={false} axisLine={false} width={42} />
+              <Tooltip content={<ChartTooltip formatter={(value, payload) => `${value} pcs - ${payload.rokok}`} />} cursor={{ fill: "#f0fdf4" }} />
+              <Bar dataKey="qty" radius={[4, 4, 0, 0]} fill="#3F6B4A">
+                <LabelList dataKey="qty" position="top" style={{ fill: "#3F6B4A", fontSize: 10, fontWeight: 600 }} />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+    </section>
+  )
+}
+
+const TERJUAL_COLORS = ["#3F6B4A", "#5a9e6f", "#7abf8a", "#a8d5b5", "#c6e8cf", "#ddf0e3", "#2d5038", "#1b3324"]
+
+function TerjualCompositionCard({ data }) {
+  const composition = useMemo(() => foldLongTail(data), [data])
+  const [activeIndex, setActiveIndex] = useState(null)
+  const total = sumBy(composition, (item) => item.qty)
+  const active = activeIndex !== null ? composition[activeIndex] : null
+
+  return (
+    <section className={`${CARD_CLS} flex h-full min-h-[360px] flex-col p-5`}>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-sm font-semibold text-neutral-950">Komposisi Barang Terjual</h2>
+          <p className="mt-0.5 text-xs text-neutral-500">Berdasarkan jumlah unit yang laku</p>
+        </div>
+        <span className={CHIP_CLS}>{data.filter((item) => item.qty > 0).length} produk</span>
+      </div>
+
+      {composition.length === 0 ? (
+        <div className="mt-4 flex-1">
+          <EmptyChart />
+        </div>
+      ) : (
+        <div className="mt-5 flex flex-1 flex-col gap-4 lg:flex-row lg:items-center">
+          <div className="relative mx-auto h-[190px] w-[190px] shrink-0">
+            <ResponsiveContainer width="100%" height={190}>
+              <PieChart>
+                <Pie
+                  data={composition}
+                  dataKey="qty"
+                  nameKey="rokok"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={62}
+                  outerRadius={84}
+                  paddingAngle={2}
+                  stroke="none"
+                  onMouseEnter={(_, index) => setActiveIndex(index)}
+                  onMouseLeave={() => setActiveIndex(null)}
+                >
+                  {composition.map((entry, index) => (
+                    <Cell key={entry.id} fill={TERJUAL_COLORS[index % TERJUAL_COLORS.length]} opacity={activeIndex !== null && activeIndex !== index ? 0.35 : 1} />
+                  ))}
+                </Pie>
+                <Tooltip content={<ChartTooltip formatter={(value) => `${value} pcs (${((value / total) * 100).toFixed(1)}%)`} />} />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
+              <div>
+                <div className="text-[10px] font-semibold uppercase text-neutral-400">{active ? "Pilihan" : "Total"}</div>
+                <div className="mt-1 text-2xl font-semibold tabular-nums text-neutral-950">{active ? `${((active.qty / total) * 100).toFixed(1)}%` : total}</div>
+                <div className="text-[11px] text-neutral-400">{active ? `${active.qty} pcs` : "pcs"}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="min-w-0 flex-1 space-y-1.5 overflow-y-auto pr-1 lg:max-h-[260px]" onMouseLeave={() => setActiveIndex(null)}>
+            {composition.map((item, index) => {
+              const pct = total > 0 ? (item.qty / total) * 100 : 0
+              const selected = activeIndex === index
+              return (
+                <button
+                  type="button"
+                  key={item.id}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  className={`w-full rounded-lg border px-2.5 py-2 text-left transition-colors ${
+                    selected ? "border-green-200 bg-green-50" : "border-transparent hover:bg-neutral-50"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: TERJUAL_COLORS[index % TERJUAL_COLORS.length] }} />
+                    <span className={`min-w-0 flex-1 truncate text-xs ${item.isOther ? "text-neutral-500" : "font-medium text-neutral-700"}`}>{item.rokok}</span>
+                    <span className="font-mono text-xs font-semibold text-neutral-950">{pct.toFixed(1)}%</span>
+                  </div>
+                  <div className="mt-1.5 ml-5 flex items-center gap-2">
+                    <div className="h-1 flex-1 overflow-hidden rounded-full bg-neutral-100">
+                      <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: TERJUAL_COLORS[index % TERJUAL_COLORS.length] }} />
+                    </div>
+                    <span className="w-12 text-right font-mono text-[10px] text-neutral-400">{item.qty} pcs</span>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
 function CompositionCard({ data }) {
   const composition = useMemo(() => foldLongTail(data), [data])
   const [activeIndex, setActiveIndex] = useState(null)
@@ -710,12 +908,7 @@ function CompositionCard({ data }) {
 
 function ProductOutgoingTable({ data }) {
   return (
-    <section className={`${CARD_CLS} flex h-full flex-col p-5`}>
-      <div className="mb-4">
-        <h2 className="text-sm font-semibold text-neutral-950">Rincian Keluar per Produk</h2>
-        <p className="mt-0.5 text-xs text-neutral-500">Breakdown volume per saluran distribusi</p>
-      </div>
-
+    <div className="flex flex-col">
       <div className="overflow-x-auto md:overflow-visible">
         <table className="w-full text-left text-xs">
           <thead>
@@ -782,7 +975,65 @@ function ProductOutgoingTable({ data }) {
           Angka <strong className="font-medium text-neutral-700">Titip Jual</strong> sudah dikurangi barang yang dikembalikan toko.
         </p>
       </div>
-    </section>
+    </div>
+  )
+}
+
+function ProductSoldTable({ data }) {
+  return (
+    <div className="flex flex-col">
+      <div className="overflow-x-auto md:overflow-visible">
+        <table className="w-full text-left text-xs">
+          <thead>
+            <tr className="border-b border-neutral-100 text-neutral-400 uppercase tracking-wider font-semibold">
+              <th className="py-3 pl-1">Produk</th>
+              <th className="py-3 text-center">Langsung</th>
+              <th className="py-3 text-center">Titip Lunas</th>
+              <th className="py-3 text-center">Tukar Selesai</th>
+              <th className="py-3 pr-1 text-center text-emerald-700 font-bold">Total Terjual</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-neutral-50">
+            {data.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="py-10 text-center text-neutral-400">Tidak ada data penjualan.</td>
+              </tr>
+            ) : (
+              data.map((row) => (
+                <tr key={row.id} className="hover:bg-green-50/30 transition-colors">
+                  <td className="py-3 pl-1 font-medium text-neutral-900">{row.nama}</td>
+                  <td className="py-3 text-center tabular-nums text-neutral-600">{row.langsung || "-"}</td>
+                  <td className="py-3 text-center tabular-nums text-neutral-600">{row.titipJual || "-"}</td>
+                  <td className="py-3 text-center tabular-nums text-neutral-600">{row.tukarBarang || "-"}</td>
+                  <td className="py-3 pr-1 text-center tabular-nums font-bold text-emerald-700 bg-emerald-50/40">{row.total}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+          {data.length > 0 && (
+            <tfoot className="border-t-2 border-neutral-100 bg-neutral-50/30">
+              <tr className="font-bold text-neutral-950">
+                <td className="py-3 pl-1">TOTAL KESELURUHAN</td>
+                <td className="py-3 text-center tabular-nums">{data.reduce((sum, r) => sum + r.langsung, 0)}</td>
+                <td className="py-3 text-center tabular-nums">{data.reduce((sum, r) => sum + r.titipJual, 0)}</td>
+                <td className="py-3 text-center tabular-nums">{data.reduce((sum, r) => sum + r.tukarBarang, 0)}</td>
+                <td className="py-3 pr-1 text-center tabular-nums text-emerald-700 bg-emerald-100/30">
+                  {data.reduce((sum, r) => sum + r.total, 0)}
+                </td>
+              </tr>
+            </tfoot>
+          )}
+        </table>
+      </div>
+
+      <div className="mt-4 flex items-start gap-2 rounded-md bg-emerald-50 p-3 text-xs text-emerald-700">
+        <Info className="h-4 w-4 shrink-0 mt-0.5 text-emerald-400" />
+        <p>
+          <strong className="font-medium">Titip Lunas</strong> = titip jual yang sudah diselesaikan (lunas) pada periode ini.
+          Angka sudah bersih, tidak termasuk barang yang dikembalikan toko.
+        </p>
+      </div>
+    </div>
   )
 }
 
@@ -887,6 +1138,8 @@ export default function DashboardPage({ sesiList, titipJualList, rokokList }) {
 
   const qtyPerRokok = useMemo(() => buildQtyPerRokok(sesiF, titipJualF, rokokList || []), [sesiF, titipJualF, rokokList])
   const qtyPositive = useMemo(() => qtyPerRokok.filter((item) => item.qty > 0).sort((a, b) => b.qty - a.qty), [qtyPerRokok])
+  const terjualPerRokok = useMemo(() => buildTerjualPerRokok(sesiF, titipJualF, rokokList || []), [sesiF, titipJualF, rokokList])
+  const terjualPositive = useMemo(() => terjualPerRokok.filter((item) => item.qty > 0).sort((a, b) => b.qty - a.qty), [terjualPerRokok])
   const dailySummary = useMemo(
     () => buildDailySummary(sesiF, titipJualF, localTitipJualList, rokokById, dateRange),
     [sesiF, titipJualF, localTitipJualList, rokokById, dateRange]
@@ -897,6 +1150,11 @@ export default function DashboardPage({ sesiList, titipJualList, rokokList }) {
 
   const productQtyBreakdown = useMemo(
     () => buildProductQtyBreakdown(sesiF, titipJualF, rokokList || []),
+    [sesiF, titipJualF, rokokList]
+  )
+
+  const productTerjualBreakdown = useMemo(
+    () => buildProductTerjualBreakdown(sesiF, titipJualF, rokokList || []),
     [sesiF, titipJualF, rokokList]
   )
 
@@ -949,7 +1207,7 @@ export default function DashboardPage({ sesiList, titipJualList, rokokList }) {
         </div>
       </header>
 
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <KpiCardNew
           icon={ReceiptText}
           label="Total Penjualan"
@@ -994,15 +1252,73 @@ export default function DashboardPage({ sesiList, titipJualList, rokokList }) {
           color="#C97B2A"
           tooltipItems={qtyPositive}
         />
+        <KpiCardNew
+          icon={Package}
+          label="Barang Terjual"
+          value={`${stats.totalTerjual} pcs`}
+          subtitle={`${terjualPositive.length} produk laku terjual`}
+          delta={getDelta(stats.totalTerjual, previousStats.totalTerjual)}
+          compareLabel={compareLabel}
+          sparkValues={sparkQty}
+          color="#3F6B4A"
+          tooltipItems={terjualPositive}
+        />
       </section>
 
-      <section className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-        <div className="xl:col-span-7">
-          <BarangKeluarChart data={qtyPerRokok} rangeLabel={rangeLabel} />
+      {/* SECTION BARANG TERJUAL */}
+      <section className="space-y-4 rounded-2xl border border-neutral-200/80 bg-neutral-50/20 p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-2 border-b border-neutral-100">
+          <div>
+            <h2 className="text-base font-bold text-neutral-900 flex items-center gap-2">
+              <span className="h-5 w-1.5 rounded-full bg-emerald-600 inline-block" />
+              Barang Terjual
+            </h2>
+            <p className="mt-0.5 text-xs text-neutral-500">Analisis penjualan langsung dan pelunasan titip jual</p>
+          </div>
         </div>
-        <div className="xl:col-span-5">
-          <CompositionCard data={qtyPerRokok} />
+
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+          <div className="xl:col-span-7">
+            <BarangTerjualChart data={terjualPerRokok} rangeLabel={rangeLabel} />
+          </div>
+          <div className="xl:col-span-5">
+            <TerjualCompositionCard data={terjualPerRokok} />
+          </div>
         </div>
+
+        <AccordionSection title="Rincian Terjual per Produk" subtitle="Breakdown unit terjual per saluran distribusi" defaultOpen={false}>
+          <div className="p-4">
+            <ProductSoldTable data={productTerjualBreakdown} nested />
+          </div>
+        </AccordionSection>
+      </section>
+
+      {/* SECTION BARANG KELUAR */}
+      <section className="space-y-4 rounded-2xl border border-neutral-200/80 bg-neutral-50/20 p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-2 border-b border-neutral-100">
+          <div>
+            <h2 className="text-base font-bold text-neutral-900 flex items-center gap-2">
+              <span className="h-5 w-1.5 rounded-full bg-amber-600 inline-block" />
+              Barang Keluar
+            </h2>
+            <p className="mt-0.5 text-xs text-neutral-500">Volume fisik keluar dari gudang (belum dikurangi retur berjalan)</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+          <div className="xl:col-span-7">
+            <BarangKeluarChart data={qtyPerRokok} rangeLabel={rangeLabel} />
+          </div>
+          <div className="xl:col-span-5">
+            <CompositionCard data={qtyPerRokok} />
+          </div>
+        </div>
+
+        <AccordionSection title="Rincian Keluar per Produk" subtitle="Breakdown volume per saluran distribusi" defaultOpen={false}>
+          <div className="p-4">
+            <ProductOutgoingTable data={productQtyBreakdown} nested />
+          </div>
+        </AccordionSection>
       </section>
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-12">
@@ -1011,16 +1327,9 @@ export default function DashboardPage({ sesiList, titipJualList, rokokList }) {
         </div>
       </section>
 
-      <section className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-        <div className="xl:col-span-8">
-          <ProductOutgoingTable data={productQtyBreakdown} />
-        </div>
-        <div className="xl:col-span-4">
-          <QtyBreakdownCard data={stats.qtyBreakdown} />
-        </div>
-      </section>
-
-      <DebugSection stats={stats} sesiF={sesiF} titipJualF={titipJualF} rokokById={rokokById} range={dateRange} titipJualList={titipJualList} />
+      <AccordionSection title="Audit System: Rincian Kalkulasi Data" subtitle="Memastikan setiap rupiah terhitung dengan benar dari sumbernya." defaultOpen={false}>
+        <DebugSection stats={stats} sesiF={sesiF} titipJualF={titipJualF} rokokById={rokokById} range={dateRange} titipJualList={titipJualList} />
+      </AccordionSection>
     </div>
   )
 }
@@ -1040,20 +1349,14 @@ function DebugSection({ stats, sesiF, titipJualF, rokokById, range, titipJualLis
   const profitTitip = sumBy(titipJualF, (titip) => getTitipProfit(titip, rokokById))
 
   return (
-    <section className={`${CARD_CLS} overflow-hidden p-6 bg-neutral-50/80 border-dashed border-2`}>
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h2 className="text-sm font-bold text-neutral-900 uppercase tracking-widest">Audit System: Rincian Kalkulasi Data</h2>
-          <p className="text-[11px] text-neutral-500 mt-0.5">Memastikan setiap rupiah terhitung dengan benar dari sumbernya.</p>
-        </div>
-        <div className="flex gap-2">
-          <span className="inline-flex items-center rounded-md bg-white px-2 py-1 text-[10px] font-medium text-neutral-600 ring-1 ring-inset ring-neutral-200">
-            {sesiF.length} Sesi Terhitung
-          </span>
-          <span className="inline-flex items-center rounded-md bg-white px-2 py-1 text-[10px] font-medium text-neutral-600 ring-1 ring-inset ring-neutral-200">
-            {titipJualF.length} Titip Jual Selesai
-          </span>
-        </div>
+    <div className="p-6 bg-neutral-50/80">
+      <div className="mb-6 flex items-center gap-2">
+        <span className="inline-flex items-center rounded-md bg-white px-2 py-1 text-[10px] font-medium text-neutral-600 ring-1 ring-inset ring-neutral-200">
+          {sesiF.length} Sesi Terhitung
+        </span>
+        <span className="inline-flex items-center rounded-md bg-white px-2 py-1 text-[10px] font-medium text-neutral-600 ring-1 ring-inset ring-neutral-200">
+          {titipJualF.length} Titip Jual Selesai
+        </span>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -1145,6 +1448,6 @@ function DebugSection({ stats, sesiF, titipJualF, rokokById, range, titipJualLis
           </div>
         </div>
       </div>
-    </section>
+    </div>
   )
 }

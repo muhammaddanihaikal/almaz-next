@@ -461,6 +461,7 @@ export default function KonsinyasiPage({ role, titipJualList, salesList, rokokLi
   const [search,       setSearch]       = useState("")
   const [salesFilter,  setSalesFilter]  = useState("")
   const [statusAktifFilter, setStatusAktifFilter] = useState("")
+  const [dateTypeFilter, setDateTypeFilter] = useState("tanggal_distribusi")
   const [isExporting, setIsExporting] = useState(false)
   const [dateRange, setDateRange] = useState(defaultDateRange("minggu_ini"))
   const [expandedHariIni, setExpandedHariIni] = useState(false)
@@ -488,7 +489,7 @@ export default function KonsinyasiPage({ role, titipJualList, salesList, rokokLi
     }
     if (!dateRange?.start || !dateRange?.end) return
     setIsFetchingRange(true)
-    getTitipJualListByDateRange(dateRange.start, dateRange.end)
+    getTitipJualListByDateRange(dateRange.start, dateRange.end, dateTypeFilter)
       .then((fresh) => {
         setLocalList((prev) => {
           // Pertahankan data di luar range (aktif + selesai di luar filter)
@@ -502,7 +503,7 @@ export default function KonsinyasiPage({ role, titipJualList, salesList, rokokLi
       .catch((err) => console.error("[KonsinyasiPage] fetch range error", err))
       .finally(() => setIsFetchingRange(false))
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateRange?.start, dateRange?.end])
+  }, [dateRange?.start, dateRange?.end, dateTypeFilter])
 
   const upsertLocal = (record) => {
     if (!record?.id) return
@@ -530,7 +531,7 @@ export default function KonsinyasiPage({ role, titipJualList, salesList, rokokLi
     let filteredAktif = [...listAktif]
     if (dateRange?.start && dateRange?.end) {
       filteredAktif = filteredAktif.filter((r) => {
-        const tgl = r.tanggal_distribusi
+        const tgl = r[dateTypeFilter]
         return tgl && tgl >= dateRange.start && tgl <= dateRange.end
       })
     }
@@ -545,7 +546,7 @@ export default function KonsinyasiPage({ role, titipJualList, salesList, rokokLi
     let filteredSelesai = [...listSelesai]
     if (dateRange?.start && dateRange?.end) {
       filteredSelesai = filteredSelesai.filter((r) => {
-        const tgl = r.tanggal_distribusi
+        const tgl = r[dateTypeFilter]
         return tgl && tgl >= dateRange.start && tgl <= dateRange.end
       })
     }
@@ -573,7 +574,7 @@ export default function KonsinyasiPage({ role, titipJualList, salesList, rokokLi
       countAktif: finalAktif.length,
       countSelesai: finalSelesai.length
     }
-  }, [konsinyasiList, activeTab, salesFilter, search, statusAktifFilter, dateRange])
+  }, [konsinyasiList, activeTab, salesFilter, search, statusAktifFilter, dateRange, dateTypeFilter])
 
   return (
     <div className="space-y-6">
@@ -725,7 +726,15 @@ export default function KonsinyasiPage({ role, titipJualList, salesList, rokokLi
 
       <div className="rounded-xl border border-neutral-200 bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] space-y-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-4">
-          <Field label="Tgl Distribusi" className="flex-1">
+          <Field label="Filter Tanggal" className="w-full lg:w-[180px] shrink-0">
+            <SelectInput value={dateTypeFilter} onChange={(e) => setDateTypeFilter(e.target.value)}>
+              <option value="tanggal_distribusi">Tanggal Distribusi</option>
+              <option value="tanggal_jatuh_tempo">Jatuh Tempo</option>
+              <option value="tanggal_selesai">Tanggal Selesai</option>
+            </SelectInput>
+          </Field>
+
+          <Field label="Rentang Waktu" className="flex-1 lg:flex-[1.5]">
             <div className="w-full">
               <DateFilter value={dateRange} onChange={setDateRange} />
             </div>
@@ -820,7 +829,7 @@ export default function KonsinyasiPage({ role, titipJualList, salesList, rokokLi
           </div>
         ) : (
         <DataTable
-          key={`${activeTab}-${salesFilter}-${search}-${statusAktifFilter}-${dateRange?.start}-${dateRange?.end}`}
+          key={`${activeTab}-${salesFilter}-${search}-${statusAktifFilter}-${dateRange?.start}-${dateRange?.end}-${dateTypeFilter}`}
           pageSize={PAGE_SIZE}
           rows={rows}
           empty={`Tidak ada titip jual ${activeTab}.`}
@@ -839,6 +848,7 @@ export default function KonsinyasiPage({ role, titipJualList, salesList, rokokLi
                 )}
               </div>
             )},
+            ...(activeTab === "selesai" ? [{ key: "tgl_selesai", label: "Tgl Selesai", render: (r) => r._pending ? <SkeletonText w="w-20" /> : r.tanggal_selesai ? <span className="text-green-700 font-medium">{fmtTanggal(r.tanggal_selesai)}</span> : <span className="text-neutral-300">—</span> }] : []),
             { key: "sales",      label: "Sales",        render: (r) => r._pending ? <SkeletonText w="w-16" /> : r.sales },
             { key: "nama_toko",  label: "Toko",         render: (r) => r._pending ? <SkeletonText w="w-16" /> : r.nama_toko },
             { key: "kategori",   label: "Kategori",     render: (r) => r._pending ? <SkeletonText w="w-12" /> : <Badge label={r.kategori} colorClass={KATEGORI_COLOR[r.kategori] || "bg-neutral-100 text-neutral-600"} /> },
@@ -847,7 +857,6 @@ export default function KonsinyasiPage({ role, titipJualList, salesList, rokokLi
               render: (r) => r._pending ? <SkeletonText w="w-28" /> : <RokokItemsTooltip items={r.items.map(it => ({ ...it, qty: it.qty_keluar }))} />,
             },
             { key: "nilai", label: "Nilai", align: "right", render: (r) => r._pending ? <SkeletonText w="w-16" /> : fmtIDR(r.nilaiTotal) },
-            ...(activeTab === "selesai" ? [{ key: "tgl_selesai", label: "Tgl Selesai", render: (r) => r._pending ? <SkeletonText w="w-20" /> : r.tanggal_selesai ? <span className="text-green-700 font-medium">{fmtTanggal(r.tanggal_selesai)}</span> : <span className="text-neutral-300">—</span> }] : []),
             {
               key: "flag", label: "",
               render: (r) => r._pending ? null : (
