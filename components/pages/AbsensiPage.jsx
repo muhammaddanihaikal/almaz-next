@@ -102,19 +102,47 @@ export default function AbsensiPage({ role, absensiList, salesList }) {
   const rows = useMemo(() => sortByDateDesc(groupByDate(filteredFlat)), [filteredFlat])
 
   const handleDownload = () => {
-    const label = dateRange?.start ? `${dateRange.start}_${dateRange.end}` : "semua-waktu"
+    let start = dateRange?.start
+    let end = dateRange?.end
+
     const flat = rows.flatMap((row) =>
       row.records.map((rec) => {
         const s = salesList.find((s) => s.id === rec.sales_id)
         return { tanggal: row.tanggal, sales: s?.nama || "-", status: STATUS_LABEL[rec.status] || rec.status, alasan: rec.reason || "" }
       })
     )
-    downloadExcel(flat, `absensi-${label}`, [
-      { label: "Tanggal", value: (r) => r.tanggal },
-      { label: "Sales",   value: (r) => r.sales },
-      { label: "Status",  value: (r) => r.status },
-      { label: "Alasan",  value: (r) => r.alasan },
-    ])
+
+    if (!start || !end) {
+      const dates = flat.map((r) => r.tanggal).filter(Boolean)
+      if (dates.length > 0) {
+        dates.sort()
+        start = dates[0]
+        end = dates[dates.length - 1]
+      }
+    }
+
+    const label = start && end ? `${start}_sd_${end}` : "semua-waktu"
+
+    const meta = [
+      ["LAPORAN ABSENSI SALES", ""],
+      ["Periode", start && end ? `${fmtTanggal(start)} s/d ${fmtTanggal(end)}` : "Semua Waktu"]
+    ]
+
+    downloadExcel(
+      flat,
+      `absensi-${label}`,
+      [
+        { label: "Tanggal", value: (r) => r.tanggal },
+        { label: "Sales",   value: (r) => r.sales },
+        { label: "Status",  value: (r) => r.status },
+        { label: "Alasan",  value: (r) => r.alasan },
+      ],
+      meta,
+      {
+        mergeConsecutive: [0],
+        centerColumns: [0]
+      }
+    )
   }
 
   const close = () => { setMode(null); setEditingTanggal(null) }
