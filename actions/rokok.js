@@ -303,21 +303,21 @@ export async function getUsedRokokIds() {
   // stok_awal di-exclude agar rokok yang baru dibuat (hanya ada stok awal)
   // masih bisa dihapus jika salah input.
   const rows = await prisma.$queryRaw`
-    SELECT rokok_id FROM "StockMutation" WHERE source <> ${MUTATION_SOURCE.STOK_AWAL}
+    SELECT rokok_id FROM "public"."StockMutation" WHERE source <> ${MUTATION_SOURCE.STOK_AWAL}
     UNION
-    SELECT rokok_id FROM "SesiBarangKeluar"
+    SELECT rokok_id FROM "public"."SesiBarangKeluar"
     UNION
-    SELECT rokok_id FROM "SesiPenjualan"
+    SELECT rokok_id FROM "public"."SesiPenjualan"
     UNION
-    SELECT rokok_id FROM "SesiBarangKembali"
+    SELECT rokok_id FROM "public"."SesiBarangKembali"
     UNION
-    SELECT rokok_id FROM "TitipJualItem"
+    SELECT rokok_id FROM "public"."TitipJualItem"
     UNION
-    SELECT rokok_id FROM "ReturItem"
+    SELECT rokok_id FROM "public"."ReturItem"
     UNION
-    SELECT rokok_id FROM "TukarBarangItemMasuk"
+    SELECT rokok_id FROM "public"."TukarBarangItemMasuk"
     UNION
-    SELECT rokok_id FROM "TukarBarangItemKeluar"
+    SELECT rokok_id FROM "public"."TukarBarangItemKeluar"
   `
   return rows.map((r) => r.rokok_id)
 }
