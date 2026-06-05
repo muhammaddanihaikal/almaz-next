@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, Fragment, useRef } from "react"
 import { Plus, Trash2, AlertCircle, ChevronDown, ChevronUp, Download, X, History, Info } from "lucide-react"
 import { fmtIDR, fmtTanggal, filterByDateRange, defaultDateRange, sortByDateDesc, getJakartaToday } from "@/lib/utils"
-import { createSesi, updateSesiPagi, submitLaporanSore, editLaporanSore, deleteSesi, getSesiListByDateRange, getSesiListLightweight, getSesi } from "@/actions/distribusi"
+import { createSesi, updateSesiPagi, submitLaporanSore, editLaporanSore, deleteSesi, getSesiListByDateRange, getSesiListLightweight, getSesiList, getSesi } from "@/actions/distribusi"
 import { getTukarBarangAktifBySalesId } from "@/actions/tukar-barang"
 import { settleTitipJual, createTitipJual, editSettlement, revertSettlement, editTitipJualDetail, deleteTitipJual } from "@/actions/titip_jual"
 import { addToko } from "@/actions/toko"
@@ -587,7 +587,7 @@ export default function DistribusiPage({ role, rokokList, salesList, tokoList, s
   const [detail,    setDetail]    = useState(null)
   const [laporanSesi, setLaporanSesi] = useState(null)
   const [editLaporan, setEditLaporan] = useState(null)
-  const [dateRange,   setDateRange]   = useState(defaultDateRange("minggu_ini"))
+  const [dateRange,   setDateRange]   = useState(defaultDateRange("bulan_ini"))
   const [salesFilter, setSalesFilter] = useState([])
   const [rokokFilter, setRokokFilter] = useState([])
   const [statusFilter, setStatusFilter] = useState("")
@@ -612,17 +612,21 @@ export default function DistribusiPage({ role, rokokList, salesList, tokoList, s
       isFirstMount.current = false
       return // skip fetch on first mount because we already have initialSesiList
     }
-    if (!dateRange?.start || !dateRange?.end) return
     setIsFetchingRange(true)
-    getSesiListLightweight(dateRange.start, dateRange.end)
+    const isSemua = !dateRange?.start || !dateRange?.end
+    const fetchPromise = isSemua
+      // "Semua Waktu" → ambil semua sesi tanpa batas tanggal dari server
+      ? getSesiList(null)
+      : getSesiListLightweight(dateRange.start, dateRange.end)
+    fetchPromise
       .then((fresh) => {
         // Gabungkan dengan localSesiList yang sudah ada:
         // – Pertahankan semua sesi di luar range (agar operasi CRUD di range lain tidak hilang)
         // – Timpa/tambah sesi di dalam range dengan data segar dari server
         setLocalSesiList((prev) => {
-          const outside = prev.filter(
-            (s) => s.tanggal < dateRange.start || s.tanggal > dateRange.end
-          )
+          const outside = isSemua
+            ? [] // Semua Waktu: ganti total dengan data fresh
+            : prev.filter((s) => s.tanggal < dateRange.start || s.tanggal > dateRange.end)
           return [...outside, ...fresh].sort((a, b) => {
             const byTanggal = b.tanggal.localeCompare(a.tanggal)
             return byTanggal !== 0 ? byTanggal : (b.createdAt || "").localeCompare(a.createdAt || "")
@@ -770,7 +774,10 @@ export default function DistribusiPage({ role, rokokList, salesList, tokoList, s
                         (async () => {
                           setIsExportingRekap(true)
                           try {
-                            const fullSesiList = await getSesiListByDateRange(dateRange.start, dateRange.end)
+                            const isSemua = !dateRange?.start || !dateRange?.end
+                            const fullSesiList = isSemua
+                              ? await getSesiList(null)
+                              : await getSesiListByDateRange(dateRange.start, dateRange.end)
                             let temp = fullSesiList
                             if (salesFilter.length > 0) {
                               const selectedSales = new Set(salesFilter.map(String))
@@ -820,7 +827,10 @@ export default function DistribusiPage({ role, rokokList, salesList, tokoList, s
                         (async () => {
                           setIsExportingRincian(true)
                           try {
-                            const fullSesiList = await getSesiListByDateRange(dateRange.start, dateRange.end)
+                            const isSemua = !dateRange?.start || !dateRange?.end
+                            const fullSesiList = isSemua
+                              ? await getSesiList(null)
+                              : await getSesiListByDateRange(dateRange.start, dateRange.end)
                             let temp = fullSesiList
                             if (salesFilter.length > 0) {
                               const selectedSales = new Set(salesFilter.map(String))

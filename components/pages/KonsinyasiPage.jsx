@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { AlertCircle, Clock, Search, CheckCircle, ChevronDown, Download, RotateCcw } from "lucide-react"
 import { fmtIDR, fmtTanggal, defaultDateRange } from "@/lib/utils"
-import { settleTitipJual, partialSettleTitipJual, editSettlement, revertSettlement, editTitipJualDetail, deleteTitipJual, getTitipJualListByDateRange } from "@/actions/titip_jual"
+import { settleTitipJual, partialSettleTitipJual, editSettlement, revertSettlement, editTitipJualDetail, deleteTitipJual, getTitipJualListByDateRange, getTitipJualList } from "@/actions/titip_jual"
 import { Card, PageHeader, SelectInput, Field, FormActions, inputCls, useConfirm, useConfirmWithReason, DateFilter, Button, IconButton } from "@/components/ui"
 import DataTable from "@/components/DataTable"
 import Modal from "@/components/Modal"
@@ -463,7 +463,7 @@ export default function KonsinyasiPage({ role, titipJualList, salesList, rokokLi
   const [statusAktifFilter, setStatusAktifFilter] = useState("")
   const [dateTypeFilter, setDateTypeFilter] = useState("tanggal_distribusi")
   const [isExporting, setIsExporting] = useState(false)
-  const [dateRange, setDateRange] = useState(defaultDateRange("minggu_ini"))
+  const [dateRange, setDateRange] = useState(defaultDateRange("bulan_ini"))
   const [expandedHariIni, setExpandedHariIni] = useState(false)
   const [expandedSegera,  setExpandedSegera]  = useState(false)
   const [showAllHariIni,  setShowAllHariIni]  = useState(false)
@@ -487,12 +487,16 @@ export default function KonsinyasiPage({ role, titipJualList, salesList, rokokLi
       isFirstMount.current = false
       return
     }
-    if (!dateRange?.start || !dateRange?.end) return
     setIsFetchingRange(true)
-    getTitipJualListByDateRange(dateRange.start, dateRange.end, dateTypeFilter)
+    const isSemua = !dateRange?.start || !dateRange?.end
+    const fetchPromise = isSemua
+      // "Semua Waktu" → ambil semua data tanpa batas tanggal dari server
+      ? getTitipJualList(null)
+      : getTitipJualListByDateRange(dateRange.start, dateRange.end, dateTypeFilter)
+    fetchPromise
       .then((fresh) => {
         setLocalList((prev) => {
-          // Pertahankan data di luar range (aktif + selesai di luar filter)
+          // Pertahankan data aktif di luar range, gabung dengan fresh data
           const freshIds = new Set(fresh.map((r) => r.id))
           const outside = prev.filter((r) => !freshIds.has(r.id) && r.status === "aktif")
           return [...outside, ...fresh].sort((a, b) =>
@@ -542,11 +546,17 @@ export default function KonsinyasiPage({ role, titipJualList, salesList, rokokLi
       else if (statusAktifFilter === "aman") filteredAktif = filteredAktif.filter(r => r.selisihHari > 3)
     }
 
-    // Apply filters to Selesai (always respect date)
+    // Apply filters to Selesai
+    // Untuk data selesai, jika filter aktif adalah tanggal_distribusi,
+    // tetap gunakan tanggal_selesai sebagai acuan — karena distribusi bisa
+    // terjadi jauh sebelum periode yang difilter (misal: distribusi April,
+    // selesai Mei). Jika filter adalah jatuh_tempo atau selesai, ikuti filter.
     let filteredSelesai = [...listSelesai]
     if (dateRange?.start && dateRange?.end) {
       filteredSelesai = filteredSelesai.filter((r) => {
-        const tgl = r[dateTypeFilter]
+        const tgl = dateTypeFilter === "tanggal_distribusi"
+          ? r.tanggal_selesai
+          : r[dateTypeFilter]
         return tgl && tgl >= dateRange.start && tgl <= dateRange.end
       })
     }

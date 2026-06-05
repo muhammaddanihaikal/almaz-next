@@ -10,6 +10,7 @@ import {
   deleteSampleHarian,
   updateSampleHarianReport,
   getSampleHarianListByRange,
+  getSampleHarianList,
 } from "@/actions/sample-harian"
 import {
   Card, PageHeader, PrimaryButton, Button, inputCls, useConfirm, useConfirmWithReason, RowActions,
@@ -717,9 +718,13 @@ export default function SampleHarianPage({ initialList, initialRange, rokokList,
       isFirstMount.current = false
       return
     }
-    if (!dateRange?.start || !dateRange?.end) return
     setIsFetchingRange(true)
-    getSampleHarianListByRange(dateRange.start, dateRange.end)
+    const isSemua = !dateRange?.start || !dateRange?.end
+    const fetchPromise = isSemua
+      // "Semua Waktu" → ambil semua data tanpa batas tanggal dari server
+      ? getSampleHarianList()
+      : getSampleHarianListByRange(dateRange.start, dateRange.end)
+    fetchPromise
       .then((fresh) => setList(fresh))
       .catch((err) => console.error("[SampleHarianPage] fetch range error", err))
       .finally(() => setIsFetchingRange(false))
@@ -753,12 +758,12 @@ export default function SampleHarianPage({ initialList, initialRange, rokokList,
   }, [list, statusFilter, rokokFilter, sampleCutoffDate])
 
   function refresh() {
-    if (!dateRange?.start || !dateRange?.end) {
-      window.location.reload()
-      return
-    }
     setIsFetchingRange(true)
-    getSampleHarianListByRange(dateRange.start, dateRange.end)
+    const isSemua = !dateRange?.start || !dateRange?.end
+    const fetchPromise = isSemua
+      ? getSampleHarianList()
+      : getSampleHarianListByRange(dateRange.start, dateRange.end)
+    fetchPromise
       .then((fresh) => setList(fresh))
       .catch(() => window.location.reload())
       .finally(() => setIsFetchingRange(false))
