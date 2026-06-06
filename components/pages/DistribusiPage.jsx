@@ -213,10 +213,10 @@ function exportToExcel(rows, rokokList, dateRange, onNoData, filters = {}) {
     return arr
   }
 
-  const rawDates = [...new Set(allItems.map((it) => it.tanggal))].sort()
+  const rawDates = [...new Set(allItems.map((it) => it.tanggal))].sort((a, b) => b.localeCompare(a))
   let dates = []
   if (dateRange?.start && dateRange?.end) {
-    dates = getDatesInRange(dateRange.start, dateRange.end)
+    dates = getDatesInRange(dateRange.start, dateRange.end).reverse()
   } else {
     dates = rawDates
   }
