@@ -238,4 +238,70 @@ describe("buildRincianPerSalesData", () => {
     const { sortedRokokIds } = buildRincianPerSalesData(rows, rokokList)
     expect(sortedRokokIds).toEqual(["r1", "r2", "r3"])
   })
+
+  // ── 8. Retur Barang (returDiSesi) ─────────────────────────────────────────
+  it("retur barang mengurangi langsungQty dan langsungUang", () => {
+    const rows = [
+      makeSesi("DANDI", {
+        penjualan: [{ rokok_id: "r1", qty: 10, harga: 12000 }],
+        returDiSesi: [
+          {
+            items: [{ rokok_id: "r1", qty: 3 }],
+          },
+        ],
+      }),
+    ]
+    const { dataMap } = buildRincianPerSalesData(rows, rokokList)
+    // Net qty: 10 - 3 = 7, net uang: 10×12000 - 3×12000 = 84000
+    expect(dataMap["r1"]["DANDI"].langsungQty).toBe(7)
+    expect(dataMap["r1"]["DANDI"].langsungUang).toBe(84000) // 10×12000 - 3×12000 (harga_toko r1=12000)
+  })
+
+  it("retur barang tidak mempengaruhi sales/rokok lain", () => {
+    const rows = [
+      makeSesi("DANDI", {
+        penjualan: [
+          { rokok_id: "r1", qty: 10, harga: 12000 },
+          { rokok_id: "r2", qty: 5, harga: 11000 },
+        ],
+        returDiSesi: [
+          { items: [{ rokok_id: "r1", qty: 2 }] },
+        ],
+      }),
+      makeSesi("PAK TROY", {
+        penjualan: [{ rokok_id: "r1", qty: 8, harga: 12000 }],
+      }),
+    ]
+    const { dataMap } = buildRincianPerSalesData(rows, rokokList)
+    // DANDI r1: 10 - 2 = 8
+    expect(dataMap["r1"]["DANDI"].langsungQty).toBe(8)
+    // DANDI r2 tidak terpengaruh
+    expect(dataMap["r2"]["DANDI"].langsungQty).toBe(5)
+    // PAK TROY r1 tidak terpengaruh oleh retur DANDI
+    expect(dataMap["r1"]["PAK TROY"].langsungQty).toBe(8)
+  })
+
+  it("retur barang dengan qty 0 diabaikan", () => {
+    const rows = [
+      makeSesi("DANDI", {
+        penjualan: [{ rokok_id: "r1", qty: 5, harga: 12000 }],
+        returDiSesi: [
+          { items: [{ rokok_id: "r1", qty: 0 }] },
+        ],
+      }),
+    ]
+    const { dataMap } = buildRincianPerSalesData(rows, rokokList)
+    expect(dataMap["r1"]["DANDI"].langsungQty).toBe(5)
+  })
+
+  it("sesi tanpa returDiSesi tidak error", () => {
+    const rows = [
+      makeSesi("DANDI", {
+        penjualan: [{ rokok_id: "r1", qty: 5, harga: 12000 }],
+        // returDiSesi tidak ada (undefined)
+      }),
+    ]
+    const { dataMap } = buildRincianPerSalesData(rows, rokokList)
+    expect(dataMap["r1"]["DANDI"].langsungQty).toBe(5)
+  })
 })

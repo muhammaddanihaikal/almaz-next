@@ -190,6 +190,16 @@ function exportToExcel(rows, rokokList, dateRange, onNoData, filters = {}) {
         allItems.push({ tanggal, rokok_id: it.rokok_id, rokok: rokokNama, qty: -it.qty, harga: it.harga_satuan, kategori: t.kategori || "grosir" })
       }
     }
+    // Retur Barang (tanpa pengganti) — mengurangi qty penjualan, penjualan (RP), dan profit
+    for (const retur of (sesi.returDiSesi || [])) {
+      for (const it of (retur.items || [])) {
+        if (!(it.qty > 0)) continue
+        const rokokNama = it.rokok?.nama || it.rokok || rokokList.find(r => r.id === it.rokok_id)?.nama || ""
+        // harga_beli dipakai sebagai harga retur — nilai negatif agar mengurangi penjualan & profit
+        const hargaRetur = rokokList.find(r => r.id === it.rokok_id)?.harga_toko || 0
+        allItems.push({ tanggal: sesi.tanggal, rokok_id: it.rokok_id, rokok: rokokNama, qty: -it.qty, harga: hargaRetur, kategori: "toko" })
+      }
+    }
   }
   if (!allItems.length) { onNoData?.(); return }
 
