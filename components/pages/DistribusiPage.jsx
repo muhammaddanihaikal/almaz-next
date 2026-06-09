@@ -191,12 +191,20 @@ function exportToExcel(rows, rokokList, dateRange, onNoData, filters = {}) {
       }
     }
     // Retur Barang (tanpa pengganti) — mengurangi qty penjualan, penjualan (RP), dan profit
+    // Bangun map harga aktual dari penjualan sesi ini per rokok_id
+    const hargaAktualSesi = {}
+    for (const pj of (sesi.penjualan || [])) {
+      if (pj.rokok_id && pj.harga) hargaAktualSesi[pj.rokok_id] = pj.harga
+    }
     for (const retur of (sesi.returDiSesi || [])) {
       for (const it of (retur.items || [])) {
         if (!(it.qty > 0)) continue
-        const rokokNama = it.rokok?.nama || it.rokok || rokokList.find(r => r.id === it.rokok_id)?.nama || ""
-        // harga_beli dipakai sebagai harga retur — nilai negatif agar mengurangi penjualan & profit
-        const hargaRetur = rokokList.find(r => r.id === it.rokok_id)?.harga_toko || 0
+        // Gunakan nama dari rokokList (by id) sebagai sumber utama agar cocok dengan kolom penjualan
+        const rokokEntry = rokokList.find(r => r.id === it.rokok_id)
+        const rokokNama = rokokEntry?.nama || it.rokok || ""
+        if (!rokokNama) continue
+        // Gunakan harga aktual dari penjualan sesi, fallback ke harga_toko master
+        const hargaRetur = hargaAktualSesi[it.rokok_id] || rokokEntry?.harga_toko || 0
         allItems.push({ tanggal: sesi.tanggal, rokok_id: it.rokok_id, rokok: rokokNama, qty: -it.qty, harga: hargaRetur, kategori: "toko" })
       }
     }
@@ -223,10 +231,10 @@ function exportToExcel(rows, rokokList, dateRange, onNoData, filters = {}) {
     return arr
   }
 
-  const rawDates = [...new Set(allItems.map((it) => it.tanggal))].sort((a, b) => a.localeCompare(b))
+  const rawDates = [...new Set(allItems.map((it) => it.tanggal))].sort((a, b) => b.localeCompare(a))
   let dates = []
   if (dateRange?.start && dateRange?.end) {
-    dates = getDatesInRange(dateRange.start, dateRange.end)
+    dates = getDatesInRange(dateRange.start, dateRange.end).reverse()
   } else {
     dates = rawDates
   }
@@ -290,7 +298,11 @@ function exportToExcel(rows, rokokList, dateRange, onNoData, filters = {}) {
   const sTotalMoney = { ...sTotal, alignment: { horizontal: "left", vertical: "center" } }
   const sTitle = { font: { bold: true, sz: 14 }, alignment: { horizontal: "center", vertical: "center" } }
 
-  const fmtExcelMoney = (v) => "Rp. " + (v || 0).toLocaleString("id-ID")
+  const fmtExcelMoney = (v) => {
+    const num = v ?? 0
+    if (num < 0) return "-Rp. " + Math.abs(num).toLocaleString("id-ID")
+    return "Rp. " + num.toLocaleString("id-ID")
+  }
 
   const wsData = [
     // Baris 1: judul
