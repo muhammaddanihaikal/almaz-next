@@ -121,6 +121,11 @@ function exportKonsinyasiToExcel(data, dateRange, onNoData, filters = {}, rokokL
   // SHEET: Rincian Per Sales (Now the sole sheet)
   {
     const productsSet = new Set()
+    if (rokokList && rokokList.length > 0) {
+      rokokList.filter(r => r.aktif !== false).forEach(r => {
+        if (r.nama) productsSet.add(r.nama)
+      })
+    }
     data.forEach(r => {
       (r.items || []).forEach(it => {
         if (it.rokok) productsSet.add(it.rokok)

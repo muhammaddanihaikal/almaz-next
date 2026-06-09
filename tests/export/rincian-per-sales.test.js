@@ -30,10 +30,10 @@ describe("buildRincianPerSalesData", () => {
     expect(dataMap).toEqual({})
   })
 
-  it("returns empty when sesi has no penjualan/konsinyasi/tukar", () => {
+  it("returns all active products in sortedRokokIds even when sessions have no transaction data", () => {
     const rows = [makeSesi("Sales A")]
     const { sortedRokokIds } = buildRincianPerSalesData(rows, rokokList)
-    expect(sortedRokokIds).toHaveLength(0)
+    expect(sortedRokokIds).toHaveLength(3)
   })
 
   // ── 2. Penjualan Langsung ─────────────────────────────────────────────────
