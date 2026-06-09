@@ -211,9 +211,11 @@ function exportToExcel(rows, rokokList, dateRange, onNoData, filters = {}) {
   }
   if (!allItems.length) { onNoData?.(); return }
 
-  // Produk unik (urut berdasarkan urutan rokokList) & tanggal unik (urut asc)
-  const rokokOrderMap = Object.fromEntries(rokokList.map((r) => [r.nama, r.urutan ?? 0]))
-  const products = [...new Set(allItems.map((it) => it.rokok))].sort((a, b) => (rokokOrderMap[a] ?? 0) - (rokokOrderMap[b] ?? 0))
+  // Semua produk aktif dari master (urut berdasarkan urutan) — tampilkan semua rokok meski 0
+  const products = rokokList
+    .filter(r => r.aktif !== false)
+    .sort((a, b) => (a.urutan ?? 0) - (b.urutan ?? 0))
+    .map(r => r.nama)
 
   const getDatesInRange = (startStr, endStr) => {
     const arr = []
